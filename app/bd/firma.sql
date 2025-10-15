@@ -2,8 +2,8 @@ CREATE TABLE address (
     id SERIAL PRIMARY KEY,
     country VARCHAR(50) NOT NULL CHECK (country ~ '^[\p{L}\s\-]+$'),
     city VARCHAR(50) NOT NULL CHECK (city ~ '^[\p{L}\s\-]+$'),
-    house_number INTEGER NOT NULL CHECK (house_number > 0),
-    apartment_number INTEGER CHECK (apartment_number > 0),
+    house_number VARCHAR(50) NOT NULL,
+    apartment_number VARCHAR(50),
     street VARCHAR(50) NOT NULL CHECK (street ~ '^[\p{L}\s\-]+$')
 );
 

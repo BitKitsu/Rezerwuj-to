@@ -56,6 +56,11 @@ CREATE TABLE services (
 	description VARCHAR(200) NOT NULL, 
 	price DECIMAL(10, 2) NOT NULL CHECK (price > 0),
 	id_company INTEGER NOT NULL,
+    	weekday VARCHAR(15) NOT NULL CHECK (
+        weekday IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
+    ), 
+	start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
 	FOREIGN KEY (id_company) REFERENCES company (id)
         ON DELETE RESTRICT
         ON UPDATE CASCADE
@@ -81,17 +86,4 @@ CREATE TABLE appointments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE services_availability (
-	id SERIAL PRIMARY KEY,
-	weekday VARCHAR(15) NOT NULL CHECK (
-        weekday IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')
-    ), 
-	start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    CHECK (start_time < end_time), 
-	id_service INTEGER NOT NULL,
-	FOREIGN KEY (id_service) REFERENCES services (id)
-        ON DELETE RESTRICT
-        ON UPDATE CASCADE
-);
 

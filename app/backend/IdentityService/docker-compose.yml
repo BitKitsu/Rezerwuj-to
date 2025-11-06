@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # Kontener bazy PostgreSQL
+  postgres_db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password_secure
+      POSTGRES_DB: identitydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Kontener mikroserwisu Identity
+  identity_api:
+    build:
+      context: ./IdentityService # Ścieżka do folderu z projektem
+      dockerfile: Dockerfile
+    ports:
+      - "5001:8080" # Mapowanie portu hosta:port kontenera
+    depends_on:
+      - postgres_db # Zapewnij, że baza uruchomi się pierwsza
+    environment:
+      # Ciąg połączenia, używający nazwy serwisu 'postgres_db' jako Hosta!
+      ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=user;Password=password_secure"
+
+volumes:
+  postgres_data:

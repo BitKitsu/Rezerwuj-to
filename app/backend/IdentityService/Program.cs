@@ -1,6 +1,7 @@
 using IdentityService.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,8 +13,8 @@ var connectionString = builder.Configuration.GetConnectionString("IdentityConnec
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 2. Dodanie ASP.NET Core Identity
-builder.Services.AddIdentityApiEndpoints<IdentityUser>() // Użyj API Endpoints dla nowoczesnego mikroserwisu
+// 2. Dodanie ASP.NET Core Identity z ApplicationUser
+builder.Services.AddIdentityApiEndpoints<ApplicationUser>() // Użyj API Endpoints dla nowoczesnego mikroserwisu
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Konfiguracja wymagań dla hasła - bardziej liberalne i czytelne komunikaty
@@ -63,17 +64,21 @@ using (var scope = app.Services.CreateScope())
     dbContext.Database.Migrate(); // Używa migracji zamiast EnsureCreated
     
     // Utworzenie testowego użytkownika (synchronicznie)
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var testEmail = "test@example.com";
     var testUser = userManager.FindByEmailAsync(testEmail).GetAwaiter().GetResult();
     
     if (testUser == null)
     {
-        testUser = new IdentityUser
+        testUser = new ApplicationUser
         {
             UserName = testEmail,
             Email = testEmail,
-            EmailConfirmed = true
+            EmailConfirmed = true,
+            FirstName = "Test",
+            LastName = "User",
+            Phone = "",
+            CompanyId = 1
         };
         
         var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
@@ -105,7 +110,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
 
 // 3. Włączenie Identity API Endpoints 
-app.MapIdentityApi<IdentityUser>();
+app.MapIdentityApi<ApplicationUser>();
 
 app.UseAuthorization();
 

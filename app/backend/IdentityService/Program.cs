@@ -119,4 +119,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Endpoint healthcheck
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "IdentityService" }))
+   .WithName("HealthCheck");
+
 app.Run();

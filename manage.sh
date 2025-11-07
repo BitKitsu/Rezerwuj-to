@@ -130,24 +130,26 @@ run_all() {
     
     print_header "SYSTEM GOTOWY!"
     echo ""
-    echo "📌 Dostępne adresy:"
+    echo "Dostępne adresy:"
     echo "-------------------"
-    echo "🏠 Aplikacja:          http://localhost:5173"
-    echo "🔐 Identity API:       http://localhost:5001/swagger"
-    echo "📅 Reservation API:    http://localhost:5002/swagger"
-    echo "🐘 PostgreSQL:         localhost:5432"
+    echo "Aplikacja:          http://localhost:5173"
+    echo "Identity API:       http://localhost:5001/swagger"
+    echo "Reservation API:    http://localhost:5002/swagger"
+    echo "Notification API:   http://localhost:5003/swagger"
+    echo "RabbitMQ UI:        http://localhost:15672 (guest/guest)"
+    echo "PostgreSQL:         localhost:5433"
     echo ""
-    echo "📝 Dane testowe (automatycznie utworzone):"
+    echo "Dane testowe (automatycznie utworzone):"
     echo "-------------------------------------------"
     echo "Email:    test@example.com"
     echo "Hasło:    Test123!"
     echo ""
-    echo "⚙️ Wymagania dla nowych haseł:"
+    echo "Wymagania dla nowych haseł:"
     echo "- Minimum 6 znaków"
     echo "- Musi zawierać cyfrę"
     echo "- NIE wymaga wielkiej litery/znaków specjalnych"
     echo ""
-    echo "🛑 Aby zatrzymać: Ctrl+C, potem: ./manage.sh stop"
+    echo "Aby zatrzymać: Ctrl+C, potem: ./manage.sh stop"
     echo ""
     
     start_frontend
@@ -157,20 +159,34 @@ test_system() {
     print_header "TESTOWANIE SYSTEMU"
     
     # Test backend
-    print_info "Testowanie endpointów..."
+    echo "ℹ️  Testowanie endpointów..."
     
-    echo -n "IdentityService: "
-    if check_port 5001; then
-        print_success "Port otwarty"
+    # Test IdentityService
+    if curl -s -f http://localhost:5001/health > /dev/null 2>&1; then
+        echo "IdentityService: ✅ Port otwarty"
     else
-        print_error "Port zamknięty"
+        echo "IdentityService: ❌ Port zamknięty"
     fi
     
-    echo -n "ReservationService: "
-    if check_port 5002; then
-        print_success "Port otwarty"
+    # Test ReservationService
+    if curl -s -f http://localhost:5002/health > /dev/null 2>&1; then
+        echo "ReservationService: ✅ Port otwarty"
     else
-        print_error "Port zamknięty"
+        echo "ReservationService: ❌ Port zamknięty"
+    fi
+    
+    # Test NotificationService
+    if curl -s -f http://localhost:5003/health > /dev/null 2>&1; then
+        echo "NotificationService: ✅ Port otwarty"
+    else
+        echo "NotificationService: ❌ Port zamknięty"
+    fi
+    
+    # Test RabbitMQ
+    if curl -s -f http://guest:guest@localhost:15672/api/overview > /dev/null 2>&1; then
+        echo "RabbitMQ: ✅ Management UI działa"
+    else
+        echo "RabbitMQ: ❌ Management UI niedostępne"
     fi
     
     # Test rejestracji

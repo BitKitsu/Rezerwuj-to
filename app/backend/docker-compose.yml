@@ -1,16 +1,22 @@
-version: '3.8'
-
 services:
   # Kontener bazy PostgreSQL
   postgres_db:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: user
+      POSTGRES_USER: dbuser
       POSTGRES_PASSWORD: password_secure
-      POSTGRES_DB: identitydb
+      POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ../../plan/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbuser"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # Kontener mikroserwisu Identity
   identity_api:
@@ -20,10 +26,26 @@ services:
     ports:
       - "5001:8080" # Mapowanie portu hosta:port kontenera
     depends_on:
-      - postgres_db # Zapewnij, że baza uruchomi się pierwsza
+      postgres_db:
+        condition: service_healthy
     environment:
       # Ciąg połączenia, używający nazwy serwisu 'postgres_db' jako Hosta!
-      ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=user;Password=password_secure"
+      ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=dbuser;Password=password_secure"
+      ASPNETCORE_ENVIRONMENT: Development
+
+  # Kontener mikroserwisu Reservation
+  reservation_api:
+    build:
+      context: ./ReservationService
+      dockerfile: Dockerfile
+    ports:
+      - "5002:8080"
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__ReservationConnection: "Host=postgres_db;Port=5432;Database=reservationdb;Username=dbuser;Password=password_secure"
+      ASPNETCORE_ENVIRONMENT: Development
 
 volumes:
   postgres_data:

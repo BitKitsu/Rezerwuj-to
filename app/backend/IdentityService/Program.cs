@@ -17,6 +17,7 @@ builder.Services.AddIdentityApiEndpoints<IdentityUser>() // Użyj API Endpoints 
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Dodatkowe usługi (np. uwierzytelnianie tokenem Bearer dla komunikacji między serwisami)
+builder.Services.AddControllers();
 builder.Services.AddAuthorization(); 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

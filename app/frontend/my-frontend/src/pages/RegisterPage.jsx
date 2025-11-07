@@ -1,0 +1,196 @@
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { authAPI } from '../services/api';
+
+function RegisterPage() {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    // Walidacja
+    if (formData.password !== formData.confirmPassword) {
+      setError('Hasła nie są identyczne!');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Hasło musi mieć minimum 6 znaków!');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await authAPI.register({
+        email: formData.email,
+        password: formData.password
+      });
+      
+      setSuccess(true);
+      
+      // Po 2 sekundach przekieruj do logowania
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+      
+    } catch (err) {
+      console.error('Registration error:', err);
+      const errorMessage = err.response?.data?.errors?.DuplicateUserName?.[0] || 
+                          err.response?.data?.title || 
+                          'Błąd rejestracji. Spróbuj ponownie.';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      minHeight: '100vh',
+      backgroundColor: '#f5f5f5'
+    }}>
+      <div style={{ 
+        backgroundColor: 'white',
+        padding: '2rem',
+        borderRadius: '10px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        width: '400px'
+      }}>
+        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>📝 Rejestracja</h2>
+        
+        {error && (
+          <div style={{ 
+            backgroundColor: '#f8d7da',
+            color: '#721c24',
+            padding: '0.75rem',
+            borderRadius: '5px',
+            marginBottom: '1rem'
+          }}>
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div style={{ 
+            backgroundColor: '#d4edda',
+            color: '#155724',
+            padding: '0.75rem',
+            borderRadius: '5px',
+            marginBottom: '1rem'
+          }}>
+            ✅ Rejestracja zakończona sukcesem! Przekierowywanie do logowania...
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Email:
+            </label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="jan@example.com"
+            />
+          </div>
+
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Hasło:
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="Minimum 6 znaków"
+            />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Potwierdź hasło:
+            </label>
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="Powtórz hasło"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || success}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              fontSize: '1.1rem',
+              backgroundColor: loading || success ? '#ccc' : '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: loading || success ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
+          </button>
+        </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+          <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
+          <Link to="/">Powrót do strony głównej</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default RegisterPage;

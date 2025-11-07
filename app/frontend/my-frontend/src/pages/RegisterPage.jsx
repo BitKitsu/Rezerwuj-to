@@ -34,6 +34,12 @@ function RegisterPage() {
       setError('Hasło musi mieć minimum 6 znaków!');
       return;
     }
+    
+    // Sprawdź czy hasło ma cyfrę
+    if (!/\d/.test(formData.password)) {
+      setError('Hasło musi zawierać przynajmniej jedną cyfrę!');
+      return;
+    }
 
     setLoading(true);
 
@@ -52,10 +58,36 @@ function RegisterPage() {
       
     } catch (err) {
       console.error('Registration error:', err);
-      const errorMessage = err.response?.data?.errors?.DuplicateUserName?.[0] || 
-                          err.response?.data?.title || 
-                          'Błąd rejestracji. Spróbuj ponownie.';
-      setError(errorMessage);
+      
+      // Szczegółowa obsługa błędów walidacji
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        let errorMessages = [];
+        
+        // Sprawdź różne typy błędów
+        for (const [key, value] of Object.entries(errors)) {
+          if (Array.isArray(value)) {
+            errorMessages = errorMessages.concat(value);
+          }
+        }
+        
+        if (errorMessages.length > 0) {
+          setError(
+            <div>
+              <strong>Błędy walidacji:</strong>
+              <ul style={{ textAlign: 'left', marginTop: '0.5rem' }}>
+                {errorMessages.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        } else {
+          setError('Błąd rejestracji. Sprawdź poprawność danych.');
+        }
+      } else {
+        setError(err.response?.data?.title || 'Błąd rejestracji. Spróbuj ponownie.');
+      }
     } finally {
       setLoading(false);
     }
@@ -141,7 +173,7 @@ function RegisterPage() {
                 border: '1px solid #ddd',
                 borderRadius: '5px'
               }}
-              placeholder="Minimum 6 znaków"
+              placeholder="Min. 6 znaków + cyfra"
             />
           </div>
 
@@ -187,6 +219,20 @@ function RegisterPage() {
         <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
           <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
           <Link to="/">Powrót do strony głównej</Link>
+        </div>
+        
+        <div style={{ 
+          marginTop: '1rem',
+          padding: '0.5rem',
+          backgroundColor: '#f0f0f0',
+          borderRadius: '5px',
+          fontSize: '0.9rem'
+        }}>
+          <strong>Wymagania hasła:</strong>
+          <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', textAlign: 'left' }}>
+            <li>Minimum 6 znaków</li>
+            <li>Przynajmniej 1 cyfra</li>
+          </ul>
         </div>
       </div>
     </div>

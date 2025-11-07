@@ -31,5 +31,13 @@
 
 ## 📝 Dane Testowe
 
+Automatycznie tworzony użytkownik testowy:
 - **Email:** test@example.com
 - **Hasło:** Test123!
+
+## 🔐 Wymagania dla nowych haseł
+
+- Minimum **6 znaków**
+- Musi zawierać **1 cyfrę**
+- NIE wymaga wielkiej litery
+- NIE wymaga znaków specjalnych

@@ -36,7 +36,37 @@ function LoginPage() {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.title || 'Błąd logowania. Sprawdź dane i spróbuj ponownie.');
+      
+      // Szczegółowa obsługa błędów
+      if (err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        let errorMessages = [];
+        
+        for (const [key, value] of Object.entries(errors)) {
+          if (Array.isArray(value)) {
+            errorMessages = errorMessages.concat(value);
+          }
+        }
+        
+        if (errorMessages.length > 0) {
+          setError(
+            <div>
+              <strong>Błędy logowania:</strong>
+              <ul style={{ textAlign: 'left', marginTop: '0.5rem' }}>
+                {errorMessages.map((msg, idx) => (
+                  <li key={idx}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          );
+        } else {
+          setError('Nieprawidłowy email lub hasło.');
+        }
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else {
+        setError(err.response?.data?.title || 'Błąd logowania. Sprawdź dane i spróbuj ponownie.');
+      }
     } finally {
       setLoading(false);
     }

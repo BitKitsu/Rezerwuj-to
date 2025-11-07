@@ -57,11 +57,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Automatyczne migracje przy starcie
+// Automatyczne tworzenie bazy przy starcie (dla developmentu)
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate(); // Używa migracji zamiast EnsureCreated
+    
+    // Dla developmentu - usuń i utwórz od nowa
+    dbContext.Database.EnsureDeleted();
+    dbContext.Database.EnsureCreated();
     
     // Utworzenie testowego użytkownika (synchronicznie)
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();

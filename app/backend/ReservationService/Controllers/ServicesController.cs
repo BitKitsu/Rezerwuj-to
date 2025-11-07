@@ -20,12 +20,24 @@ public class ServicesController : ControllerBase
 
     // GET: api/services
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Service>>> GetServices()
+    public async Task<ActionResult<IEnumerable<object>>> GetServices()
     {
         _logger.LogInformation("Pobieranie listy usług");
-        return await _context.Services
+        var services = await _context.Services
             .Include(s => s.Company)
+            .Select(s => new 
+            {
+                id = s.Id,
+                serviceName = s.ServiceName,
+                description = s.Description,
+                durationMinutes = s.DurationMinutes,
+                price = s.Price,
+                companyId = s.CompanyId,
+                companyName = s.Company != null ? s.Company.CompanyName : null
+            })
             .ToListAsync();
+        
+        return Ok(services);
     }
 
     // GET: api/services/5

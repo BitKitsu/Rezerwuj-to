@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity; // Standardowa klasa użytkownika
+using Microsoft.AspNetCore.Identity; 
+// Import nowego modelu
+using IdentityService.Data; // Dodaj ten using, jeśli nie masz
 
 namespace IdentityService.Data
 {
-    // Dziedzicz po IdentityDbContext, który zawiera wszystkie tabele Identity
-    public class ApplicationDbContext : IdentityDbContext<IdentityUser>
+    // Użyj ApplicationUser zamiast IdentityUser
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
@@ -14,3 +16,4 @@ namespace IdentityService.Data
         // Możesz dodać tu inne DbSety, jeśli rozszerzasz model
     }
 }
+

@@ -45,6 +45,13 @@ start_backend() {
     sleep 20
     
     # Sprawdź status
+    if check_port 5000; then
+        print_success "API Gateway działa na http://localhost:5000"
+    else
+        print_error "API Gateway nie odpowiada!"
+        print_info "Sprawdź logi: docker-compose logs api_gateway"
+    fi
+    
     if check_port 5001; then
         print_success "IdentityService działa na http://localhost:5001/swagger"
     else
@@ -57,6 +64,13 @@ start_backend() {
     else
         print_error "ReservationService nie odpowiada!"
         print_info "Sprawdź logi: docker-compose logs reservation_api"
+    fi
+    
+    if check_port 5003; then
+        print_success "NotificationService działa na http://localhost:5003/swagger"
+    else
+        print_error "NotificationService nie odpowiada!"
+        print_info "Sprawdź logi: docker-compose logs notification_api"
     fi
     
     cd ../..
@@ -133,6 +147,7 @@ run_all() {
     echo "Dostępne adresy:"
     echo "-------------------"
     echo "Aplikacja:          http://localhost:5173"
+    echo -e "${GREEN}API Gateway:        http://localhost:5000${NC} (główny punkt wejścia)"
     echo "Identity API:       http://localhost:5001/swagger"
     echo "Reservation API:    http://localhost:5002/swagger"
     echo "Notification API:   http://localhost:5003/swagger"
@@ -159,7 +174,14 @@ test_system() {
     print_header "TESTOWANIE SYSTEMU"
     
     # Test backend
-    echo "ℹ️  Testowanie endpointów..."
+    print_info "1. Testowanie portów..."
+    
+    # Test API Gateway
+    if curl -s -f http://localhost:5000/health > /dev/null 2>&1; then
+        echo "API Gateway: ✅ Port otwarty"
+    else
+        echo "API Gateway: ❌ Port zamknięty"
+    fi
     
     # Test IdentityService
     if curl -s -f http://localhost:5001/health > /dev/null 2>&1; then
@@ -189,11 +211,54 @@ test_system() {
         echo "RabbitMQ: ❌ Management UI niedostępne"
     fi
     
-    # Test rejestracji
-    print_info "Test rejestracji użytkownika..."
-    response=$(curl -s -X POST http://localhost:5001/register \
+    # Test API Gateway routing
+    echo ""
+    print_info "2. Test routingu przez API Gateway..."
+    if curl -s -f http://localhost:5000/identity/health > /dev/null 2>&1; then
+        echo "Gateway → Identity: ✅ Routing działa"
+    else
+        echo "Gateway → Identity: ❌ Routing nie działa"
+    fi
+    
+    if curl -s -f http://localhost:5000/reservation/health > /dev/null 2>&1; then
+        echo "Gateway → Reservation: ✅ Routing działa"
+    else
+        echo "Gateway → Reservation: ❌ Routing nie działa"
+    fi
+    
+    # Test JWT przez Gateway
+    echo ""
+    print_info "3. Test JWT Authentication przez Gateway..."
+    
+    # Login i pobierz token
+    login_response=$(curl -s -X POST http://localhost:5000/identity/account/login \
         -H "Content-Type: application/json" \
-        -d '{"email": "test'$(date +%s)'@example.com", "password": "Test123!"}' \
+        -d '{"email": "test@example.com", "password": "Test123!"}')
+    
+    if echo "$login_response" | grep -q "accessToken"; then
+        echo "Login JWT: ✅ Działa"
+        ACCESS_TOKEN=$(echo "$login_response" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+        
+        # Test autoryzacji
+        auth_response=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            http://localhost:5000/identity/audit/my)
+        
+        if [ "$auth_response" = "200" ]; then
+            echo "Autoryzacja JWT: ✅ Działa"
+        else
+            echo "Autoryzacja JWT: ❌ Problem (HTTP $auth_response)"
+        fi
+    else
+        echo "Login JWT: ❌ Nie działa"
+    fi
+    
+    # Test rejestracji przez Gateway
+    echo ""
+    print_info "4. Test rejestracji przez API Gateway..."
+    response=$(curl -s -X POST http://localhost:5000/identity/account/register \
+        -H "Content-Type: application/json" \
+        -d '{"email": "test'$(date +%s)'@example.com", "password": "Test123!", "firstName": "Test", "lastName": "User"}' \
         -w "\nHTTP_CODE:%{http_code}")
     
     http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
@@ -204,9 +269,10 @@ test_system() {
         print_error "Problem z rejestracją (HTTP $http_code)"
     fi
     
-    # Test API services
-    print_info "Test API Services..."
-    services=$(curl -s http://localhost:5002/api/services)
+    # Test API Services przez Gateway
+    echo ""
+    print_info "5. Test pobierania danych przez Gateway..."
+    services=$(curl -s http://localhost:5000/reservation/services)
     
     if echo "$services" | grep -q "serviceName"; then
         print_success "API zwraca dane o usługach"
@@ -256,8 +322,8 @@ show_help() {
     echo "  restart       - Restart backend z czyszczeniem"
     echo "  frontend      - Uruchom tylko frontend"
     echo "  all           - Uruchom wszystko (backend + frontend)"
-    echo "  test          - Testuj czy system działa"
-    echo "  logs [serwis] - Pokaż logi (opcjonalnie konkretnego serwisu)"
+    echo "  test          - Testuj cały system (porty, Gateway, JWT, routing)"
+    echo "  logs          - Pokaż logi (opcjonalnie: logs [nazwa_serwisu])"
     echo "  status        - Pokaż status systemu"
     echo "  help          - Pokaż tę pomoc"
     echo ""

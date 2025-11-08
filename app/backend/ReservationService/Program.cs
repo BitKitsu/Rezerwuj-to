@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Services;
+using ReservationService.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,21 +34,90 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Automatyczna migracja bazy danych
+// Automatyczna migracja bazy danych z retry logic
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ReservationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
-    try
+    var maxRetryCount = 10;
+    var delay = TimeSpan.FromSeconds(3);
+    
+    for (int retry = 0; retry < maxRetryCount; retry++)
     {
-        logger.LogInformation("Applying ReservationDB migrations...");
-        dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
-        logger.LogInformation("ReservationDB is ready!");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "An error occurred while migrating ReservationDB.");
+        try
+        {
+            logger.LogInformation($"Applying ReservationDB migrations... (attempt {retry + 1}/{maxRetryCount})");
+            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+            logger.LogInformation("ReservationDB is ready!");
+            
+            // Dodaj dane testowe jeśli baza jest pusta
+            if (!dbContext.Services.Any())
+            {
+                logger.LogInformation("Seeding test data...");
+                
+                var testCompany = new Company
+                {
+                    Id = 1,
+                    CompanyName = "Przykładowy Fryzjer",
+                    Description = "Najlepszy fryzjer w mieście",
+                    Street = "ul. Testowa 123",
+                    City = "Warszawa",
+                    PostalCode = "00-001",
+                    Country = "Polska",
+                    Phone = "123456789",
+                    Email = "fryzjer@example.com"
+                };
+                
+                dbContext.Companies.Add(testCompany);
+                
+                var services = new[]
+                {
+                    new Service
+                    {
+                        ServiceName = "Strzyżenie męskie",
+                        Description = "Klasyczne strzyżenie męskie",
+                        DurationMinutes = 30,
+                        Price = 50.00M,
+                        CompanyId = 1
+                    },
+                    new Service
+                    {
+                        ServiceName = "Strzyżenie damskie",
+                        Description = "Strzyżenie i modelowanie",
+                        DurationMinutes = 60,
+                        Price = 80.00M,
+                        CompanyId = 1
+                    },
+                    new Service
+                    {
+                        ServiceName = "Koloryzacja",
+                        Description = "Farbowanie włosów",
+                        DurationMinutes = 120,
+                        Price = 200.00M,
+                        CompanyId = 1
+                    }
+                };
+                
+                dbContext.Services.AddRange(services);
+                dbContext.SaveChanges();
+                
+                logger.LogInformation("Test data seeded successfully!");
+            }
+            
+            break; // Sukces
+        }
+        catch (Exception ex)
+        {
+            if (retry == maxRetryCount - 1)
+            {
+                logger.LogError(ex, "Failed to migrate ReservationDB after all retries.");
+                throw;
+            }
+            
+            logger.LogWarning($"Failed to connect to database. Retrying in {delay.TotalSeconds} seconds... ({retry + 1}/{maxRetryCount})");
+            Thread.Sleep(delay);
+        }
     }
 }
 

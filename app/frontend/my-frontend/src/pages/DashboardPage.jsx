@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { servicesAPI, appointmentsAPI } from '../services/api';
+import { servicesAPI, appointmentsAPI, authAPI, tokenManager } from '../services/api';
 
 function DashboardPage() {
   const [services, setServices] = useState([]);
@@ -9,15 +9,19 @@ function DashboardPage() {
   const [selectedService, setSelectedService] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedDate, setSelectedDate] = useState('');
+  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     // Sprawdź czy użytkownik jest zalogowany
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!tokenManager.isAuthenticated()) {
       navigate('/login');
       return;
     }
+
+    // Pobierz dane użytkownika
+    const userData = tokenManager.getUser();
+    setUser(userData);
 
     loadData();
   }, [navigate]);
@@ -38,10 +42,15 @@ function DashboardPage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Nawet jeśli logout się nie uda, wyczyść lokalnie
+      tokenManager.clearTokens();
+      navigate('/');
+    }
   };
 
   const handleDateChange = async (e) => {
@@ -60,12 +69,12 @@ function DashboardPage() {
   };
 
   const handleBookAppointment = async (slot) => {
-    if (!selectedService || !slot) return;
+    if (!selectedService || !slot || !user) return;
 
     try {
       await appointmentsAPI.create({
         serviceId: selectedService.id,
-        customerId: 'current-user', // TODO: Get from auth context
+        customerId: user.userId, // Używamy prawdziwego userId z JWT
         staffId: 'staff-1', // TODO: Select staff
         dateStart: slot.start,
         dateEnd: slot.end
@@ -94,7 +103,14 @@ function DashboardPage() {
         alignItems: 'center',
         marginBottom: '2rem'
       }}>
-        <h1>📊 Panel Zarządzania</h1>
+        <div>
+          <h1>📊 Panel Zarządzania</h1>
+          {user && (
+            <p style={{ margin: 0, color: '#666' }}>
+              Witaj, {user.firstName} {user.lastName} ({user.email})
+            </p>
+          )}
+        </div>
         <button 
           onClick={handleLogout}
           style={{

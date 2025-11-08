@@ -46,18 +46,17 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
     try
     {
-        // Dla developmentu - usuń i utwórz od nowa
-        dbContext.Database.EnsureDeleted();
-        dbContext.Database.EnsureCreated();
-        
-        Console.WriteLine("✅ Baza danych NotificationDB utworzona pomyślnie");
+        logger.LogInformation("Applying NotificationDB migrations...");
+        dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+        logger.LogInformation("NotificationDB is ready!");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"❌ Błąd tworzenia bazy danych: {ex.Message}");
+        logger.LogError(ex, "An error occurred while migrating NotificationDB.");
     }
 }
 

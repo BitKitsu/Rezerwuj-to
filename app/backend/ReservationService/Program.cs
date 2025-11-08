@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
+using ReservationService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,6 +10,10 @@ var connectionString = builder.Configuration.GetConnectionString("ReservationCon
 
 builder.Services.AddDbContext<ReservationDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+// Add custom services
+builder.Services.AddScoped<IScheduleService, ScheduleService>();
+builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -28,11 +33,22 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Automatyczne migracje przy starcie (tylko dla developmentu)
+// Automatyczna migracja bazy danych
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ReservationDbContext>();
-    dbContext.Database.EnsureCreated();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        logger.LogInformation("Applying ReservationDB migrations...");
+        dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+        logger.LogInformation("ReservationDB is ready!");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating ReservationDB.");
+    }
 }
 
 // Configure the HTTP request pipeline.

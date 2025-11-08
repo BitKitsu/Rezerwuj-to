@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using IdentityService.Data;
+using IdentityService.Services;
 
 namespace IdentityService.Controllers
 {
@@ -10,13 +11,19 @@ namespace IdentityService.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly IJwtService _jwtService;
+        private readonly IAuditService _auditService;
 
         public AccountController(
-            UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager)
+            UserManager<ApplicationUser> userManager, 
+            SignInManager<ApplicationUser> signInManager,
+            IJwtService jwtService,
+            IAuditService auditService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
+            _jwtService = jwtService;
+            _auditService = auditService;
         }
 
         [HttpPost("register")]
@@ -61,6 +68,55 @@ namespace IdentityService.Controllers
             return BadRequest(new { errors = errors });
         }
 
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginDto model)
+        {
+            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
+
+            if (result.Succeeded)
+            {
+                var user = await _userManager.FindByEmailAsync(model.Email);
+                if (user != null)
+                {
+                    // Generuj JWT tokeny
+                    var tokens = await _jwtService.GenerateTokensAsync(user);
+                    
+                    // Zapisz w audit log
+                    await _auditService.LogLoginAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown", 
+                                                       HttpContext.Request.Headers["User-Agent"].ToString());
+                    
+                    return Ok(new 
+                    { 
+                        message = "Zalogowano pomyślnie",
+                        accessToken = tokens.AccessToken,
+                        refreshToken = tokens.RefreshToken,
+                        expiresIn = tokens.ExpiresIn,
+                        tokenType = tokens.TokenType,
+                        userId = user.Id,
+                        email = user.Email,
+                        firstName = user.FirstName,
+                        lastName = user.LastName
+                    });
+                }
+            }
+
+            return Unauthorized(new { message = "Nieprawidłowy email lub hasło" });
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId))
+            {
+                await _auditService.LogLogoutAsync(userId);
+            }
+            
+            return Ok(new { message = "Wylogowano pomyślnie" });
+        }
+
         private string TranslateError(string error)
         {
             var translations = new Dictionary<string, string>
@@ -89,5 +145,11 @@ namespace IdentityService.Controllers
         public required string FirstName { get; set; }
         public required string LastName { get; set; }
         public string? Phone { get; set; }
+    }
+
+    public class LoginDto
+    {
+        public required string Email { get; set; }
+        public required string Password { get; set; }
     }
 }

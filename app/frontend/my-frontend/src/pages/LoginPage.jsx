@@ -26,46 +26,21 @@ function LoginPage() {
     try {
       const response = await authAPI.login(formData);
       
-      // Zapisz token i dane użytkownika
-      if (response.data.accessToken) {
-        localStorage.setItem('token', response.data.accessToken);
-        localStorage.setItem('user', JSON.stringify(response.data));
-        
-        // Przekieruj do dashboardu
-        navigate('/dashboard');
-      }
+      // JWT tokeny są automatycznie zapisywane w authAPI.login()
+      // Przekieruj do dashboardu
+      navigate('/dashboard');
     } catch (err) {
       console.error('Login error:', err);
       
-      // Szczegółowa obsługa błędów
-      if (err.response?.data?.errors) {
-        const errors = err.response.data.errors;
-        let errorMessages = [];
-        
-        for (const [key, value] of Object.entries(errors)) {
-          if (Array.isArray(value)) {
-            errorMessages = errorMessages.concat(value);
-          }
-        }
-        
-        if (errorMessages.length > 0) {
-          setError(
-            <div>
-              <strong>Błędy logowania:</strong>
-              <ul style={{ textAlign: 'left', marginTop: '0.5rem' }}>
-                {errorMessages.map((msg, idx) => (
-                  <li key={idx}>{msg}</li>
-                ))}
-              </ul>
-            </div>
-          );
-        } else {
-          setError('Nieprawidłowy email lub hasło.');
-        }
-      } else if (err.response?.data?.detail) {
-        setError(err.response.data.detail);
+      // Obsługa błędów
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.response?.status === 401) {
+        setError('Nieprawidłowy email lub hasło.');
+      } else if (err.response?.status === 400) {
+        setError('Nieprawidłowe dane logowania.');
       } else {
-        setError(err.response?.data?.title || 'Błąd logowania. Sprawdź dane i spróbuj ponownie.');
+        setError('Błąd połączenia z serwerem. Sprawdź czy backend działa.');
       }
     } finally {
       setLoading(false);

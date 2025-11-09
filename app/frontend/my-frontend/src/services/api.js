@@ -34,7 +34,7 @@ reservationAPI.interceptors.request.use(
 
 // ===== Identity Service =====
 export const authAPI = {
-  register: (data) => identityAPI.post('/register', data),
+  register: (data) => identityAPI.post('/api/account/register', data),
   login: (data) => identityAPI.post('/login', data),
   logout: () => identityAPI.post('/logout'),
 };

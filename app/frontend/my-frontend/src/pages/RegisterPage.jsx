@@ -3,15 +3,18 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
 function RegisterPage() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    firstName: '',
+    lastName: '',
+    phone: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
@@ -23,8 +26,14 @@ function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Walidacja
+
+    // Walidacja pól wymaganych
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('Imię i nazwisko są wymagane!');
+      return;
+    }
+
+    // Walidacja hasła
     if (formData.password !== formData.confirmPassword) {
       setError('Hasła nie są identyczne!');
       return;
@@ -46,7 +55,10 @@ function RegisterPage() {
     try {
       const response = await authAPI.register({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone
       });
       
       setSuccess(true);
@@ -135,9 +147,51 @@ function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Email:
+              Imię: *
+            </label>
+            <input
+              type="text"
+              name="firstName"
+              value={formData.firstName}
+              onChange={handleChange}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="Jan"
+            />
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Nazwisko: *
+            </label>
+            <input
+              type="text"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              required
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="Kowalski"
+            />
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Email: *
             </label>
             <input
               type="email"
@@ -152,7 +206,27 @@ function RegisterPage() {
                 border: '1px solid #ddd',
                 borderRadius: '5px'
               }}
-              placeholder="jan@example.com"
+              placeholder="twoj@email.com"
+            />
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              Telefon: (opcjonalnie)
+            </label>
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleChange}
+              style={{
+                width: '100%',
+                padding: '0.5rem',
+                fontSize: '1rem',
+                border: '1px solid #ddd',
+                borderRadius: '5px'
+              }}
+              placeholder="+48 123 456 789"
             />
           </div>
 

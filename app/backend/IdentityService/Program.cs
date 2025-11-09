@@ -1,4 +1,5 @@
 using IdentityService.Data;
+using IdentityService.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
@@ -38,9 +39,12 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
 });
 
-// Dodatkowe usługi (np. uwierzytelnianie tokenem Bearer dla komunikacji między serwisami)
+// Dodatkowe usługi
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddControllers();
-builder.Services.AddAuthorization(); 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -57,14 +61,22 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Automatyczne tworzenie bazy przy starcie (dla developmentu)
+// Automatyczna migracja i tworzenie bazy + testowy użytkownik
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
-    // Dla developmentu - usuń i utwórz od nowa
-    dbContext.Database.EnsureDeleted();
-    dbContext.Database.EnsureCreated();
+    try
+    {
+        logger.LogInformation("Applying database migrations...");
+        dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+        logger.LogInformation("Database is ready!");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
     
     // Utworzenie testowego użytkownika (synchronicznie)
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();

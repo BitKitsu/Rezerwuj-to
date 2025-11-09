@@ -42,6 +42,12 @@ public class ReservationDbContext : DbContext
                 CompanyName = "Przykładowy Fryzjer", 
                 Email = "fryzjer@example.com", 
                 Phone = "123456789",
+                Street = "ul. Główna 15",
+                City = "Warszawa",
+                PostalCode = "00-001",
+                Country = "Polska",
+                Description = "Profesjonalny salon fryzjerski",
+                Website = "www.fryzjer.pl",
                 RegistrationDate = DateTime.UtcNow
             }
         );

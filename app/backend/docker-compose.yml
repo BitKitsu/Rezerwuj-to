@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: dbuser
       POSTGRES_PASSWORD: password_secure
-      POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb
+      POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb,notificationdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../plan/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
@@ -47,5 +47,43 @@ services:
       ConnectionStrings__ReservationConnection: "Host=postgres_db;Port=5432;Database=reservationdb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
 
+  # Kontener mikroserwisu Notification
+  notification_api:
+    build:
+      context: ./NotificationService
+      dockerfile: Dockerfile
+    ports:
+      - "5003:8080"
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__NotificationConnection: "Host=postgres_db;Port=5432;Database=notificationdb;Username=dbuser;Password=password_secure"
+      ASPNETCORE_ENVIRONMENT: Development
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
+
+  # Kontener RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: always
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
+  rabbitmq_data:

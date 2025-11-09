@@ -50,4 +50,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Endpoint healthcheck
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "ReservationService" }))
+   .WithName("HealthCheck");
+
 app.Run();

@@ -1,6 +1,6 @@
-# 🏗️ Architektura Systemu Rezerwacji - Mikroserwisy
+# Architektura Systemu Rezerwacji - Mikroserwisy
 
-## 📋 Przegląd Architektury
+## Przegląd Architektury
 
 System jest zbudowany w oparciu o architekturę mikroserwisów z następującymi komponentami:
 
@@ -52,7 +52,7 @@ graph TB
 
 ---
 
-## 🎯 Mikroserwisy
+## Mikroserwisy
 
 ### **1. Identity Service (Port 5001)**
 
@@ -186,7 +186,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 🚪 API Gateway (Ocelot) - Port 5000
+## API Gateway (Ocelot) - Port 5000
 
 **Funkcje:**
 - Routing do mikroserwisów
@@ -233,7 +233,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 📨 Message Bus (RabbitMQ)
+## Message Bus (RabbitMQ)
 
 ### **Exchanges:**
 - `reservation.events` - Topic exchange dla eventów domenowych
@@ -250,7 +250,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 🗄️ Bazy Danych
+## Bazy Danych
 
 ### **Strategia:**
 - Każdy mikroserwis ma własną bazę danych (Database per Service)
@@ -264,7 +264,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 🔄 Wzorce Komunikacji
+## Wzorce Komunikacji
 
 ### **1. Synchroniczna (REST)**
 - Frontend → API Gateway → Microservices
@@ -281,7 +281,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 🛡️ Bezpieczeństwo
+## Bezpieczeństwo
 
 ### **Authentication & Authorization:**
 1. JWT tokens wydawane przez Identity Service
@@ -299,62 +299,7 @@ GET    /api/notifications/queue
 
 ---
 
-## 🚀 Deployment
-
-### **Development:**
-```bash
-docker-compose up
-```
-
-### **Production:**
-```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-```
-
-### **Kubernetes (opcjonalnie):**
-- Deployment dla każdego mikroserwisu
-- Service dla exposowania portów
-- Ingress dla routingu
-- ConfigMaps dla konfiguracji
-- Secrets dla wrażliwych danych
-
----
-
-## 📊 Monitoring i Logging
-
-### **Logging:**
-- Serilog we wszystkich serwisach
-- Strukturowane logi do Seq
-- Correlation ID dla śledzenia requestów
-
-### **Monitoring:**
-- Health checks dla każdego serwisu
-- Prometheus metrics (opcjonalnie)
-- Grafana dashboards (opcjonalnie)
-
-### **Distributed Tracing:**
-- OpenTelemetry (opcjonalnie)
-- Jaeger dla wizualizacji (opcjonalnie)
-
----
-
-## 🔧 Narzędzia Deweloperskie
-
-### **Wymagane:**
-- .NET 8 SDK
-- Node.js 18+
-- Docker Desktop
-- Visual Studio 2022 / VS Code / Rider
-
-### **Opcjonalne:**
-- Postman/Insomnia dla testowania API
-- pgAdmin dla zarządzania PostgreSQL
-- RabbitMQ Management UI
-- Seq dla przeglądania logów
-
----
-
-## 📈 Skalowanie
+## Skalowanie
 
 ### **Horizontal Scaling:**
 - Każdy mikroserwis może być skalowany niezależnie
@@ -368,7 +313,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ---
 
-## 🎯 Best Practices
+## Best Practices
 
 1. **Domain-Driven Design (DDD)**
    - Bounded Contexts dla każdego serwisu
@@ -396,7 +341,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 ---
 
-## 📝 Przykład Flow Rezerwacji
+## Przykład Flow Rezerwacji
 
 ```mermaid
 sequenceDiagram

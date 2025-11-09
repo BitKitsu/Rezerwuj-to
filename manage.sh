@@ -178,52 +178,52 @@ test_system() {
     
     # Test API Gateway
     if curl -s -f http://localhost:5000/health > /dev/null 2>&1; then
-        echo "API Gateway: ${GREEN}Port otwarty${NC}"
+        echo -e "API Gateway: ${GREEN}Port otwarty${NC}"
     else
-        echo "API Gateway: ${RED}Port zamknięty${NC}"
+        echo -e "API Gateway: ${RED}Port zamknięty${NC}"
     fi
     
     # Test IdentityService
     if curl -s -f http://localhost:5001/health > /dev/null 2>&1; then
-        echo "IdentityService: ${GREEN}Port otwarty${NC}"
+        echo -e "IdentityService: ${GREEN}Port otwarty${NC}"
     else
-        echo "IdentityService: ${RED}Port zamknięty${NC}"
+        echo -e "IdentityService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test ReservationService
     if curl -s -f http://localhost:5002/health > /dev/null 2>&1; then
-        echo "ReservationService: ${GREEN}Port otwarty${NC}"
+        echo -e "ReservationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "ReservationService: ${RED}Port zamknięty${NC}"
+        echo -e "ReservationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test NotificationService
     if curl -s -f http://localhost:5003/health > /dev/null 2>&1; then
-        echo "NotificationService: ${GREEN}Port otwarty${NC}"
+        echo -e "NotificationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "NotificationService: ${RED}Port zamknięty${NC}"
+        echo -e "NotificationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test RabbitMQ
     if curl -s -f http://guest:guest@localhost:15672/api/overview > /dev/null 2>&1; then
-        echo "RabbitMQ: ${GREEN}Management UI działa${NC}"
+        echo -e "RabbitMQ: ${GREEN}Management UI działa${NC}"
     else
-        echo "RabbitMQ: ${RED}Management UI niedostępne${NC}"
+        echo -e "RabbitMQ: ${RED}Management UI niedostępne${NC}"
     fi
     
     # Test API Gateway routing
     echo ""
     print_info "2. Test routingu przez API Gateway..."
     if curl -s -f http://localhost:5000/identity/health > /dev/null 2>&1; then
-        echo "Gateway → Identity: ${GREEN}Routing działa${NC}"
+        echo -e "Gateway → Identity: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Identity: ${RED}Routing nie działa${NC}"
+        echo -e "Gateway → Identity: ${RED}Routing nie działa${NC}"
     fi
     
     if curl -s -f http://localhost:5000/reservation/health > /dev/null 2>&1; then
-        echo "Gateway → Reservation: ${GREEN}Routing działa${NC}"
+        echo -e "Gateway → Reservation: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Reservation: ${RED}Routing nie działa${NC}"
+        echo -e "Gateway → Reservation: ${RED}Routing nie działa${NC}"
     fi
     
     # Test JWT przez Gateway
@@ -236,7 +236,7 @@ test_system() {
         -d '{"email": "test@example.com", "password": "Test123!"}')
     
     if echo "$login_response" | grep -q "accessToken"; then
-        echo "Login JWT: ${GREEN}Działa${NC}"
+        echo -e "Login JWT: ${GREEN}Działa${NC}"
         ACCESS_TOKEN=$(echo "$login_response" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
         
         # Test autoryzacji
@@ -245,12 +245,12 @@ test_system() {
             http://localhost:5000/identity/audit/my)
         
         if [ "$auth_response" = "200" ]; then
-            echo "Autoryzacja JWT: ${GREEN}Działa${NC}"
+            echo -e "Autoryzacja JWT: ${GREEN}Działa${NC}"
         else
-            echo "Autoryzacja JWT: ${RED}Problem (HTTP $auth_response)${NC}"
+            echo -e "Autoryzacja JWT: ${RED}Problem (HTTP $auth_response)${NC}"
         fi
     else
-        echo "Login JWT: ${RED}Nie działa${NC}"
+        echo -e "Login JWT: ${RED}Nie działa${NC}"
     fi
     
     # Test rejestracji przez Gateway

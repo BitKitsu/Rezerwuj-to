@@ -1,0 +1,61 @@
+name: Quick Deploy
+
+on:
+  workflow_dispatch:  # Ręczne uruchomienie z GitHub UI
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup SSH
+        run: |
+          # Konfiguracja SSH
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Deploy with Docker Compose
+        run: |
+          # Kopiowanie plików na serwer
+          scp -i ~/.ssh/deploy_key -r app/backend/* ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/mikrosaas/
+          scp -i ~/.ssh/deploy_key deployment/* ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/mikrosaas/
+          
+          # Restart usług na serwerze
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd /opt/mikrosaas
+            docker-compose -f docker-compose.prod.yml down
+            docker-compose -f docker-compose.prod.yml pull
+            docker-compose -f docker-compose.prod.yml up -d
+            docker-compose -f docker-compose.prod.yml ps
+          EOF
+      
+      - name: Health Check
+        run: |
+          sleep 30
+          curl -f https://${{ secrets.APP_URL }}/health || exit 1
+          echo "Deployment successful!"
+      
+      - name: Notify on Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment to ${{ inputs.environment }} ${{ job.status }}
+            Deployed by: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}  # Opcjonalne

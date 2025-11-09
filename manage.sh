@@ -311,6 +311,116 @@ show_status() {
     echo "5432: $(check_port 5432 && echo 'PostgreSQL ✅' || echo 'PostgreSQL ❌')"
 }
 
+ci_test() {
+    print_header "TEST CI/CD LOKALNIE"
+    
+    # 1. Sprawdzanie formatu ostatniego commita
+    echo ""
+    print_info "1️⃣  Sprawdzanie formatu ostatniego commita..."
+    last_commit=$(git log -1 --pretty=%B | head -n1)
+    if echo "$last_commit" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"; then
+        print_success "Format commita poprawny: $last_commit"
+    else
+        print_error "Niepoprawny format commita"
+        echo -e "${YELLOW}⚠️  Przykład: 'feat: Add new feature' lub 'fix(api): Resolve issue'${NC}"
+    fi
+    
+    # 2. Sprawdzanie console.log w kodzie
+    echo ""
+    print_info "2️⃣  Sprawdzanie console.log w kodzie..."
+    if grep -r "console.log" app/frontend --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v node_modules | head -1; then
+        echo -e "${YELLOW}⚠️  Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
+    else
+        print_success "Brak console.log w kodzie produkcyjnym"
+    fi
+    
+    # 3. Build backend
+    echo ""
+    print_info "3️⃣  Testowanie budowania backend..."
+    cd app/backend
+    
+    build_failed=0
+    for service in IdentityService ReservationService NotificationService ApiGateway; do
+        if [ -d "$service" ]; then
+            echo "   Building $service..."
+            if dotnet restore "$service/$service.csproj" > /dev/null 2>&1 && \
+               dotnet build "$service/$service.csproj" --no-restore -c Release > /dev/null 2>&1; then
+                print_success "$service - build OK"
+            else
+                print_error "$service - build FAILED"
+                build_failed=1
+            fi
+        fi
+    done
+    cd ../..
+    
+    # 4. Docker Compose validation
+    echo ""
+    print_info "4️⃣  Walidacja docker-compose.yml..."
+    cd app/backend
+    if docker-compose config > /dev/null 2>&1; then
+        print_success "docker-compose.yml - poprawny"
+    else
+        print_error "docker-compose.yml - błędy w składni"
+    fi
+    cd ../..
+    
+    # 5. Sprawdzanie wrażliwych danych
+    echo ""
+    print_info "5️⃣  Sprawdzanie wrażliwych danych..."
+    sensitive_patterns="password.*=.*[a-zA-Z0-9]|secret.*=.*[a-zA-Z0-9]|token.*=.*[a-zA-Z0-9]|api[_-]?key.*=.*[a-zA-Z0-9]"
+    
+    found_sensitive=false
+    if git diff --staged --name-only 2>/dev/null | xargs grep -iE "$sensitive_patterns" 2>/dev/null | grep -v ".example" | grep -v "test" | head -1; then
+        found_sensitive=true
+    fi
+    
+    if [ "$found_sensitive" = true ]; then
+        print_error "Znaleziono potencjalne wrażliwe dane w commitach!"
+        echo -e "${YELLOW}⚠️  Sprawdź czy nie committujesz haseł lub kluczy API${NC}"
+    else
+        print_success "Brak wrażliwych danych w stagowanych plikach"
+    fi
+    
+    # 6. Sprawdzanie brancha
+    echo ""
+    print_info "6️⃣  Sprawdzanie brancha..."
+    current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
+    if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
+        echo -e "${YELLOW}⚠️  Jesteś na branchu $current_branch - czy na pewno chcesz pushować?${NC}"
+    else
+        print_success "Branch: $current_branch"
+    fi
+    
+    # Podsumowanie
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}📊 PODSUMOWANIE${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    
+    if [ -f ".github/workflows/ci-cd.yml" ]; then
+        print_success "CI/CD workflow znaleziony"
+        echo ""
+        echo "Aby uruchomić CI/CD:"
+        echo "1. git add ."
+        echo "2. git commit -m 'feat: your message'"
+        echo "3. git push origin $current_branch"
+    else
+        echo -e "${YELLOW}⚠️  Brak pliku .github/workflows/ci-cd.yml${NC}"
+    fi
+    
+    echo ""
+    echo ""
+    echo -e "${YELLOW}💡 Wskazówki:${NC}"
+    echo "- Użyj './scripts/quick-commit.sh' dla interaktywnego commita"
+    echo "- Sprawdź Actions tab na GitHub po pushu"
+    echo "- Użyj 'git push --dry-run' aby sprawdzić co zostanie wypchnięte"
+    echo "- Dokumentacja: docs/CI-CD-SETUP.md"
+    
+    echo ""
+    print_success "Test lokalny zakończony!"
+}
+
 show_help() {
     print_header "SYSTEM REZERWACJI - MENEDŻER"
     
@@ -323,6 +433,7 @@ show_help() {
     echo "  frontend      - Uruchom tylko frontend"
     echo "  all           - Uruchom wszystko (backend + frontend)"
     echo "  test          - Testuj cały system (porty, Gateway, JWT, routing)"
+    echo "  ci-test       - Test CI/CD lokalnie przed commitowaniem"
     echo "  logs          - Pokaż logi (opcjonalnie: logs [nazwa_serwisu])"
     echo "  status        - Pokaż status systemu"
     echo "  help          - Pokaż tę pomoc"
@@ -358,6 +469,9 @@ case "$1" in
         ;;
     test)
         test_system
+        ;;
+    ci-test|ci)
+        ci_test
         ;;
     logs|log)
         show_logs $2

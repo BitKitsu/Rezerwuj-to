@@ -4,14 +4,14 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 1234
-      POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb,postgres
+      POSTGRES_USER: dbuser
+      POSTGRES_PASSWORD: password_secure
+      POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../../plan/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     ports:
-      - "5435:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dbuser"]
       interval: 5s
@@ -30,7 +30,7 @@ services:
         condition: service_healthy
     environment:
       # Ciąg połączenia, używający nazwy serwisu 'postgres_db' jako Hosta!
-      ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=postgres;Username=postgres;Password=1234"
+      ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
 
   # Kontener mikroserwisu Reservation

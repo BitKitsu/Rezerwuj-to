@@ -21,7 +21,11 @@ jobs:
       - name: Check for console.log in JavaScript
         run: |
           # Sprawdź czy nie ma console.log w kodzie produkcyjnym
-          ! grep -r "console.log" app/frontend/src --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" || echo "Warning: console.log found in code"
+          if [ -d "app/frontend/my-frontend/src" ]; then
+            ! grep -r "console.log" app/frontend/my-frontend/src --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null || echo "Warning: console.log found in code"
+          else
+            echo "Frontend source directory not found - skipping console.log check"
+          fi
       
       - name: Check Docker files
         run: |

@@ -312,7 +312,7 @@ show_status() {
 }
 
 ci_test() {
-    print_header "TEST CI/CD LOKALNIE"
+    print_header "TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)"
     
     # 1. Sprawdzanie formatu ostatniego commita
     echo ""
@@ -327,38 +327,93 @@ ci_test() {
     
     # 2. Sprawdzanie console.log w kodzie
     echo ""
-    print_info "2. Sprawdzanie console.log w kodzie..."
-    console_logs=$(grep -r "console.log" app/frontend --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" --exclude-dir="node_modules" 2>/dev/null | head -1)
-    if [ -n "$console_logs" ]; then
-        echo -e "${YELLOW}Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
-        echo "$console_logs"
+    print_info "2. Sprawdzanie console.log w kodzie (PR Validation)..."
+    if [ -d "app/frontend/my-frontend/src" ]; then
+        console_logs=$(grep -r "console.log" app/frontend/my-frontend/src --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null | head -1)
+        if [ -n "$console_logs" ]; then
+            echo -e "${YELLOW}Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
+            echo "$console_logs"
+        else
+            print_success "Brak console.log w kodzie produkcyjnym"
+        fi
     else
-        print_success "Brak console.log w kodzie produkcyjnym"
+        echo -e "${YELLOW}Katalog frontend/my-frontend/src nie istnieje${NC}"
     fi
     
-    # 3. Build backend
+    # 3. Test Backend (jak w CI/CD)
     echo ""
-    print_info "3. Testowanie budowania backend..."
+    print_info "3. TEST BACKEND (symulacja GitHub Actions)..."
     cd app/backend
+    
+    # Restore dependencies
+    print_info "   Restoring dependencies..."
     
     build_failed=0
     for service in IdentityService ReservationService NotificationService ApiGateway; do
         if [ -d "$service" ]; then
-            echo "   Building $service..."
-            if dotnet restore "$service/$service.csproj" > /dev/null 2>&1 && \
-               dotnet build "$service/$service.csproj" --no-restore -c Release > /dev/null 2>&1; then
-                print_success "$service - build OK"
+            if dotnet restore "$service/$service.csproj" > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} $service - restore OK"
             else
-                print_error "$service - build FAILED"
+                echo -e "   ${RED}✗${NC} $service - restore FAILED"
+                build_failed=1
+            fi
+        fi
+    done
+    
+    # Build services
+    print_info "   Building services..."
+    for service in IdentityService ReservationService NotificationService ApiGateway; do
+        if [ -d "$service" ]; then
+            if dotnet build "$service/$service.csproj" --no-restore -c Release > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} $service - build OK"
+            else
+                echo -e "   ${RED}✗${NC} $service - build FAILED"
                 build_failed=1
             fi
         fi
     done
     cd ../..
     
-    # 4. Docker Compose validation
+    # 4. Test Frontend (jak w CI/CD)
     echo ""
-    print_info "4. Walidacja docker-compose.yml..."
+    print_info "4. TEST FRONTEND (symulacja GitHub Actions)..."
+    if [ -d "app/frontend/my-frontend" ]; then
+        cd app/frontend/my-frontend
+        
+        # Check if node_modules exists
+        if [ ! -d "node_modules" ]; then
+            print_info "   Installing dependencies (npm ci)..."
+            if npm ci > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} Dependencies installed"
+            else
+                echo -e "   ${RED}✗${NC} Failed to install dependencies"
+            fi
+        fi
+        
+        # Run linter
+        print_info "   Running linter..."
+        if npm run lint > /dev/null 2>&1; then
+            echo -e "   ${GREEN}✓${NC} Linting passed"
+        else
+            echo -e "   ${YELLOW}⚠${NC} Linting warnings (non-blocking)"
+        fi
+        
+        # Build frontend
+        print_info "   Building frontend..."
+        if npm run build > /dev/null 2>&1; then
+            echo -e "   ${GREEN}✓${NC} Frontend build successful"
+        else
+            echo -e "   ${RED}✗${NC} Frontend build FAILED"
+        fi
+        
+        cd ../../..
+    else
+        echo -e "   ${YELLOW}Frontend directory not found${NC}"
+    fi
+    
+    # 5. Docker Compose validation
+    echo ""
+    print_info "5. Walidacja docker-compose.yml..."
     cd app/backend
     if docker-compose config > /dev/null 2>&1; then
         print_success "docker-compose.yml - poprawny"
@@ -367,9 +422,9 @@ ci_test() {
     fi
     cd ../..
     
-    # 5. Sprawdzanie wrażliwych danych
+    # 6. Sprawdzanie wrażliwych danych
     echo ""
-    print_info "5. Sprawdzanie wrażliwych danych..."
+    print_info "6. Sprawdzanie wrażliwych danych..."
     sensitive_patterns="password.*=.*[a-zA-Z0-9]|secret.*=.*[a-zA-Z0-9]|token.*=.*[a-zA-Z0-9]|api[_-]?key.*=.*[a-zA-Z0-9]"
     
     found_sensitive=false
@@ -384,9 +439,9 @@ ci_test() {
         print_success "Brak wrażliwych danych w stagowanych plikach"
     fi
     
-    # 6. Sprawdzanie brancha
+    # 7. Sprawdzanie brancha
     echo ""
-    print_info "6. Sprawdzanie brancha..."
+    print_info "7. Sprawdzanie brancha..."
     current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
     if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
         echo -e "${YELLOW}Jesteś na branchu $current_branch - czy na pewno chcesz pushować?${NC}"

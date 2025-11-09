@@ -263,7 +263,7 @@ goto end
 :ci-test
 echo.
 echo ========================================
-echo TEST CI/CD LOKALNIE
+echo TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)
 echo ========================================
 echo.
 echo 1. Sprawdzanie formatu ostatniego commita...
@@ -275,28 +275,70 @@ echo !LAST_COMMIT! | findstr /r "^feat\|^fix\|^docs\|^style\|^refactor\|^test\|^
     echo Przyklad: 'feat: Add new feature' lub 'fix(api): Resolve issue'
 )
 echo.
-echo 2. Sprawdzanie console.log w kodzie...
-findstr /s /i "console.log" app\frontend\*.js app\frontend\*.jsx app\frontend\*.ts app\frontend\*.tsx >nul 2>&1 && (
-    echo %YELLOW%[WARN]%NC% Znaleziono console.log w kodzie
-) || (
-    echo %GREEN%[OK]%NC% Brak console.log w kodzie produkcyjnym
+echo 2. Sprawdzanie console.log w kodzie (PR Validation)...
+if exist app\frontend\my-frontend\src (
+    findstr /s /i "console.log" app\frontend\my-frontend\src\*.js app\frontend\my-frontend\src\*.jsx app\frontend\my-frontend\src\*.ts app\frontend\my-frontend\src\*.tsx >nul 2>&1 && (
+        echo %YELLOW%[WARN]%NC% Znaleziono console.log w kodzie
+    ) || (
+        echo %GREEN%[OK]%NC% Brak console.log w kodzie produkcyjnym
+    )
+) else (
+    echo %YELLOW%[WARN]%NC% Katalog frontend/my-frontend/src nie istnieje
 )
 echo.
-echo 3. Testowanie budowania backend...
+echo 3. TEST BACKEND (symulacja GitHub Actions)...
 cd app\backend
+echo    Restoring dependencies...
 for %%s in (IdentityService ReservationService NotificationService ApiGateway) do (
     if exist %%s (
-        echo    Building %%s...
-        dotnet build %%s\%%s.csproj -c Release >nul 2>&1 && (
-            echo    %GREEN%[OK]%NC% %%s
+        dotnet restore %%s\%%s.csproj >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% %%s - restore OK
         ) || (
-            echo    %RED%[FAIL]%NC% %%s
+            echo    %RED%[FAIL]%NC% %%s - restore FAILED
+        )
+    )
+)
+echo    Building services...
+for %%s in (IdentityService ReservationService NotificationService ApiGateway) do (
+    if exist %%s (
+        dotnet build %%s\%%s.csproj --no-restore -c Release >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% %%s - build OK
+        ) || (
+            echo    %RED%[FAIL]%NC% %%s - build FAILED
         )
     )
 )
 cd ..\..
 echo.
-echo 4. Walidacja docker-compose.yml...
+echo 4. TEST FRONTEND (symulacja GitHub Actions)...
+if exist app\frontend\my-frontend (
+    cd app\frontend\my-frontend
+    if not exist node_modules (
+        echo    Installing dependencies (npm ci)...
+        npm ci >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% Dependencies installed
+        ) || (
+            echo    %RED%[FAIL]%NC% Failed to install dependencies
+        )
+    )
+    echo    Running linter...
+    npm run lint >nul 2>&1 && (
+        echo    %GREEN%[OK]%NC% Linting passed
+    ) || (
+        echo    %YELLOW%[WARN]%NC% Linting warnings (non-blocking)
+    )
+    echo    Building frontend...
+    npm run build >nul 2>&1 && (
+        echo    %GREEN%[OK]%NC% Frontend build successful
+    ) || (
+        echo    %RED%[FAIL]%NC% Frontend build FAILED
+    )
+    cd ..\..\..
+) else (
+    echo    %YELLOW%[WARN]%NC% Frontend directory not found
+)
+echo.
+echo 5. Walidacja docker-compose.yml...
 cd app\backend
 docker-compose config >nul 2>&1 && (
     echo %GREEN%[OK]%NC% docker-compose.yml - poprawny
@@ -305,7 +347,7 @@ docker-compose config >nul 2>&1 && (
 )
 cd ..\..
 echo.
-echo 5. Sprawdzanie brancha...
+echo 6. Sprawdzanie brancha...
 for /f "delims=" %%i in ('git branch --show-current') do set CURRENT_BRANCH=%%i
 echo Branch: !CURRENT_BRANCH!
 if "!CURRENT_BRANCH!"=="main" (

@@ -16,15 +16,15 @@ print_header() {
 }
 
 print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}$1${NC}"
 }
 
 print_info() {
-    echo -e "${YELLOW}ℹ️  $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 check_port() {
@@ -178,52 +178,52 @@ test_system() {
     
     # Test API Gateway
     if curl -s -f http://localhost:5000/health > /dev/null 2>&1; then
-        echo "API Gateway: ✅ Port otwarty"
+        echo "API Gateway: ${GREEN}Port otwarty${NC}"
     else
-        echo "API Gateway: ❌ Port zamknięty"
+        echo "API Gateway: ${RED}Port zamknięty${NC}"
     fi
     
     # Test IdentityService
     if curl -s -f http://localhost:5001/health > /dev/null 2>&1; then
-        echo "IdentityService: ✅ Port otwarty"
+        echo "IdentityService: ${GREEN}Port otwarty${NC}"
     else
-        echo "IdentityService: ❌ Port zamknięty"
+        echo "IdentityService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test ReservationService
     if curl -s -f http://localhost:5002/health > /dev/null 2>&1; then
-        echo "ReservationService: ✅ Port otwarty"
+        echo "ReservationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "ReservationService: ❌ Port zamknięty"
+        echo "ReservationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test NotificationService
     if curl -s -f http://localhost:5003/health > /dev/null 2>&1; then
-        echo "NotificationService: ✅ Port otwarty"
+        echo "NotificationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "NotificationService: ❌ Port zamknięty"
+        echo "NotificationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test RabbitMQ
     if curl -s -f http://guest:guest@localhost:15672/api/overview > /dev/null 2>&1; then
-        echo "RabbitMQ: ✅ Management UI działa"
+        echo "RabbitMQ: ${GREEN}Management UI działa${NC}"
     else
-        echo "RabbitMQ: ❌ Management UI niedostępne"
+        echo "RabbitMQ: ${RED}Management UI niedostępne${NC}"
     fi
     
     # Test API Gateway routing
     echo ""
     print_info "2. Test routingu przez API Gateway..."
     if curl -s -f http://localhost:5000/identity/health > /dev/null 2>&1; then
-        echo "Gateway → Identity: ✅ Routing działa"
+        echo "Gateway → Identity: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Identity: ❌ Routing nie działa"
+        echo "Gateway → Identity: ${RED}Routing nie działa${NC}"
     fi
     
     if curl -s -f http://localhost:5000/reservation/health > /dev/null 2>&1; then
-        echo "Gateway → Reservation: ✅ Routing działa"
+        echo "Gateway → Reservation: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Reservation: ❌ Routing nie działa"
+        echo "Gateway → Reservation: ${RED}Routing nie działa${NC}"
     fi
     
     # Test JWT przez Gateway
@@ -236,7 +236,7 @@ test_system() {
         -d '{"email": "test@example.com", "password": "Test123!"}')
     
     if echo "$login_response" | grep -q "accessToken"; then
-        echo "Login JWT: ✅ Działa"
+        echo "Login JWT: ${GREEN}Działa${NC}"
         ACCESS_TOKEN=$(echo "$login_response" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
         
         # Test autoryzacji
@@ -245,12 +245,12 @@ test_system() {
             http://localhost:5000/identity/audit/my)
         
         if [ "$auth_response" = "200" ]; then
-            echo "Autoryzacja JWT: ✅ Działa"
+            echo "Autoryzacja JWT: ${GREEN}Działa${NC}"
         else
-            echo "Autoryzacja JWT: ❌ Problem (HTTP $auth_response)"
+            echo "Autoryzacja JWT: ${RED}Problem (HTTP $auth_response)${NC}"
         fi
     else
-        echo "Login JWT: ❌ Nie działa"
+        echo "Login JWT: ${RED}Nie działa${NC}"
     fi
     
     # Test rejestracji przez Gateway
@@ -305,10 +305,10 @@ show_status() {
     
     echo ""
     print_info "Porty:"
-    echo "5001: $(check_port 5001 && echo 'IdentityService ✅' || echo 'IdentityService ❌')"
-    echo "5002: $(check_port 5002 && echo 'ReservationService ✅' || echo 'ReservationService ❌')"
-    echo "5173: $(check_port 5173 && echo 'Frontend React ✅' || echo 'Frontend React ❌')"
-    echo "5432: $(check_port 5432 && echo 'PostgreSQL ✅' || echo 'PostgreSQL ❌')"
+    echo "5001: $(check_port 5001 && echo 'IdentityService ${GREEN}${NC}' || echo 'IdentityService ${RED}${NC}')"
+    echo "5002: $(check_port 5002 && echo 'ReservationService ${GREEN}${NC}' || echo 'ReservationService ${RED}${NC}')"
+    echo "5173: $(check_port 5173 && echo 'Frontend React ${GREEN}${NC}' || echo 'Frontend React ${RED}${NC}')"
+    echo "5432: $(check_port 5432 && echo 'PostgreSQL ${GREEN}${NC}' || echo 'PostgreSQL ${RED}${NC}')"
 }
 
 ci_test() {
@@ -316,27 +316,29 @@ ci_test() {
     
     # 1. Sprawdzanie formatu ostatniego commita
     echo ""
-    print_info "1️⃣  Sprawdzanie formatu ostatniego commita..."
+    print_info "1. Sprawdzanie formatu ostatniego commita..."
     last_commit=$(git log -1 --pretty=%B | head -n1)
     if echo "$last_commit" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"; then
         print_success "Format commita poprawny: $last_commit"
     else
         print_error "Niepoprawny format commita"
-        echo -e "${YELLOW}⚠️  Przykład: 'feat: Add new feature' lub 'fix(api): Resolve issue'${NC}"
+        echo -e "${YELLOW}Przykład: 'feat: Add new feature' lub 'fix(api): Resolve issue'${NC}"
     fi
     
     # 2. Sprawdzanie console.log w kodzie
     echo ""
-    print_info "2️⃣  Sprawdzanie console.log w kodzie..."
-    if grep -r "console.log" app/frontend --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null | grep -v node_modules | head -1; then
-        echo -e "${YELLOW}⚠️  Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
+    print_info "2. Sprawdzanie console.log w kodzie..."
+    console_logs=$(grep -r "console.log" app/frontend --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" --exclude-dir="node_modules" 2>/dev/null | head -1)
+    if [ -n "$console_logs" ]; then
+        echo -e "${YELLOW}Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
+        echo "$console_logs"
     else
         print_success "Brak console.log w kodzie produkcyjnym"
     fi
     
     # 3. Build backend
     echo ""
-    print_info "3️⃣  Testowanie budowania backend..."
+    print_info "3. Testowanie budowania backend..."
     cd app/backend
     
     build_failed=0
@@ -356,7 +358,7 @@ ci_test() {
     
     # 4. Docker Compose validation
     echo ""
-    print_info "4️⃣  Walidacja docker-compose.yml..."
+    print_info "4. Walidacja docker-compose.yml..."
     cd app/backend
     if docker-compose config > /dev/null 2>&1; then
         print_success "docker-compose.yml - poprawny"
@@ -367,7 +369,7 @@ ci_test() {
     
     # 5. Sprawdzanie wrażliwych danych
     echo ""
-    print_info "5️⃣  Sprawdzanie wrażliwych danych..."
+    print_info "5. Sprawdzanie wrażliwych danych..."
     sensitive_patterns="password.*=.*[a-zA-Z0-9]|secret.*=.*[a-zA-Z0-9]|token.*=.*[a-zA-Z0-9]|api[_-]?key.*=.*[a-zA-Z0-9]"
     
     found_sensitive=false
@@ -377,17 +379,17 @@ ci_test() {
     
     if [ "$found_sensitive" = true ]; then
         print_error "Znaleziono potencjalne wrażliwe dane w commitach!"
-        echo -e "${YELLOW}⚠️  Sprawdź czy nie committujesz haseł lub kluczy API${NC}"
+        echo -e "${YELLOW}Sprawdź czy nie committujesz haseł lub kluczy API${NC}"
     else
         print_success "Brak wrażliwych danych w stagowanych plikach"
     fi
     
     # 6. Sprawdzanie brancha
     echo ""
-    print_info "6️⃣  Sprawdzanie brancha..."
+    print_info "6. Sprawdzanie brancha..."
     current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
     if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
-        echo -e "${YELLOW}⚠️  Jesteś na branchu $current_branch - czy na pewno chcesz pushować?${NC}"
+        echo -e "${YELLOW}Jesteś na branchu $current_branch - czy na pewno chcesz pushować?${NC}"
     else
         print_success "Branch: $current_branch"
     fi
@@ -395,7 +397,7 @@ ci_test() {
     # Podsumowanie
     echo ""
     echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}📊 PODSUMOWANIE${NC}"
+    echo -e "${BLUE}PODSUMOWANIE${NC}"
     echo -e "${BLUE}========================================${NC}"
     
     if [ -f ".github/workflows/ci-cd.yml" ]; then
@@ -406,12 +408,12 @@ ci_test() {
         echo "2. git commit -m 'feat: your message'"
         echo "3. git push origin $current_branch"
     else
-        echo -e "${YELLOW}⚠️  Brak pliku .github/workflows/ci-cd.yml${NC}"
+        echo -e "${YELLOW}Brak pliku .github/workflows/ci-cd.yml${NC}"
     fi
     
     echo ""
     echo ""
-    echo -e "${YELLOW}💡 Wskazówki:${NC}"
+    echo -e "${YELLOW}Wskazówki:${NC}"
     echo "- Użyj './scripts/quick-commit.sh' dla interaktywnego commita"
     echo "- Sprawdź Actions tab na GitHub po pushu"
     echo "- Użyj 'git push --dry-run' aby sprawdzić co zostanie wypchnięte"

@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Konfiguracja API
-const API_BASE_URL = 'http://localhost:5002/api';
-const IDENTITY_BASE_URL = 'http://localhost:5001';
+// Konfiguracja API - używamy API Gateway
+const API_GATEWAY_URL = 'http://localhost:5000';
+const API_BASE_URL = `${API_GATEWAY_URL}/reservation`;
+const IDENTITY_BASE_URL = `${API_GATEWAY_URL}/identity`;
 
 // Token Manager
 export const tokenManager = {
@@ -75,7 +76,7 @@ const handleTokenRefresh = async (error, apiInstance) => {
     try {
       const refreshToken = tokenManager.getRefreshToken();
       if (refreshToken) {
-        const response = await axios.post(`${IDENTITY_BASE_URL}/api/refreshtoken/refresh`, {
+        const response = await axios.post(`${IDENTITY_BASE_URL}/refreshtoken/refresh`, {
           refreshToken
         });
 
@@ -107,9 +108,9 @@ identityAPI.interceptors.response.use(
 
 // ===== Identity Service =====
 export const authAPI = {
-  register: (data) => identityAPI.post('/api/account/register', data),
+  register: (data) => identityAPI.post('/account/register', data),
   login: async (data) => {
-    const response = await identityAPI.post('/api/account/login', data);
+    const response = await identityAPI.post('/account/login', data);
     if (response.data.accessToken && response.data.refreshToken) {
       tokenManager.setTokens(response.data.accessToken, response.data.refreshToken);
       tokenManager.setUser({
@@ -123,13 +124,13 @@ export const authAPI = {
   },
   logout: async () => {
     try {
-      await identityAPI.post('/api/account/logout');
+      await identityAPI.post('/account/logout');
     } finally {
       tokenManager.clearTokens();
       window.location.href = '/login';
     }
   },
-  refreshToken: (refreshToken) => identityAPI.post('/api/refreshtoken/refresh', { refreshToken }),
+  refreshToken: (refreshToken) => identityAPI.post('/refreshtoken/refresh', { refreshToken }),
 };
 
 // ===== Company Service =====

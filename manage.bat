@@ -30,7 +30,7 @@ echo   manage.bat start      - Uruchom backend (Docker)
 echo   manage.bat stop       - Zatrzymaj backend
 echo   manage.bat restart    - Restart z czyszczeniem
 echo   manage.bat status     - Sprawdz status
-echo   manage.bat test       - Testuj endpointy
+echo   manage.bat test       - Testuj caly system (porty, Gateway, JWT)
 echo.
 echo Frontend:
 echo   manage.bat frontend   - Uruchom frontend React
@@ -62,6 +62,7 @@ timeout /t 20 /nobreak >nul
 echo.
 echo %GREEN%Backend uruchomiony!%NC%
 echo.
+echo API Gateway:     http://localhost:5000 (glowny punkt wejscia)
 echo Identity API:    http://localhost:5001/swagger
 echo Reservation API: http://localhost:5002/swagger
 echo Notification API: http://localhost:5003/swagger
@@ -131,16 +132,52 @@ echo ========================================
 echo TESTOWANIE SYSTEMU
 echo ========================================
 echo.
-echo Test rejestracji...
-curl -X POST http://localhost:5001/api/account/register ^
-  -H "Content-Type: application/json" ^
-  -d "{\"email\":\"test%RANDOM%@example.com\",\"password\":\"Test123!\",\"firstName\":\"Test\",\"lastName\":\"User\",\"phone\":\"123456789\"}"
+echo 1. Test portow:
+curl -s http://localhost:5000/health >nul 2>&1 && (
+    echo API Gateway: [OK]
+) || (
+    echo API Gateway: [FAIL]
+)
+curl -s http://localhost:5001/health >nul 2>&1 && (
+    echo IdentityService: [OK]
+) || (
+    echo IdentityService: [FAIL]
+)
+curl -s http://localhost:5002/health >nul 2>&1 && (
+    echo ReservationService: [OK]
+) || (
+    echo ReservationService: [FAIL]
+)
+curl -s http://localhost:5003/health >nul 2>&1 && (
+    echo NotificationService: [OK]
+) || (
+    echo NotificationService: [FAIL]
+)
 echo.
+echo 2. Test routingu przez API Gateway:
+curl -s http://localhost:5000/identity/health >nul 2>&1 && (
+    echo Gateway -^> Identity: [OK]
+) || (
+    echo Gateway -^> Identity: [FAIL]
+)
+curl -s http://localhost:5000/reservation/health >nul 2>&1 && (
+    echo Gateway -^> Reservation: [OK]
+) || (
+    echo Gateway -^> Reservation: [FAIL]
+)
 echo.
-echo Test logowania JWT...
-curl -X POST http://localhost:5001/api/account/login ^
+echo 3. Test JWT przez Gateway:
+for /f "delims=" %%i in ('curl -s -X POST http://localhost:5000/identity/account/login -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"Test123!\"}"') do set LOGIN_RESPONSE=%%i
+echo %LOGIN_RESPONSE% | findstr "accessToken" >nul && (
+    echo Login JWT: [OK]
+) || (
+    echo Login JWT: [FAIL]
+)
+echo.
+echo 4. Test rejestracji przez Gateway:
+curl -X POST http://localhost:5000/identity/account/register ^
   -H "Content-Type: application/json" ^
-  -d "{\"email\":\"test@example.com\",\"password\":\"Test123!\"}"
+  -d "{\"email\":\"test%RANDOM%@example.com\",\"password\":\"Test123!\",\"firstName\":\"Test\",\"lastName\":\"User\"}"
 echo.
 goto end
 

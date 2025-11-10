@@ -1,0 +1,41 @@
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check commit messages
+        run: |
+          # Sprawdzanie czy commit messages są zgodne z Conventional Commits
+          echo "Checking commit format..."
+          git log --format=%B -n 1 ${{ github.event.pull_request.head.sha }} | head -1 | grep -E "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"
+      
+      - name: Check for console.log in JavaScript
+        run: |
+          # Sprawdź czy nie ma console.log w kodzie produkcyjnym
+          if [ -d "app/frontend/my-frontend/src" ]; then
+            ! grep -r "console.log" app/frontend/my-frontend/src --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null || echo "Warning: console.log found in code"
+          else
+            echo "Frontend source directory not found - skipping console.log check"
+          fi
+      
+      - name: Check Docker files
+        run: |
+          # Walidacja Dockerfile'ów
+          for dockerfile in $(find app/backend -name Dockerfile); do
+            echo "Validating $dockerfile"
+            docker run --rm -i hadolint/hadolint < $dockerfile || true
+          done
+      
+      - name: Label PR
+        uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"

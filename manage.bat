@@ -31,6 +31,7 @@ echo   manage.bat stop       - Zatrzymaj backend
 echo   manage.bat restart    - Restart z czyszczeniem
 echo   manage.bat status     - Sprawdz status
 echo   manage.bat test       - Testuj caly system (porty, Gateway, JWT)
+echo   manage.bat ci-test    - Test CI/CD lokalnie przed commitowaniem
 echo.
 echo Frontend:
 echo   manage.bat frontend   - Uruchom frontend React
@@ -257,6 +258,125 @@ goto end
 
 :ps
 docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+goto end
+
+:ci-test
+echo.
+echo ========================================
+echo TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)
+echo ========================================
+echo.
+echo 1. Sprawdzanie formatu ostatniego commita...
+for /f "delims=" %%i in ('git log -1 --pretty^=%%B') do set LAST_COMMIT=%%i
+echo !LAST_COMMIT! | findstr /r "^feat\|^fix\|^docs\|^style\|^refactor\|^test\|^chore\|^ci\|^perf\|^build" >nul && (
+    echo %GREEN%[OK]%NC% Format commita poprawny: !LAST_COMMIT!
+) || (
+    echo %RED%[FAIL]%NC% Niepoprawny format commita
+    echo Przyklad: 'feat: Add new feature' lub 'fix(api): Resolve issue'
+)
+echo.
+echo 2. Sprawdzanie console.log w kodzie (PR Validation)...
+if exist app\frontend\my-frontend\src (
+    findstr /s /i "console.log" app\frontend\my-frontend\src\*.js app\frontend\my-frontend\src\*.jsx app\frontend\my-frontend\src\*.ts app\frontend\my-frontend\src\*.tsx >nul 2>&1 && (
+        echo %YELLOW%[WARN]%NC% Znaleziono console.log w kodzie
+    ) || (
+        echo %GREEN%[OK]%NC% Brak console.log w kodzie produkcyjnym
+    )
+) else (
+    echo %YELLOW%[WARN]%NC% Katalog frontend/my-frontend/src nie istnieje
+)
+echo.
+echo 3. TEST BACKEND (symulacja GitHub Actions)...
+cd app\backend
+echo    Restoring dependencies...
+for %%s in (IdentityService ReservationService NotificationService ApiGateway) do (
+    if exist %%s (
+        dotnet restore %%s\%%s.csproj >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% %%s - restore OK
+        ) || (
+            echo    %RED%[FAIL]%NC% %%s - restore FAILED
+        )
+    )
+)
+echo    Building services...
+for %%s in (IdentityService ReservationService NotificationService ApiGateway) do (
+    if exist %%s (
+        dotnet build %%s\%%s.csproj --no-restore -c Release >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% %%s - build OK
+        ) || (
+            echo    %RED%[FAIL]%NC% %%s - build FAILED
+        )
+    )
+)
+cd ..\..
+echo.
+echo 4. TEST FRONTEND (symulacja GitHub Actions)...
+if exist app\frontend\my-frontend (
+    cd app\frontend\my-frontend
+    if not exist node_modules (
+        echo    Installing dependencies (npm ci)...
+        npm ci >nul 2>&1 && (
+            echo    %GREEN%[OK]%NC% Dependencies installed
+        ) || (
+            echo    %RED%[FAIL]%NC% Failed to install dependencies
+        )
+    )
+    echo    Running linter...
+    npm run lint >nul 2>&1 && (
+        echo    %GREEN%[OK]%NC% Linting passed
+    ) || (
+        echo    %YELLOW%[WARN]%NC% Linting warnings (non-blocking)
+    )
+    echo    Building frontend...
+    npm run build >nul 2>&1 && (
+        echo    %GREEN%[OK]%NC% Frontend build successful
+    ) || (
+        echo    %RED%[FAIL]%NC% Frontend build FAILED
+    )
+    cd ..\..\..
+) else (
+    echo    %YELLOW%[WARN]%NC% Frontend directory not found
+)
+echo.
+echo 5. Walidacja docker-compose.yml...
+cd app\backend
+docker-compose config >nul 2>&1 && (
+    echo %GREEN%[OK]%NC% docker-compose.yml - poprawny
+) || (
+    echo %RED%[FAIL]%NC% docker-compose.yml - bledy w skladni
+)
+cd ..\..
+echo.
+echo 6. Sprawdzanie brancha...
+for /f "delims=" %%i in ('git branch --show-current') do set CURRENT_BRANCH=%%i
+echo Branch: !CURRENT_BRANCH!
+if "!CURRENT_BRANCH!"=="main" (
+    echo %YELLOW%[WARN]%NC% Jestes na branchu main - czy na pewno chcesz pushowac?
+) else if "!CURRENT_BRANCH!"=="master" (
+    echo %YELLOW%[WARN]%NC% Jestes na branchu master - czy na pewno chcesz pushowac?
+) else (
+    echo %GREEN%[OK]%NC% Branch: !CURRENT_BRANCH!
+)
+echo.
+echo ========================================
+echo PODSUMOWANIE
+echo ========================================
+if exist .github\workflows\ci-cd.yml (
+    echo %GREEN%[OK]%NC% CI/CD workflow znaleziony
+    echo.
+    echo Aby uruchomic CI/CD:
+    echo 1. git add .
+    echo 2. git commit -m "feat: your message"
+    echo 3. git push origin !CURRENT_BRANCH!
+) else (
+    echo %YELLOW%[WARN]%NC% Brak pliku .github\workflows\ci-cd.yml
+)
+echo.
+echo Wskazowki:
+echo - Uzyj 'scripts\quick-commit.sh' dla interaktywnego commita
+echo - Sprawdz Actions tab na GitHub po pushu
+echo.
+echo %GREEN%Test lokalny zakonczony!%NC%
 goto end
 
 :invalid

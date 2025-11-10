@@ -89,6 +89,7 @@ manage.bat frontend   # Uruchom frontend (w nowym oknie)
 | Restart  | `./manage.sh restart`  | `manage.bat restart`  | Restart z czyszczeniem   |
 | Status   | `./manage.sh status`   | `manage.bat status`   | Sprawdź status          |
 | Test     | `./manage.sh test`     | `manage.bat test`     | Testuj endpointy         |
+| CI Test  | `./manage.sh ci-test`  | `manage.bat ci-test`  | Test CI/CD lokalnie      |
 | Logi     | `./manage.sh logs`     | `manage.bat logs`     | Pokaż logi              |
 | Frontend | `./manage.sh frontend` | `manage.bat frontend` | Uruchom React            |
 | All      | `./manage.sh all`      | `manage.bat all`      | Backend + Frontend       |
@@ -178,4 +179,4 @@ Automatycznie tworzony użytkownik testowy:
 | Event Sourcing          | Gotowe | Niski     |
 | Soft Delete             | Gotowe | Niski     |
 | API Gateway (Ocelot)    | Gotowe | Średni   |
-| CI/CD Pipeline          | TODO   | Niski     |
+| CI/CD Pipeline          | Gotowe | Wysoki    |

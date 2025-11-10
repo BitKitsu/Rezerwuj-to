@@ -16,15 +16,15 @@ print_header() {
 }
 
 print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+    echo -e "${GREEN}$1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}❌ $1${NC}"
+    echo -e "${RED}$1${NC}"
 }
 
 print_info() {
-    echo -e "${YELLOW}ℹ️  $1${NC}"
+    echo -e "${YELLOW}$1${NC}"
 }
 
 check_port() {
@@ -178,52 +178,52 @@ test_system() {
     
     # Test API Gateway
     if curl -s -f http://localhost:5000/health > /dev/null 2>&1; then
-        echo "API Gateway: ✅ Port otwarty"
+        echo -e "API Gateway: ${GREEN}Port otwarty${NC}"
     else
-        echo "API Gateway: ❌ Port zamknięty"
+        echo -e "API Gateway: ${RED}Port zamknięty${NC}"
     fi
     
     # Test IdentityService
     if curl -s -f http://localhost:5001/health > /dev/null 2>&1; then
-        echo "IdentityService: ✅ Port otwarty"
+        echo -e "IdentityService: ${GREEN}Port otwarty${NC}"
     else
-        echo "IdentityService: ❌ Port zamknięty"
+        echo -e "IdentityService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test ReservationService
     if curl -s -f http://localhost:5002/health > /dev/null 2>&1; then
-        echo "ReservationService: ✅ Port otwarty"
+        echo -e "ReservationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "ReservationService: ❌ Port zamknięty"
+        echo -e "ReservationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test NotificationService
     if curl -s -f http://localhost:5003/health > /dev/null 2>&1; then
-        echo "NotificationService: ✅ Port otwarty"
+        echo -e "NotificationService: ${GREEN}Port otwarty${NC}"
     else
-        echo "NotificationService: ❌ Port zamknięty"
+        echo -e "NotificationService: ${RED}Port zamknięty${NC}"
     fi
     
     # Test RabbitMQ
     if curl -s -f http://guest:guest@localhost:15672/api/overview > /dev/null 2>&1; then
-        echo "RabbitMQ: ✅ Management UI działa"
+        echo -e "RabbitMQ: ${GREEN}Management UI działa${NC}"
     else
-        echo "RabbitMQ: ❌ Management UI niedostępne"
+        echo -e "RabbitMQ: ${RED}Management UI niedostępne${NC}"
     fi
     
     # Test API Gateway routing
     echo ""
     print_info "2. Test routingu przez API Gateway..."
     if curl -s -f http://localhost:5000/identity/health > /dev/null 2>&1; then
-        echo "Gateway → Identity: ✅ Routing działa"
+        echo -e "Gateway → Identity: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Identity: ❌ Routing nie działa"
+        echo -e "Gateway → Identity: ${RED}Routing nie działa${NC}"
     fi
     
     if curl -s -f http://localhost:5000/reservation/health > /dev/null 2>&1; then
-        echo "Gateway → Reservation: ✅ Routing działa"
+        echo -e "Gateway → Reservation: ${GREEN}Routing działa${NC}"
     else
-        echo "Gateway → Reservation: ❌ Routing nie działa"
+        echo -e "Gateway → Reservation: ${RED}Routing nie działa${NC}"
     fi
     
     # Test JWT przez Gateway
@@ -236,7 +236,7 @@ test_system() {
         -d '{"email": "test@example.com", "password": "Test123!"}')
     
     if echo "$login_response" | grep -q "accessToken"; then
-        echo "Login JWT: ✅ Działa"
+        echo -e "Login JWT: ${GREEN}Działa${NC}"
         ACCESS_TOKEN=$(echo "$login_response" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
         
         # Test autoryzacji
@@ -245,12 +245,12 @@ test_system() {
             http://localhost:5000/identity/audit/my)
         
         if [ "$auth_response" = "200" ]; then
-            echo "Autoryzacja JWT: ✅ Działa"
+            echo -e "Autoryzacja JWT: ${GREEN}Działa${NC}"
         else
-            echo "Autoryzacja JWT: ❌ Problem (HTTP $auth_response)"
+            echo -e "Autoryzacja JWT: ${RED}Problem (HTTP $auth_response)${NC}"
         fi
     else
-        echo "Login JWT: ❌ Nie działa"
+        echo -e "Login JWT: ${RED}Nie działa${NC}"
     fi
     
     # Test rejestracji przez Gateway
@@ -305,10 +305,177 @@ show_status() {
     
     echo ""
     print_info "Porty:"
-    echo "5001: $(check_port 5001 && echo 'IdentityService ✅' || echo 'IdentityService ❌')"
-    echo "5002: $(check_port 5002 && echo 'ReservationService ✅' || echo 'ReservationService ❌')"
-    echo "5173: $(check_port 5173 && echo 'Frontend React ✅' || echo 'Frontend React ❌')"
-    echo "5432: $(check_port 5432 && echo 'PostgreSQL ✅' || echo 'PostgreSQL ❌')"
+    echo "5001: $(check_port 5001 && echo 'IdentityService ${GREEN}${NC}' || echo 'IdentityService ${RED}${NC}')"
+    echo "5002: $(check_port 5002 && echo 'ReservationService ${GREEN}${NC}' || echo 'ReservationService ${RED}${NC}')"
+    echo "5173: $(check_port 5173 && echo 'Frontend React ${GREEN}${NC}' || echo 'Frontend React ${RED}${NC}')"
+    echo "5432: $(check_port 5432 && echo 'PostgreSQL ${GREEN}${NC}' || echo 'PostgreSQL ${RED}${NC}')"
+}
+
+ci_test() {
+    print_header "TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)"
+    
+    # 1. Sprawdzanie formatu ostatniego commita
+    echo ""
+    print_info "1. Sprawdzanie formatu ostatniego commita..."
+    last_commit=$(git log -1 --pretty=%B | head -n1)
+    if echo "$last_commit" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+"; then
+        print_success "Format commita poprawny: $last_commit"
+    else
+        print_error "Niepoprawny format commita"
+        echo -e "${YELLOW}Przykład: 'feat: Add new feature' lub 'fix(api): Resolve issue'${NC}"
+    fi
+    
+    # 2. Sprawdzanie console.log w kodzie
+    echo ""
+    print_info "2. Sprawdzanie console.log w kodzie (PR Validation)..."
+    if [ -d "app/frontend/my-frontend/src" ]; then
+        console_logs=$(grep -r "console.log" app/frontend/my-frontend/src --include="*.js" --include="*.jsx" --include="*.ts" --include="*.tsx" 2>/dev/null | head -1)
+        if [ -n "$console_logs" ]; then
+            echo -e "${YELLOW}Znaleziono console.log w kodzie - usuń przed deploymentem!${NC}"
+            echo "$console_logs"
+        else
+            print_success "Brak console.log w kodzie produkcyjnym"
+        fi
+    else
+        echo -e "${YELLOW}Katalog frontend/my-frontend/src nie istnieje${NC}"
+    fi
+    
+    # 3. Test Backend (jak w CI/CD)
+    echo ""
+    print_info "3. TEST BACKEND (symulacja GitHub Actions)..."
+    cd app/backend
+    
+    # Restore dependencies
+    print_info "   Restoring dependencies..."
+    
+    build_failed=0
+    for service in IdentityService ReservationService NotificationService ApiGateway; do
+        if [ -d "$service" ]; then
+            if dotnet restore "$service/$service.csproj" > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} $service - restore OK"
+            else
+                echo -e "   ${RED}✗${NC} $service - restore FAILED"
+                build_failed=1
+            fi
+        fi
+    done
+    
+    # Build services
+    print_info "   Building services..."
+    for service in IdentityService ReservationService NotificationService ApiGateway; do
+        if [ -d "$service" ]; then
+            if dotnet build "$service/$service.csproj" --no-restore -c Release > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} $service - build OK"
+            else
+                echo -e "   ${RED}✗${NC} $service - build FAILED"
+                build_failed=1
+            fi
+        fi
+    done
+    cd ../..
+    
+    # 4. Test Frontend (jak w CI/CD)
+    echo ""
+    print_info "4. TEST FRONTEND (symulacja GitHub Actions)..."
+    if [ -d "app/frontend/my-frontend" ]; then
+        cd app/frontend/my-frontend
+        
+        # Check if node_modules exists
+        if [ ! -d "node_modules" ]; then
+            print_info "   Installing dependencies (npm ci)..."
+            if npm ci > /dev/null 2>&1; then
+                echo -e "   ${GREEN}✓${NC} Dependencies installed"
+            else
+                echo -e "   ${RED}✗${NC} Failed to install dependencies"
+            fi
+        fi
+        
+        # Run linter
+        print_info "   Running linter..."
+        if npm run lint > /dev/null 2>&1; then
+            echo -e "   ${GREEN}✓${NC} Linting passed"
+        else
+            echo -e "   ${YELLOW}⚠${NC} Linting warnings (non-blocking)"
+        fi
+        
+        # Build frontend
+        print_info "   Building frontend..."
+        if npm run build > /dev/null 2>&1; then
+            echo -e "   ${GREEN}✓${NC} Frontend build successful"
+        else
+            echo -e "   ${RED}✗${NC} Frontend build FAILED"
+        fi
+        
+        cd ../../..
+    else
+        echo -e "   ${YELLOW}Frontend directory not found${NC}"
+    fi
+    
+    # 5. Docker Compose validation
+    echo ""
+    print_info "5. Walidacja docker-compose.yml..."
+    cd app/backend
+    if docker-compose config > /dev/null 2>&1; then
+        print_success "docker-compose.yml - poprawny"
+    else
+        print_error "docker-compose.yml - błędy w składni"
+    fi
+    cd ../..
+    
+    # 6. Sprawdzanie wrażliwych danych
+    echo ""
+    print_info "6. Sprawdzanie wrażliwych danych..."
+    sensitive_patterns="password.*=.*[a-zA-Z0-9]|secret.*=.*[a-zA-Z0-9]|token.*=.*[a-zA-Z0-9]|api[_-]?key.*=.*[a-zA-Z0-9]"
+    
+    found_sensitive=false
+    if git diff --staged --name-only 2>/dev/null | xargs grep -iE "$sensitive_patterns" 2>/dev/null | grep -v ".example" | grep -v "test" | head -1; then
+        found_sensitive=true
+    fi
+    
+    if [ "$found_sensitive" = true ]; then
+        print_error "Znaleziono potencjalne wrażliwe dane w commitach!"
+        echo -e "${YELLOW}Sprawdź czy nie committujesz haseł lub kluczy API${NC}"
+    else
+        print_success "Brak wrażliwych danych w stagowanych plikach"
+    fi
+    
+    # 7. Sprawdzanie brancha
+    echo ""
+    print_info "7. Sprawdzanie brancha..."
+    current_branch=$(git branch --show-current 2>/dev/null || echo "unknown")
+    if [[ "$current_branch" == "main" ]] || [[ "$current_branch" == "master" ]]; then
+        echo -e "${YELLOW}Jesteś na branchu $current_branch - czy na pewno chcesz pushować?${NC}"
+    else
+        print_success "Branch: $current_branch"
+    fi
+    
+    # Podsumowanie
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}PODSUMOWANIE${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    
+    if [ -f ".github/workflows/ci-cd.yml" ]; then
+        print_success "CI/CD workflow znaleziony"
+        echo ""
+        echo "Aby uruchomić CI/CD:"
+        echo "1. git add ."
+        echo "2. git commit -m 'feat: your message'"
+        echo "3. git push origin $current_branch"
+    else
+        echo -e "${YELLOW}Brak pliku .github/workflows/ci-cd.yml${NC}"
+    fi
+    
+    echo ""
+    echo ""
+    echo -e "${YELLOW}Wskazówki:${NC}"
+    echo "- Użyj './scripts/quick-commit.sh' dla interaktywnego commita"
+    echo "- Sprawdź Actions tab na GitHub po pushu"
+    echo "- Użyj 'git push --dry-run' aby sprawdzić co zostanie wypchnięte"
+    echo "- Dokumentacja: docs/CI-CD-SETUP.md"
+    
+    echo ""
+    print_success "Test lokalny zakończony!"
 }
 
 show_help() {
@@ -323,6 +490,7 @@ show_help() {
     echo "  frontend      - Uruchom tylko frontend"
     echo "  all           - Uruchom wszystko (backend + frontend)"
     echo "  test          - Testuj cały system (porty, Gateway, JWT, routing)"
+    echo "  ci-test       - Test CI/CD lokalnie przed commitowaniem"
     echo "  logs          - Pokaż logi (opcjonalnie: logs [nazwa_serwisu])"
     echo "  status        - Pokaż status systemu"
     echo "  help          - Pokaż tę pomoc"
@@ -358,6 +526,9 @@ case "$1" in
         ;;
     test)
         test_system
+        ;;
+    ci-test|ci)
+        ci_test
         ;;
     logs|log)
         show_logs $2

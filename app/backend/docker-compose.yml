@@ -36,7 +36,7 @@ services:
       POSTGRES_MULTIPLE_DATABASES: identitydb,reservationdb,notificationdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../../plan/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     ports:
       - "5433:5432"
     healthcheck:

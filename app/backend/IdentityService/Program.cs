@@ -94,49 +94,129 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
-    try
-    {
-        logger.LogInformation("Applying database migrations...");
-        dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
-        logger.LogInformation("Database is ready!");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "An error occurred while migrating the database.");
-    }
+    // Retry logic dla migracji bazy danych
+    var maxRetryCount = 5;
+    var delayMilliseconds = 1000;
     
-    // Utworzenie testowego użytkownika (synchronicznie)
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    var testEmail = "test@example.com";
-    var testUser = userManager.FindByEmailAsync(testEmail).GetAwaiter().GetResult();
-    
-    if (testUser == null)
+    for (int retry = 0; retry < maxRetryCount; retry++)
     {
-        testUser = new ApplicationUser
+        try
         {
-            UserName = testEmail,
-            Email = testEmail,
-            EmailConfirmed = true,
-            FirstName = "Test",
-            LastName = "User",
-            Phone = "",
-            CompanyId = 1
-        };
-        
-        var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
-        
-        if (result.Succeeded)
-        {
-            Console.WriteLine($"✅ Utworzono testowego użytkownika: {testEmail} / Test123!");
+            if (retry > 0)
+            {
+                logger.LogInformation($"Retry {retry}/{maxRetryCount} - waiting {delayMilliseconds}ms...");
+                Thread.Sleep(delayMilliseconds);
+                delayMilliseconds *= 2; // Exponential backoff
+            }
+            
+            logger.LogInformation("Ensuring database exists and applying schema...");
+            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+            logger.LogInformation("Database schema ready!");
+            break; // Sukces
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine($"❌ Błąd tworzenia użytkownika testowego: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            if (retry == maxRetryCount - 1)
+            {
+                logger.LogError(ex, "Failed to apply database migrations after {RetryCount} attempts", maxRetryCount);
+                throw; // Ostatnia próba nieudana - rzucamy wyjątek
+            }
+            else
+            {
+                logger.LogWarning(ex, "Migration attempt {Retry} failed, will retry...", retry + 1);
+            }
         }
     }
-    else
+    
+    // Seedowanie danych - również z retry logic
+    for (int retry = 0; retry < maxRetryCount; retry++)
     {
-        Console.WriteLine($"ℹ️ Użytkownik testowy już istnieje: {testEmail}");
+        try
+        {
+            if (retry > 0)
+            {
+                logger.LogInformation($"Retry seeding {retry}/{maxRetryCount} - waiting 2000ms...");
+                Thread.Sleep(2000);
+            }
+            
+            // Sprawdzenie czy tabele istnieją przed seedowaniem
+            var canConnect = dbContext.Database.CanConnect();
+            
+            if (!canConnect)
+            {
+                logger.LogWarning("Cannot connect to database yet, waiting...");
+                Thread.Sleep(3000);
+                continue;
+            }
+            
+            // Dodatkowa weryfikacja czy tabele AspNetUsers istnieją
+            try 
+            {
+                var tableCheck = dbContext.Database.ExecuteSqlRaw(
+                    "SELECT COUNT(*) FROM pg_tables WHERE tablename = 'AspNetUsers'");
+            }
+            catch
+            {
+                logger.LogWarning("AspNetUsers table not ready yet, waiting...");
+                Thread.Sleep(3000);
+                continue;
+            }
+            
+            // Utworzenie testowego użytkownika
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var testEmail = "test@example.com";
+            
+            logger.LogInformation("Checking for test user...");
+            var testUser = userManager.FindByEmailAsync(testEmail).GetAwaiter().GetResult();
+            
+            if (testUser == null)
+            {
+                logger.LogInformation("Creating test user...");
+                testUser = new ApplicationUser
+                {
+                    UserName = testEmail,
+                    Email = testEmail,
+                    EmailConfirmed = true,
+                    FirstName = "Test",
+                    LastName = "User",
+                    Phone = "",
+                    CompanyId = 1
+                };
+                
+                var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
+                
+                if (result.Succeeded)
+                {
+                    Console.WriteLine($"Utworzono testowego użytkownika: {testEmail} / Test123!");
+                    logger.LogInformation("Test user created successfully");
+                }
+                else
+                {
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    logger.LogError("Failed to create test user: {Errors}", errors);
+                    Console.WriteLine($"Błąd tworzenia użytkownika testowego: {errors}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Użytkownik testowy już istnieje: {testEmail}");
+                logger.LogInformation("Test user already exists");
+            }
+            
+            break; // Sukces - wychodzimy z pętli
+        }
+        catch (Exception ex)
+        {
+            if (retry == maxRetryCount - 1)
+            {
+                logger.LogError(ex, "Failed to seed test data after {RetryCount} attempts", maxRetryCount);
+                // Nie rzucamy wyjątku - aplikacja może działać bez testowego użytkownika
+            }
+            else
+            {
+                logger.LogWarning(ex, "Seeding attempt {Retry} failed, will retry...", retry + 1);
+            }
+        }
     }
 }
 

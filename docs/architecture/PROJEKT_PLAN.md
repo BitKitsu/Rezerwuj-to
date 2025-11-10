@@ -1,17 +1,20 @@
 # Plan Projektu: System Zarządzania Rezerwacjami - Ocena 5.0
 
-## 📋 Informacje o projekcie
+## Informacje o projekcie
+
 - **Zespół**: 4 osoby
 - **Cel**: Ocena 5.0
 - **Stack technologiczny**: C# (.NET 8), React, PostgreSQL, Docker, RabbitMQ
 - **Architektura**: Mikroserwisy z API Gateway
 
-## 👥 Podział Zespołu i Zadania
+## Podział Zespołu i Zadania
 
 ### **Osoba 1: Backend Developer - Mikroserwisy (Lead)**
+
 **Odpowiedzialność**: Architektura mikroserwisów, Identity Service, API Gateway
 
 #### Sprint 1 (Tydzień 1-2)
+
 - [ ] Utworzenie struktury mikroserwisów
   - Identity.API (port 5001)
   - Reservation.API (port 5002)
@@ -28,6 +31,7 @@
   - Rate limiting
 
 #### Sprint 2 (Tydzień 3-4)
+
 - [ ] Integracja z RabbitMQ
   - Konfiguracja Message Bus
   - Implementacja Event Bus
@@ -38,9 +42,11 @@
 ---
 
 ### **Osoba 2: Backend Developer - Business Logic**
+
 **Odpowiedzialność**: Reservation Service, Business Logic, Baza danych
 
 #### Sprint 1 (Tydzień 1-2)
+
 - [ ] Implementacja Reservation Service
   - CRUD dla firm (Companies)
   - CRUD dla usług (Services)
@@ -52,6 +58,7 @@
   - Optymalizacja zapytań
 
 #### Sprint 2 (Tydzień 3-4)
+
 - [ ] Logika rezerwacji
   - Sprawdzanie dostępności
   - Walidacja konfliktów
@@ -65,9 +72,11 @@
 ---
 
 ### **Osoba 3: Frontend Developer**
+
 **Odpowiedzialność**: React UI, Panel administracyjny, Widok klienta
 
 #### Sprint 1 (Tydzień 1-2)
+
 - [ ] Konfiguracja projektu React
   - React Router v6
   - Redux Toolkit + RTK Query
@@ -84,6 +93,7 @@
   - Zarządzanie usługami
 
 #### Sprint 2 (Tydzień 3-4)
+
 - [ ] Panel pracownika
   - Widok własnego grafiku
   - Lista rezerwacji
@@ -98,9 +108,11 @@
 ---
 
 ### **Osoba 4: DevOps Engineer + Notification Service**
+
 **Odpowiedzialność**: Docker, CI/CD, Notification Service, Infrastruktura
 
 #### Sprint 1 (Tydzień 1-2)
+
 - [ ] Konfiguracja Docker
   - Dockerfile dla każdego mikroserwisu
   - docker-compose.yml dla środowiska dev
@@ -114,6 +126,7 @@
 - [ ] Konfiguracja RabbitMQ w Docker
 
 #### Sprint 2 (Tydzień 3-4)
+
 - [ ] CI/CD Pipeline (GitHub Actions)
   - Build i testy przy każdym push
   - Budowanie obrazów Docker
@@ -129,9 +142,10 @@
 
 ---
 
-## 📅 Harmonogram Sprintów
+## Harmonogram Sprintów
 
 ### **Sprint 0 (Dzień 1-3)**: Setup
+
 - Wszyscy: Przegląd wymagań, setup środowiska
 - Osoba 1: Struktura projektu mikroserwisów
 - Osoba 2: Poprawka schematu bazy danych
@@ -139,71 +153,29 @@
 - Osoba 4: Konfiguracja Docker i repozytorium
 
 ### **Sprint 1 (Tydzień 1-2)**: MVP
+
 - Podstawowa funkcjonalność każdego komponentu
 - Komunikacja synchroniczna (REST)
 - Podstawowy UI
 
 ### **Sprint 2 (Tydzień 3-4)**: Rozszerzenie
+
 - Komunikacja asynchroniczna (RabbitMQ)
 - Pełny UI z wszystkimi rolami
 - Notyfikacje email
 - CI/CD
 
 ### **Sprint 3 (Tydzień 5)**: Finalizacja
+
 - Testy E2E
 - Dokumentacja
 - Deployment na produkcję
 - Prezentacja
 
----
-
-## 🔧 Struktura Projektu
-
-```
-System-Rezerwacji/
-├── src/
-│   ├── Services/
-│   │   ├── Identity/
-│   │   │   ├── Identity.API/
-│   │   │   ├── Identity.Domain/
-│   │   │   └── Identity.Infrastructure/
-│   │   ├── Reservation/
-│   │   │   ├── Reservation.API/
-│   │   │   ├── Reservation.Domain/
-│   │   │   └── Reservation.Infrastructure/
-│   │   └── Notification/
-│   │       ├── Notification.API/
-│   │       └── Notification.Infrastructure/
-│   ├── ApiGateway/
-│   │   └── Ocelot.Gateway/
-│   ├── BuildingBlocks/
-│   │   ├── EventBus/
-│   │   └── Common/
-│   └── Web/
-│       └── WebApp/ (React)
-├── tests/
-│   ├── UnitTests/
-│   └── IntegrationTests/
-├── docker/
-│   ├── docker-compose.yml
-│   ├── docker-compose.override.yml
-│   └── docker-compose.prod.yml
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml
-└── docs/
-    ├── API.md
-    ├── DEPLOYMENT.md
-    └── ARCHITECTURE.md
-```
-
----
-
-## 📊 Kamienie Milowe
+## Kamienie Milowe
 
 1. **Tydzień 1**: Działający Identity Service + podstawowy frontend
 2. **Tydzień 2**: Działający Reservation Service + integracja z frontendem
 3. **Tydzień 3**: RabbitMQ + Notification Service działające
 4. **Tydzień 4**: CI/CD pipeline + deployment na VPS
 5. **Tydzień 5**: Finalna wersja z pełną dokumentacją
-

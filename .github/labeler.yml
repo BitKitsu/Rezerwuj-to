@@ -1,0 +1,53 @@
+# Konfiguracja automatycznego oznaczania Pull Requestów
+# GitHub Labeler automatycznie dodaje etykiety do PR na podstawie zmienionych plików
+
+# Backend
+backend:
+  - app/backend/**/*
+  - '*.csproj'
+  - 'Dockerfile'
+
+# Frontend  
+frontend:
+  - app/frontend/**/*
+  - '*.js'
+  - '*.jsx'
+  - '*.ts'
+  - '*.tsx'
+  - 'package.json'
+
+# Database
+database:
+  - '**/*migration*'
+  - '**/Models/**'
+  - app/backend/*/Data/**
+
+# CI/CD
+ci/cd:
+  - .github/workflows/*
+  - .github/**/*
+  - scripts/*
+
+# Dokumentacja
+documentation:
+  - '*.md'
+  - docs/**/*
+  - README.md
+
+# Docker
+docker:
+  - '**/Dockerfile'
+  - '**/docker-compose*.yml'
+  - .dockerignore
+
+# Konfiguracja
+configuration:
+  - '**/appsettings*.json'
+  - .env*
+  - '**/*.config'
+
+# Security
+security:
+  - '**/IdentityService/**'
+  - '**/Authentication/**'
+  - '**/Authorization/**'

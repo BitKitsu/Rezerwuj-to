@@ -180,3 +180,4 @@ Automatycznie tworzony użytkownik testowy:
 | Soft Delete             | Gotowe | Niski     |
 | API Gateway (Ocelot)    | Gotowe | Średni   |
 | CI/CD Pipeline          | Gotowe | Wysoki    |
+| Rozszerzenie frontendu  | TODO | Wysoki    |

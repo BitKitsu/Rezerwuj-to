@@ -1,4 +1,31 @@
 services:
+  # API Gateway (Ocelot) - główny punkt wejścia
+  api_gateway:
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    ports:
+      - "5000:8080"  # Główny port dla całego API
+    depends_on:
+      identity_api:
+        condition: service_started
+      reservation_api:
+        condition: service_started
+      notification_api:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # JWT settings
+      JwtSettings__SecretKey: "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890"
+      JwtSettings__Issuer: "MikroSaaS-IdentityService"
+      JwtSettings__Audience: "MikroSaaS-Apps"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
   # Kontener bazy PostgreSQL
   postgres_db:
     image: postgres:15-alpine

@@ -135,7 +135,7 @@ restart_clean()      # Down + clean + up
 start_frontend()     # npm run dev
 run_all()           # Backend + Frontend
 test_system()       # Testy integracyjne
-ci_test()           # ⭐ Test CI/CD (wbudowane!)
+ci_test()           # Test CI/CD (wbudowane!)
 show_logs()         # Docker logs
 show_status()       # Status kontenerów
 show_help()         # Pomoc

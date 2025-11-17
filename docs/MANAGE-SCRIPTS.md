@@ -186,7 +186,7 @@ setlocal enabledelayedexpansion
 :restart
 :status
 :test
-:ci-test        ⭐ Test CI/CD (wbudowane!)
+:ci-test
 :frontend
 :all
 :logs

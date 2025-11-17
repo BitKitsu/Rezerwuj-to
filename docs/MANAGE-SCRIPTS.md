@@ -447,5 +447,3 @@ echo   manage.bat custom    - My custom command
 - Nie używaj `clean` na produkcji (kasuje dane!)
 
 ---
-
-**Gotowe!** Masz teraz pełną kontrolę nad systemem z poziomu jednej komendy! 🚀

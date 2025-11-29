@@ -1,280 +1,245 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { servicesAPI, appointmentsAPI, authAPI, tokenManager } from '../services/api';
 
 function DashboardPage() {
-  const [services, setServices] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedService, setSelectedService] = useState(null);
-  const [availableSlots, setAvailableSlots] = useState([]);
-  const [selectedDate, setSelectedDate] = useState('');
-  const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Sprawdź czy użytkownik jest zalogowany
-    if (!tokenManager.isAuthenticated()) {
-      navigate('/login');
+  const [user, setUser] = useState(null);
+  const [company, setCompany] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [loadingCompany, setLoadingCompany] = useState(true);
+  const [loadingData, setLoadingData] = useState(false);
+
+  const [newCompanyData, setNewCompanyData] = useState({ name: '', address: '' });
+  const [services, setServices] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [availableSlots, setAvailableSlots] = useState([]);
+
+  // --- Ładowanie usera z tokena ---
+const loadUser = () => {
+  console.log('[DashboardPage] Sprawdzam, czy użytkownik jest zalogowany...');
+  if (!tokenManager.isAuthenticated()) {
+    navigate('/login');
+    return;
+  }
+
+  const tokenUser = tokenManager.getUser();
+  console.log('[DashboardPage] Token user:', tokenUser);
+
+  setUser(tokenUser); // ustawiamy bez dodatkowego fetcha
+  setLoadingUser(false);
+};
+
+  // --- Ładowanie firmy ---
+  const loadCompany = async (user) => {
+    if (!user?.companyId) {
+      console.log('[DashboardPage] User nie ma przypisanej firmy');
+      setCompany(null);
+      setLoadingCompany(false);
       return;
     }
 
-    // Pobierz dane użytkownika
-    const userData = tokenManager.getUser();
-    setUser(userData);
+    try {
+      const data = await authAPI.getCompany(user.companyId);
+      console.log('[DashboardPage] Pobrana firma:', data);
+      setCompany(data);
+    } catch (err) {
+      console.error('[DashboardPage] Błąd ładowania firmy:', err);
+      setCompany(null);
+    } finally {
+      setLoadingCompany(false);
+    }
+  };
 
-    loadData();
-  }, [navigate]);
-
+  // --- Ładowanie usług i rezerwacji ---
   const loadData = async () => {
+    if (!user?.companyId) {
+      console.log('[DashboardPage] Brak companyId, nie ładuję usług');
+      setServices([]);
+      setAppointments([]);
+      setLoadingData(false);
+      return;
+    }
+
+    setLoadingData(true);
     try {
       const [servicesRes, appointmentsRes] = await Promise.all([
-        servicesAPI.getAll(),
-        appointmentsAPI.getAll()
+        servicesAPI.getByCompany(user.companyId),
+        appointmentsAPI.getAll(),
       ]);
-      
+      console.log('[DashboardPage] Pobrane usługi:', servicesRes.data);
+      console.log('[DashboardPage] Pobrane rezerwacje:', appointmentsRes.data);
       setServices(servicesRes.data);
       setAppointments(appointmentsRes.data);
-    } catch (error) {
-      console.error('Error loading data:', error);
+    } catch (err) {
+      console.error('[DashboardPage] Błąd ładowania usług/rezerwacji:', err);
+      setServices([]);
+      setAppointments([]);
     } finally {
-      setLoading(false);
+      setLoadingData(false);
     }
   };
 
-  const handleLogout = async () => {
+  // --- Tworzenie nowej firmy ---
+  const handleCreateCompany = async (e) => {
+    e.preventDefault();
+    console.log('[DashboardPage] Tworzę nową firmę:', newCompanyData);
     try {
-      await authAPI.logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Nawet jeśli logout się nie uda, wyczyść lokalnie
-      tokenManager.clearTokens();
-      navigate('/');
+      const createdCompany = await authAPI.createCompany(newCompanyData);
+      console.log('[DashboardPage] Firma utworzona:', createdCompany);
+      const updatedUser = { ...user, companyId: createdCompany.id };
+      setUser(updatedUser);
+      setCompany(createdCompany);
+      alert('Firma została utworzona pomyślnie!');
+      loadData(); // załaduj usługi po utworzeniu firmy
+    } catch (err) {
+      console.error('[DashboardPage] Błąd tworzenia firmy:', err);
+      alert('Nie udało się utworzyć firmy.');
     }
   };
 
+  // --- Obsługa wyboru daty ---
   const handleDateChange = async (e) => {
     const date = e.target.value;
     setSelectedDate(date);
-    
     if (selectedService && date) {
       try {
         const response = await appointmentsAPI.getAvailableSlots(selectedService.id, date);
         setAvailableSlots(response.data);
-      } catch (error) {
-        console.error('Error loading slots:', error);
+      } catch (err) {
+        console.error('[DashboardPage] Błąd pobierania slotów:', err);
         setAvailableSlots([]);
       }
     }
   };
 
+  // --- Rezerwacja usługi ---
   const handleBookAppointment = async (slot) => {
     if (!selectedService || !slot || !user) return;
-
     try {
       await appointmentsAPI.create({
         serviceId: selectedService.id,
-        customerId: user.userId, // Używamy prawdziwego userId z JWT
-        staffId: 'staff-1', // TODO: Select staff
+        customerId: user.userId,
+        staffId: 'staff-1',
         dateStart: slot.start,
-        dateEnd: slot.end
+        dateEnd: slot.end,
       });
-      
       alert('Rezerwacja utworzona pomyślnie!');
-      loadData(); // Odśwież dane
+      loadData();
       setAvailableSlots([]);
       setSelectedService(null);
       setSelectedDate('');
-    } catch (error) {
-      console.error('Error booking appointment:', error);
+    } catch (err) {
+      console.error('[DashboardPage] Błąd tworzenia rezerwacji:', err);
       alert('Błąd podczas tworzenia rezerwacji');
     }
   };
 
-  if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Ładowanie...</div>;
+  // --- useEffect ---
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadCompany(user);
+      loadData();
+    }
+  }, [user]);
+
+  // --- Render ---
+  if (loadingUser || loadingCompany || loadingData) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Ładowanie danych...</div>;
   }
 
   return (
     <div style={{ padding: '2rem' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '2rem'
-      }}>
-        <div>
-          <h1>📊 Panel Zarządzania</h1>
-          {user && (
-            <p style={{ margin: 0, color: '#666' }}>
-              Witaj, {user.firstName} {user.lastName} ({user.email})
-            </p>
-          )}
-        </div>
-        <button 
-          onClick={handleLogout}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
-        >
-          Wyloguj
-        </button>
-      </div>
+      <h1>📊 Dashboard</h1>
+      {user && <p>Witaj, {user.firstName} {user.lastName} ({user.email})</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-        {/* Lista usług */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2>💇 Dostępne Usługi</h2>
+      {company ? (
+        <div style={{ padding: '1rem', border: '1px solid #ddd', borderRadius: '5px', marginBottom: '1rem' }}>
+          <h2>Twoja firma:</h2>
+          <p>Nazwa: {company.companyName}</p>
+          <p>Email: {company.email}</p>
+          <p>Telefon: {company.phone}</p>
+          <p>Adres: {company.street}, {company.city}, {company.postalCode}, {company.country}</p>
+        </div>
+      ) : (
+        <div style={{ padding: '1rem', border: '1px solid #ddd', borderRadius: '5px', marginBottom: '1rem' }}>
+          <h2>Nie masz jeszcze firmy</h2>
+          <form onSubmit={handleCreateCompany}>
+            <input
+              type="text"
+              placeholder="Nazwa firmy"
+              value={newCompanyData.name}
+              onChange={e => setNewCompanyData({ ...newCompanyData, name: e.target.value })}
+              required
+            />
+            <input
+              type="text"
+              placeholder="Adres firmy"
+              value={newCompanyData.address}
+              onChange={e => setNewCompanyData({ ...newCompanyData, address: e.target.value })}
+              required
+            />
+            <button type="submit">Utwórz firmę</button>
+          </form>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem' }}>
+        <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: '5px', padding: '1rem' }}>
+          <h2>💇 Dostępne usługi</h2>
           {services.length > 0 ? (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
+            <ul>
               {services.map(service => (
-                <li key={service.id} style={{ 
-                  padding: '1rem',
-                  borderBottom: '1px solid #eee',
-                  cursor: 'pointer',
-                  backgroundColor: selectedService?.id === service.id ? '#e3f2fd' : 'transparent'
-                }}
-                onClick={() => setSelectedService(service)}
+                <li
+                  key={service.id}
+                  onClick={() => setSelectedService(service)}
+                  style={{ cursor: 'pointer', backgroundColor: selectedService?.id === service.id ? '#e3f2fd' : 'transparent' }}
                 >
-                  <strong>{service.serviceName}</strong>
-                  <div style={{ color: '#666', fontSize: '0.9rem' }}>
-                    {service.description}
-                  </div>
-                  <div style={{ marginTop: '0.5rem' }}>
-                    💰 {service.price} zł | ⏱️ {service.durationMinutes} min
-                  </div>
+                  {service.serviceName} - {service.price} zł
                 </li>
               ))}
             </ul>
-          ) : (
-            <p>Brak dostępnych usług</p>
-          )}
+          ) : <p>Brak usług</p>}
         </div>
 
-        {/* Rezerwacja */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2>📅 Nowa Rezerwacja</h2>
-          
+        <div style={{ flex: 1, border: '1px solid #ddd', borderRadius: '5px', padding: '1rem' }}>
+          <h2>📅 Nowa rezerwacja</h2>
           {selectedService ? (
             <>
-              <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f0f8ff', borderRadius: '5px' }}>
-                <strong>Wybrana usługa:</strong> {selectedService.serviceName}
-              </div>
-
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-                  Wybierz datę:
-                </label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={handleDateChange}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    fontSize: '1rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '5px'
-                  }}
-                />
-              </div>
-
+              <p>Wybrana usługa: {selectedService.serviceName}</p>
+              <input type="date" value={selectedDate} onChange={handleDateChange} />
               {availableSlots.length > 0 && (
                 <div>
-                  <h3>Dostępne terminy:</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    {availableSlots.map((slot, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleBookAppointment(slot)}
-                        style={{
-                          padding: '0.5rem',
-                          backgroundColor: '#4CAF50',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '5px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {new Date(slot.start).toLocaleTimeString('pl-PL', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </button>
-                    ))}
-                  </div>
+                  {availableSlots.map((slot, idx) => (
+                    <button key={idx} onClick={() => handleBookAppointment(slot)}>
+                      {new Date(slot.start).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+                    </button>
+                  ))}
                 </div>
               )}
             </>
-          ) : (
-            <p style={{ color: '#666' }}>Wybierz usługę z listy po lewej stronie</p>
-          )}
+          ) : <p>Wybierz usługę z listy po lewej</p>}
         </div>
       </div>
 
-      {/* Lista rezerwacji */}
-      <div style={{ 
-        marginTop: '2rem',
-        backgroundColor: 'white', 
-        padding: '1.5rem', 
-        borderRadius: '10px', 
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)' 
-      }}>
-        <h2>📋 Moje Rezerwacje</h2>
+      <div style={{ marginTop: '2rem', border: '1px solid #ddd', borderRadius: '5px', padding: '1rem' }}>
+        <h2>📋 Moje rezerwacje</h2>
         {appointments.length > 0 ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #ddd' }}>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Usługa</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Data</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Godzina</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map(appointment => (
-                <tr key={appointment.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '0.5rem' }}>
-                    {appointment.service?.serviceName || 'Usługa #' + appointment.serviceId}
-                  </td>
-                  <td style={{ padding: '0.5rem' }}>
-                    {new Date(appointment.dateStart).toLocaleDateString('pl-PL')}
-                  </td>
-                  <td style={{ padding: '0.5rem' }}>
-                    {new Date(appointment.dateStart).toLocaleTimeString('pl-PL', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </td>
-                  <td style={{ padding: '0.5rem' }}>
-                    <span style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '15px',
-                      fontSize: '0.9rem',
-                      backgroundColor: 
-                        appointment.status === 'confirmed' ? '#d4edda' :
-                        appointment.status === 'pending' ? '#fff3cd' : '#f8d7da',
-                      color:
-                        appointment.status === 'confirmed' ? '#155724' :
-                        appointment.status === 'pending' ? '#856404' : '#721c24'
-                    }}>
-                      {appointment.status === 'confirmed' ? '✅ Potwierdzone' :
-                       appointment.status === 'pending' ? '⏳ Oczekuje' : '❌ Anulowane'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p>Nie masz jeszcze żadnych rezerwacji</p>
-        )}
+          <ul>
+            {appointments.map(appt => (
+              <li key={appt.id}>
+                {appt.service?.serviceName || 'Usługa #' + appt.serviceId} - {new Date(appt.dateStart).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        ) : <p>Brak rezerwacji</p>}
       </div>
     </div>
   );

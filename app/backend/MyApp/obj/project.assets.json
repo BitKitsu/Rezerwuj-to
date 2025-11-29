@@ -1212,24 +1212,31 @@
     ]
   },
   "packageFolders": {
-    "/home/hypapa/.nuget/packages/": {}
+    "C:\\Users\\themi\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/hypapa/Dokumenty/projekty/Projekt-Inzynierski/System-do-Zarzadzania-Rezerwacjami-i-Zasobami-dla-Malych-Firm_Mikro-SaaS_/app/backend/MyApp/MyApp.csproj",
+      "projectUniqueName": "C:\\Users\\themi\\Desktop\\inz\\app\\backend\\MyApp\\MyApp.csproj",
       "projectName": "MyApp",
-      "projectPath": "/home/hypapa/Dokumenty/projekty/Projekt-Inzynierski/System-do-Zarzadzania-Rezerwacjami-i-Zasobami-dla-Malych-Firm_Mikro-SaaS_/app/backend/MyApp/MyApp.csproj",
-      "packagesPath": "/home/hypapa/.nuget/packages/",
-      "outputPath": "/home/hypapa/Dokumenty/projekty/Projekt-Inzynierski/System-do-Zarzadzania-Rezerwacjami-i-Zasobami-dla-Malych-Firm_Mikro-SaaS_/app/backend/MyApp/obj/",
+      "projectPath": "C:\\Users\\themi\\Desktop\\inz\\app\\backend\\MyApp\\MyApp.csproj",
+      "packagesPath": "C:\\Users\\themi\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\themi\\Desktop\\inz\\app\\backend\\MyApp\\obj\\",
       "projectStyle": "PackageReference",
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
       "configFilePaths": [
-        "/home/hypapa/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\themi\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
       ],
       "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -1242,7 +1249,13 @@
         "warnAsError": [
           "NU1605"
         ]
-      }
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0": {
@@ -1280,7 +1293,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/lib64/dotnet/sdk/8.0.119/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.307/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

@@ -117,7 +117,8 @@ export const authAPI = {
         userId: response.data.userId,
         email: response.data.email,
         firstName: response.data.firstName,
-        lastName: response.data.lastName
+        lastName: response.data.lastName,
+        companyId: response.data.companyId || null
       });
     }
     return response;
@@ -131,6 +132,8 @@ export const authAPI = {
     }
   },
   refreshToken: (refreshToken) => identityAPI.post('/refreshtoken/refresh', { refreshToken }),
+
+  getById: (userId) => identityAPI.get(`/account/${userId}`)
 };
 
 // ===== Company Service =====

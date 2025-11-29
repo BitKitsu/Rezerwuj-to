@@ -2,38 +2,38 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
-function RegisterPage() {
+export default function RegisterPage({ setUser, setIsLoggedIn }) {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
     firstName: '',
     lastName: '',
-    phone: ''
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: ''
   });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('handleSubmit został wywołany');
     setError('');
 
     // Walidacja pól wymaganych
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      setError('Imię i nazwisko są wymagane!');
-      return;
+    const requiredFields = ['firstName','lastName','email','password','confirmPassword'];
+    for (let field of requiredFields) {
+      if (!formData[field]) {
+        setError('Wszystkie wymagane pola muszą być wypełnione.');
+        return;
+      }
     }
 
-    // Walidacja hasła
     if (formData.password !== formData.confirmPassword) {
       setError('Hasła nie są identyczne!');
       return;
@@ -43,274 +43,120 @@ function RegisterPage() {
       setError('Hasło musi mieć minimum 6 znaków!');
       return;
     }
-    
-    // Sprawdź czy hasło ma cyfrę
+
     if (!/\d/.test(formData.password)) {
       setError('Hasło musi zawierać przynajmniej jedną cyfrę!');
       return;
     }
 
     setLoading(true);
-
     try {
-      const response = await authAPI.register({
-        email: formData.email,
-        password: formData.password,
+      const payload = {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        phone: formData.phone
-      });
-      
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password
+      };
+      console.log('➡ Payload do rejestracji:', payload);
+
+      const userData = await authAPI.register(payload);
+      console.log('⬅ Odpowiedź backendu:', userData);
+
+      // Sukces: pokaż komunikat i przekierowanie
       setSuccess(true);
-      
-      // Po 2 sekundach przekieruj do logowania
-      setTimeout(() => {
-        navigate('/login');
-      }, 2000);
-      
-    } catch (err) {
-      console.error('Registration error:', err);
-      
-      // Szczegółowa obsługa błędów walidacji
-      if (err.response?.data?.errors) {
-        const errors = err.response.data.errors;
-        let errorMessages = [];
-        
-        // Sprawdź różne typy błędów
-        for (const [key, value] of Object.entries(errors)) {
-          if (Array.isArray(value)) {
-            errorMessages = errorMessages.concat(value);
-          }
-        }
-        
-        if (errorMessages.length > 0) {
-          setError(
-            <div>
-              <strong>Błędy walidacji:</strong>
-              <ul style={{ textAlign: 'left', marginTop: '0.5rem' }}>
-                {errorMessages.map((msg, idx) => (
-                  <li key={idx}>{msg}</li>
-                ))}
-              </ul>
-            </div>
-          );
-        } else {
-          setError('Błąd rejestracji. Sprawdź poprawność danych.');
-        }
-      } else {
-        setError(err.response?.data?.title || 'Błąd rejestracji. Spróbuj ponownie.');
+      if (userData.user) {
+        setUser(userData.user);
+        setIsLoggedIn(true);
       }
+
+      // Przekierowanie po 1 sekundzie
+      setTimeout(() => navigate('/dashboard'), 1000);
+
+    } catch (err) {
+      console.error('❌ Błąd rejestracji:', err);
+
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        setError(
+          <div>
+            <strong>Błędy rejestracji:</strong>
+            <ul className="list-disc list-inside mt-1">
+              {err.response.data.errors.map((e, idx) => (
+                <li key={idx}>{e.description || JSON.stringify(e)}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      } else if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else {
+        setError('Wystąpił błąd połączenia z serwerem.');
+      }
+
+      console.log('➡ Response data:', err.response?.data);
+      console.log('➡ Response status:', err.response?.status);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5'
-    }}>
-      <div style={{ 
-        backgroundColor: 'white',
-        padding: '2rem',
-        borderRadius: '10px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        width: '400px'
-      }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>📝 Rejestracja</h2>
-        
+    <div className="min-h-screen w-full flex items-center justify-center bg-blue-50">
+      <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md transition-all duration-300 transform hover:scale-[1.01] m-4">
+        <h2 className="text-3xl font-bold text-center text-blue-800 mb-8">
+          📝 Rejestracja
+        </h2>
+
         {error && (
-          <div style={{ 
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            padding: '0.75rem',
-            borderRadius: '5px',
-            marginBottom: '1rem'
-          }}>
+          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-6 border border-red-300">
             {error}
           </div>
         )}
-
         {success && (
-          <div style={{ 
-            backgroundColor: '#d4edda',
-            color: '#155724',
-            padding: '0.75rem',
-            borderRadius: '5px',
-            marginBottom: '1rem'
-          }}>
-            ✅ Rejestracja zakończona sukcesem! Przekierowywanie do logowania...
+          <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-6 border border-green-300">
+            ✅ Rejestracja zakończona sukcesem! Przekierowywanie...
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Imię: *
-            </label>
-            <input
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="Jan"
-            />
-          </div>
-          
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Nazwisko: *
-            </label>
-            <input
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="Kowalski"
-            />
-          </div>
-          
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Email: *
-            </label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="twoj@email.com"
-            />
-          </div>
-          
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Telefon: (opcjonalnie)
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="+48 123 456 789"
-            />
-          </div>
-
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Hasło:
-            </label>
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="Min. 6 znaków + cyfra"
-            />
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Potwierdź hasło:
-            </label>
-            <input
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
-              placeholder="Powtórz hasło"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {[
+            { label: 'Imię*', name: 'firstName', type: 'text' },
+            { label: 'Nazwisko*', name: 'lastName', type: 'text' },
+            { label: 'Email*', name: 'email', type: 'email' },
+            { label: 'Telefon', name: 'phone', type: 'text' },
+            { label: 'Hasło*', name: 'password', type: 'password' },
+            { label: 'Potwierdź hasło*', name: 'confirmPassword', type: 'password' }
+          ].map((f,i) => (
+            <div key={i}>
+              <label className="block text-gray-700 font-medium mb-2">{f.label}</label>
+              <input
+                type={f.type}
+                name={f.name}
+                value={formData[f.name]}
+                onChange={handleChange}
+                placeholder={f.label}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900"
+              />
+            </div>
+          ))}
 
           <button
             type="submit"
             disabled={loading || success}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              fontSize: '1.1rem',
-              backgroundColor: loading || success ? '#ccc' : '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: loading || success ? 'not-allowed' : 'pointer'
-            }}
+            className={`w-full py-3 text-lg font-semibold rounded-lg transition-all duration-300 shadow-md
+              ${loading || success ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'}`}
           >
             {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
-          <Link to="/">Powrót do strony głównej</Link>
-        </div>
-        
-        <div style={{ 
-          marginTop: '1rem',
-          padding: '0.5rem',
-          backgroundColor: '#f0f0f0',
-          borderRadius: '5px',
-          fontSize: '0.9rem'
-        }}>
-          <strong>Wymagania hasła:</strong>
-          <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', textAlign: 'left' }}>
-            <li>Minimum 6 znaków</li>
-            <li>Przynajmniej 1 cyfra</li>
-          </ul>
+        <div className="text-center mt-6 space-y-2 text-sm">
+          <p className="text-gray-600">
+            Masz już konto? <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">Zaloguj się</Link>
+          </p>
+          <Link to="/" className="text-gray-500 hover:text-gray-700">← Powrót do strony głównej</Link>
         </div>
       </div>
     </div>
   );
 }
-
-export default RegisterPage;

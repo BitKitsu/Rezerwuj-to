@@ -1,11 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* Domyślny kolor tekstu dla jasnego schematu */
+  color: #213547;
+  
+  /* KLUCZOWE: Zapewnienie pełnej wysokości HTML */
+  height: 100%;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -23,11 +30,21 @@ a:hover {
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  /* GWARANTOWANE JASNONIEBIESKIE TŁO NA CAŁEJ STRONIE (#eff6ff to bg-blue-50) */
+  background-color: #eff6ff !important; 
+  
+  /* Usunięcie domyślnych marginesów */
+  margin: 0 !important;
+  padding: 0 !important;
+  
+  /* Zapewnienie rozciągnięcia wysokości, usunięcie Flexboxa */
+  height: 100% !important;
+  min-height: 100vh !important;
+}
+
+/* Konieczne dla elementu głównego aplikacji React (zazwyczaj ten element ma ID 'root') */
+#root {
+  height: 100% !important;
 }
 
 h1 {
@@ -42,7 +59,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #f9f9f9;
   cursor: pointer;
   transition: border-color 0.25s;
 }
@@ -58,11 +75,5 @@ button:focus-visible {
   :root {
     color: #213547;
     background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
   }
 }

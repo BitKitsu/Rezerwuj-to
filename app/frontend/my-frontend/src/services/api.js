@@ -1,9 +1,32 @@
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 // Konfiguracja API - używamy API Gateway
 const API_GATEWAY_URL = 'http://localhost:5000';
 const API_BASE_URL = `${API_GATEWAY_URL}/reservation`;
 const IDENTITY_BASE_URL = `${API_GATEWAY_URL}/identity`;
+
+// Funkcja pomocnicza dekodująca token JWT
+const decodeToken = (token) => {
+    if (!token) return null;
+    
+    try {
+        const decoded = jwtDecode(token);
+        
+        // Mapowanie claimów na obiekt użytkownika
+        // Uwaga: W C# użyłeś "FirstName" i "LastName" (PascalCase) oraz "companyId" (camelCase)
+        return {
+            userId: decoded.sub || decoded.nameid,
+            email: decoded.email,
+            firstName: decoded.FirstName, // Odczyt z tokena w PascalCase
+            lastName: decoded.LastName,   // Odczyt z tokena w PascalCase
+            companyId: decoded.companyId || null // Odczyt z tokena w camelCase
+        };
+    } catch (e) {
+        console.error("Błąd dekodowania tokena:", e);
+        return null;
+    }
+};
 
 // Token Manager
 export const tokenManager = {
@@ -19,10 +42,26 @@ export const tokenManager = {
     localStorage.removeItem('user');
   },
   setUser: (user) => localStorage.setItem('user', JSON.stringify(user)),
+  
+  // Zaktualizowana funkcja getUser - priorytet: z localStorage, fallback: z dekodowania tokena
   getUser: () => {
     const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    if (user) {
+        return JSON.parse(user);
+    }
+    
+    // Jeśli z jakiegoś powodu 'user' nie jest w localStorage, dekodujemy go z tokena
+    const token = tokenManager.getAccessToken();
+    if (token) {
+        const decodedUser = decodeToken(token);
+        if (decodedUser) {
+            tokenManager.setUser(decodedUser); // Zapisujemy na przyszłość
+            return decodedUser;
+        }
+    }
+    return null;
   },
+  
   isAuthenticated: () => !!localStorage.getItem('accessToken')
 };
 
@@ -111,15 +150,25 @@ export const authAPI = {
   register: (data) => identityAPI.post('/account/register', data),
   login: async (data) => {
     const response = await identityAPI.post('/account/login', data);
+    
     if (response.data.accessToken && response.data.refreshToken) {
       tokenManager.setTokens(response.data.accessToken, response.data.refreshToken);
-      tokenManager.setUser({
-        userId: response.data.userId,
-        email: response.data.email,
-        firstName: response.data.firstName,
-        lastName: response.data.lastName,
-        companyId: response.data.companyId || null
-      });
+      
+      // *** KLUCZOWA POPRAWKA: Dekodujemy token, aby pobrać wszystkie claimy (w tym companyId) ***
+      const userDetails = decodeToken(response.data.accessToken); 
+      
+      if (userDetails) {
+          tokenManager.setUser(userDetails);
+      } else {
+          // Opcjonalnie: Ustawiamy standardowe dane, jeśli dekodowanie się nie powiodło (mało prawdopodobne)
+           tokenManager.setUser({
+              userId: response.data.userId,
+              email: response.data.email,
+              firstName: response.data.firstName, // Te mogą być null, jeśli serwer ich nie wysłał
+              lastName: response.data.lastName,
+              companyId: null
+          });
+      }
     }
     return response;
   },

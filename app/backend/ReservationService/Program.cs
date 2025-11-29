@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Services;
 using ReservationService.Models;
+using System.Text.Json.Serialization; // <-- DODAJ TUTAJ
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,15 @@ builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddControllers()
+    // <-- DODAJ TĘ SEKCJE KONFIGURACYJNĄ!
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

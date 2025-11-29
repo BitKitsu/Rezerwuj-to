@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { servicesAPI, appointmentsAPI, authAPI, tokenManager } from '../services/api';
+// ZMIANA: Dodano companiesAPI do importu
+import { servicesAPI, appointmentsAPI, authAPI, tokenManager, companiesAPI } from '../services/api'; 
 
 function DashboardPage() {
   const navigate = useNavigate();
@@ -21,38 +22,54 @@ function DashboardPage() {
   // --- Ładowanie usera z tokena ---
 const loadUser = () => {
   console.log('[DashboardPage] Sprawdzam, czy użytkownik jest zalogowany...');
+  
   if (!tokenManager.isAuthenticated()) {
     navigate('/login');
     return;
   }
 
   const tokenUser = tokenManager.getUser();
-  console.log('[DashboardPage] Token user:', tokenUser);
+  console.log('[DashboardPage] Token user:', tokenUser); // Prawidłowy: companyId: "1"
 
-  setUser(tokenUser); // ustawiamy bez dodatkowego fetcha
+  setUser(tokenUser);
   setLoadingUser(false);
 };
 
   // --- Ładowanie firmy ---
-  const loadCompany = async (user) => {
-    if (!user?.companyId) {
-      console.log('[DashboardPage] User nie ma przypisanej firmy');
+const loadCompany = async (user) => {
+    // --- Diagnostyka ---
+    console.log('[loadCompany] Uruchomiono. Przekazany user:', user);
+    console.log('[loadCompany] companyId wewnątrz funkcji:', user?.companyId, 'Typ:', typeof user?.companyId);
+    // -------------------
+
+    setLoadingCompany(true);
+    
+    const companyIdValue = user?.companyId;
+
+    // Rygorystyczne sprawdzenie, które teraz zadziała poprawnie
+    if (!companyIdValue || Number(companyIdValue) === 0) { 
+      console.log('[loadCompany] Użytkownik nie ma przypisanej firmy (companyId jest puste lub 0).');
       setCompany(null);
       setLoadingCompany(false);
       return;
     }
 
     try {
-      const data = await authAPI.getCompany(user.companyId);
-      console.log('[DashboardPage] Pobrana firma:', data);
-      setCompany(data);
-    } catch (err) {
-      console.error('[DashboardPage] Błąd ładowania firmy:', err);
-      setCompany(null);
+        console.log(`[loadCompany] Próba pobrania firmy o ID: ${companyIdValue}`);
+        
+        // TA LINIA ZADZIAŁA TERAZ POPRAWNIE, GDYŻ companiesAPI JEST ZAIMPORTOWANE
+        const response = await companiesAPI.getById(companyIdValue); 
+        
+        setCompany(response.data);
+        console.log('[loadCompany] Firma załadowana pomyślnie:', response.data);
+        
+    } catch (error) {
+        console.error('Błąd ładowania danych firmy (możliwe, że ID jest poprawne, ale API zwróciło 404 lub 500):', error);
+        setCompany(null); 
     } finally {
-      setLoadingCompany(false);
+        setLoadingCompany(false);
     }
-  };
+};
 
   // --- Ładowanie usług i rezerwacji ---
   const loadData = async () => {
@@ -88,11 +105,18 @@ const loadUser = () => {
     e.preventDefault();
     console.log('[DashboardPage] Tworzę nową firmę:', newCompanyData);
     try {
-      const createdCompany = await authAPI.createCompany(newCompanyData);
-      console.log('[DashboardPage] Firma utworzona:', createdCompany);
-      const updatedUser = { ...user, companyId: createdCompany.id };
-      setUser(updatedUser);
-      setCompany(createdCompany);
+      // Uwaga: 'authAPI.createCompany' nie istnieje w api.js. 
+      // Powinno być companiesAPI.create
+      const createdCompany = await companiesAPI.create(newCompanyData); 
+      console.log('[DashboardPage] Firma utworzona:', createdCompany.data);
+      
+      const updatedUser = { ...user, companyId: createdCompany.data.id };
+      
+      // Zaktualizuj użytkownika w pamięci lokalnej i stanie
+      tokenManager.setUser(updatedUser); 
+      setUser(updatedUser); 
+      
+      setCompany(createdCompany.data);
       alert('Firma została utworzona pomyślnie!');
       loadData(); // załaduj usługi po utworzeniu firmy
     } catch (err) {
@@ -186,7 +210,7 @@ const loadUser = () => {
               onChange={e => setNewCompanyData({ ...newCompanyData, address: e.target.value })}
               required
             />
-            <button type="submit">Utwórz firmę</button>
+            <button  type="submit">Utwórz firmę</button>
           </form>
         </div>
       )}

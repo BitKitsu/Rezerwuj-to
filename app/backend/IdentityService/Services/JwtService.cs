@@ -125,12 +125,13 @@ public class JwtService : IJwtService
             new Claim(JwtRegisteredClaimNames.Jti, jwtId),
             new Claim(ClaimTypes.Name, user.UserName ?? ""),
             new Claim("FirstName", user.FirstName),
-            new Claim("LastName", user.LastName)
+            new Claim("LastName", user.LastName),
+
         };
-        
+
         if (user.CompanyId.HasValue)
         {
-            claims.Add(new Claim("CompanyId", user.CompanyId.Value.ToString()));
+            claims.Add(new Claim("companyId", user.CompanyId.Value.ToString()));
         }
         
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using IdentityService.Data;
 using IdentityService.Services;
+using Microsoft.AspNetCore.Authorization; // Dodaj ten using dla [Authorize]
 
 namespace IdentityService.Controllers
 {
@@ -15,7 +16,7 @@ namespace IdentityService.Controllers
         private readonly IAuditService _auditService;
 
         public AccountController(
-            UserManager<ApplicationUser> userManager, 
+            UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IJwtService jwtService,
             IAuditService auditService)
@@ -39,18 +40,17 @@ namespace IdentityService.Controllers
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 Phone = model.Phone ?? string.Empty,
-                EmailConfirmed = true // Auto-confirm dla developmentu
+                EmailConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
 
             if (result.Succeeded)
             {
-                // Automatyczne logowanie po rejestracji
                 await _signInManager.SignInAsync(user, isPersistent: false);
-                
-                return Ok(new 
-                { 
+
+                return Ok(new
+                {
                     message = "Rejestracja zakończona sukcesem",
                     email = user.Email,
                     firstName = user.FirstName,
@@ -58,13 +58,12 @@ namespace IdentityService.Controllers
                 });
             }
 
-            // Zwróć błędy w czytelnej formie
-            var errors = result.Errors.Select(e => new 
-            { 
-                code = e.Code, 
-                description = TranslateError(e.Description) 
+            var errors = result.Errors.Select(e => new
+            {
+                code = e.Code,
+                description = TranslateError(e.Description)
             });
-            
+
             return BadRequest(new { errors = errors });
         }
 
@@ -78,15 +77,14 @@ namespace IdentityService.Controllers
                 var user = await _userManager.FindByEmailAsync(model.Email);
                 if (user != null)
                 {
-                    // Generuj JWT tokeny
+                    // Generuj JWT tokeny (teraz token zawiera CompanyId)
                     var tokens = await _jwtService.GenerateTokensAsync(user);
-                    
-                    // Zapisz w audit log
-                    await _auditService.LogLoginAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown", 
-                                                       HttpContext.Request.Headers["User-Agent"].ToString());
-                    
-                    return Ok(new 
-                    { 
+
+                    await _auditService.LogLoginAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
+                                                         HttpContext.Request.Headers["User-Agent"].ToString());
+
+                    return Ok(new
+                    {
                         message = "Zalogowano pomyślnie",
                         accessToken = tokens.AccessToken,
                         refreshToken = tokens.RefreshToken,
@@ -107,14 +105,63 @@ namespace IdentityService.Controllers
         public async Task<IActionResult> Logout()
         {
             await _signInManager.SignOutAsync();
-            
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (!string.IsNullOrEmpty(userId))
             {
                 await _auditService.LogLogoutAsync(userId);
             }
-            
+
             return Ok(new { message = "Wylogowano pomyślnie" });
+        }
+
+        [HttpPut("{userId}/company")]
+        [Authorize]
+        public async Task<IActionResult> UpdateCompanyId(string userId, [FromBody] CompanyUpdateDto model)
+        {
+            // 1. Zabezpieczenie (bez zmian)
+            var userIdFromToken = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (userIdFromToken == null || userIdFromToken != userId)
+            {
+                return StatusCode(403, new { message = "Nie masz uprawnień do edycji tego konta." });
+            }
+
+            // 2. Znajdź użytkownika (UWAGA: Użyjemy FindByIdAsync - to wystarczy)
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Nie znaleziono użytkownika." });
+            }
+
+            // 3. Sprawdź, czy ID już jest takie samo
+            if (user.CompanyId == model.CompanyId)
+            {
+                return Ok(new { message = "Company ID już jest aktualne." });
+            }
+
+            // 4. Aktualizuj companyId
+            user.CompanyId = model.CompanyId;
+
+            // 5. Zapisz zmiany
+            var result = await _userManager.UpdateAsync(user);
+
+            if (result.Succeeded)
+            {
+                return Ok(new { message = "Company ID zaktualizowane pomyślnie." });
+            }
+
+            // 6. ZWRACANIE SZCZEGÓŁOWYCH BŁĘDÓW W PRZYPADKU NIEPOWODZENIA ZAPISU
+            var errors = result.Errors.Select(e => new
+            {
+                code = e.Code,
+                description = TranslateError(e.Description)
+            }).ToList();
+
+            return BadRequest(new
+            {
+                message = "Nie udało się zaktualizować Company ID w bazie.",
+                errors = errors
+            });
         }
 
         private string TranslateError(string error)
@@ -151,5 +198,10 @@ namespace IdentityService.Controllers
     {
         public required string Email { get; set; }
         public required string Password { get; set; }
+    }
+
+    public class CompanyUpdateDto
+    {
+        public required int CompanyId { get; set; }
     }
 }

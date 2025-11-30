@@ -22,19 +22,19 @@ public class JwtService : IJwtService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<JwtService> _logger;
-    
+
     public JwtService(ApplicationDbContext context, IConfiguration configuration, ILogger<JwtService> logger)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
     }
-    
+
     public async Task<TokenResponse> GenerateTokensAsync(ApplicationUser user)
     {
         var jwtToken = GenerateJwtToken(user);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id, jwtToken.Id);
-        
+
         return new TokenResponse
         {
             AccessToken = jwtToken.Token,
@@ -43,52 +43,42 @@ public class JwtService : IJwtService
             TokenType = "Bearer"
         };
     }
-    
+
+    // 🚨 POPRAWIONA LOGIKA ODŚWIEŻANIA TOKENA
     public async Task<TokenResponse?> RefreshTokenAsync(string refreshToken)
     {
         var storedToken = await _context.RefreshTokens
+            // Musimy dołączyć Usera, aby w GenerateTokensAsync użyć aktualnego CompanyId.
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
-            
-        if (storedToken == null)
+
+        if (storedToken == null || storedToken.User == null)
         {
-            _logger.LogWarning("Refresh token nie znaleziony");
+            _logger.LogWarning("Refresh token nie znaleziony lub użytkownik nie istnieje.");
             return null;
         }
-        
-        // Walidacja
-        if (storedToken.IsUsed)
+
+        // Walidacja tokena
+        if (storedToken.IsUsed || storedToken.IsRevoked || storedToken.ExpiresAt < DateTime.UtcNow)
         {
-            _logger.LogWarning("Refresh token już użyty");
+            _logger.LogWarning($"Refresh token nieprawidłowy. IsUsed={storedToken.IsUsed}, IsRevoked={storedToken.IsRevoked}, Expires={storedToken.ExpiresAt < DateTime.UtcNow}");
             return null;
         }
-        
-        if (storedToken.IsRevoked)
-        {
-            _logger.LogWarning("Refresh token unieważniony");
-            return null;
-        }
-        
-        if (storedToken.ExpiresAt < DateTime.UtcNow)
-        {
-            _logger.LogWarning("Refresh token wygasł");
-            return null;
-        }
-        
+
         // Oznacz jako użyty
         storedToken.IsUsed = true;
         _context.RefreshTokens.Update(storedToken);
         await _context.SaveChangesAsync();
-        
-        // Generuj nowe tokeny
+
+        // Generuj nowe tokeny, używając ZAKTUALIZOWANYCH DANYCH UŻYTKOWNIKA
         return await GenerateTokensAsync(storedToken.User);
     }
-    
+
     public async Task RevokeTokenAsync(string refreshToken)
     {
         var token = await _context.RefreshTokens
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
-            
+
         if (token != null && !token.IsRevoked)
         {
             token.IsRevoked = true;
@@ -96,28 +86,29 @@ public class JwtService : IJwtService
             await _context.SaveChangesAsync();
         }
     }
-    
+
     public async Task RevokeAllUserTokensAsync(string userId)
     {
         var tokens = await _context.RefreshTokens
             .Where(rt => rt.UserId == userId && !rt.IsRevoked)
             .ToListAsync();
-            
+
         foreach (var token in tokens)
         {
             token.IsRevoked = true;
         }
-        
+
         _context.RefreshTokens.UpdateRange(tokens);
         await _context.SaveChangesAsync();
     }
-    
+
+    // 🚨 POPRAWIONA METODA GENERUJĄCA TOKEN JWT
     private (string Token, string Id) GenerateJwtToken(ApplicationUser user)
     {
         var jwtId = Guid.NewGuid().ToString();
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
             _configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured")));
-        
+
         var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id),
@@ -126,16 +117,16 @@ public class JwtService : IJwtService
             new Claim(ClaimTypes.Name, user.UserName ?? ""),
             new Claim("FirstName", user.FirstName),
             new Claim("LastName", user.LastName),
-
         };
 
-        if (user.CompanyId.HasValue)
+        // 🚨 KLUCZOWA POPRAWKA: Dodajemy companyId tylko, gdy jest > 0
+        if (user.CompanyId > 0)
         {
-            claims.Add(new Claim("companyId", user.CompanyId.Value.ToString()));
+            claims.Add(new Claim("companyId", user.CompanyId.ToString()));
         }
-        
+
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        
+
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
@@ -143,11 +134,11 @@ public class JwtService : IJwtService
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: creds
         );
-        
+
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
         return (tokenString, jwtId);
     }
-    
+
     private async Task<RefreshToken> GenerateRefreshTokenAsync(string userId, string jwtId)
     {
         var refreshToken = new RefreshToken
@@ -158,13 +149,13 @@ public class JwtService : IJwtService
             ExpiresAt = DateTime.UtcNow.AddDays(7),
             CreatedAt = DateTime.UtcNow
         };
-        
+
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync();
-        
+
         return refreshToken;
     }
-    
+
     private string GenerateRandomToken()
     {
         var randomNumber = new byte[32];

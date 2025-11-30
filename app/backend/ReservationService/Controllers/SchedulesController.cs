@@ -1,3 +1,4 @@
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
@@ -8,6 +9,7 @@ namespace ReservationService.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class SchedulesController : ControllerBase
 {
     private readonly ReservationDbContext _context;

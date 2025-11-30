@@ -2,12 +2,46 @@ using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Services;
 using ReservationService.Models;
-using System.Text.Json.Serialization; // <-- DODAJ TUTAJ
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =================================================================
+// KONFIGURACJA JWT (MUSI BYĆ ZGODNA Z IDENTITY SERVICE)
+// =================================================================
+var jwtSettings = builder.Configuration.GetSection("Jwt");
+var secretKey = jwtSettings["SecretKey"]
+                ?? throw new InvalidOperationException("Jwt:SecretKey not configured.");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidAudience = jwtSettings["Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+
+        // Konfiguracja, aby poprawnie odczytywać Claimy NameIdentifier z tokena Identity:
+        NameClaimType = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+    };
+});
+// =================================================================
+
 // Add DbContext
-var connectionString = builder.Configuration.GetConnectionString("ReservationConnection") 
+var connectionString = builder.Configuration.GetConnectionString("ReservationConnection")
                        ?? throw new InvalidOperationException("Connection string 'ReservationConnection' not found.");
 
 builder.Services.AddDbContext<ReservationDbContext>(options =>
@@ -18,11 +52,7 @@ builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
 
 // Add services to the container.
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 builder.Services.AddControllers()
-    // <-- DODAJ TĘ SEKCJE KONFIGURACYJNĄ!
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
@@ -49,23 +79,23 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ReservationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+
     var maxRetryCount = 10;
     var delay = TimeSpan.FromSeconds(3);
-    
+
     for (int retry = 0; retry < maxRetryCount; retry++)
     {
         try
         {
             logger.LogInformation($"Applying ReservationDB migrations... (attempt {retry + 1}/{maxRetryCount})");
-            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
+            dbContext.Database.EnsureCreated();
             logger.LogInformation("ReservationDB is ready!");
-            
-            // Dodaj dane testowe jeśli baza jest pusta
+
+            // 🚨 PEŁNA SEKCJA SEEDINGU DANYCH TESTOWYCH 🚨
             if (!dbContext.Services.Any())
             {
                 logger.LogInformation("Seeding test data...");
-                
+
                 var testCompany = new Company
                 {
                     Id = 1,
@@ -78,9 +108,9 @@ using (var scope = app.Services.CreateScope())
                     Phone = "123456789",
                     Email = "fryzjer@example.com"
                 };
-                
+
                 dbContext.Companies.Add(testCompany);
-                
+
                 var services = new[]
                 {
                     new Service
@@ -99,7 +129,7 @@ using (var scope = app.Services.CreateScope())
                         Price = 80.00M,
                         CompanyId = 1
                     },
-                    new Service
+                     new Service
                     {
                         ServiceName = "Koloryzacja",
                         Description = "Farbowanie włosów",
@@ -108,13 +138,13 @@ using (var scope = app.Services.CreateScope())
                         CompanyId = 1
                     }
                 };
-                
+
                 dbContext.Services.AddRange(services);
                 dbContext.SaveChanges();
-                
+
                 logger.LogInformation("Test data seeded successfully!");
             }
-            
+
             break; // Sukces
         }
         catch (Exception ex)
@@ -124,7 +154,7 @@ using (var scope = app.Services.CreateScope())
                 logger.LogError(ex, "Failed to migrate ReservationDB after all retries.");
                 throw;
             }
-            
+
             logger.LogWarning($"Failed to connect to database. Retrying in {delay.TotalSeconds} seconds... ({retry + 1}/{maxRetryCount})");
             Thread.Sleep(delay);
         }
@@ -142,6 +172,8 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
+// 🚨 WŁĄCZENIE UWIEŻYTELNIANIA I AUTORYZACJI
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

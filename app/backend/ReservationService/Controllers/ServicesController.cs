@@ -1,12 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
+using System.Security.Claims; // Wymagane do odczytu claimów z tokena
 
 namespace ReservationService.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ServicesController : ControllerBase
 {
     private readonly ReservationDbContext _context;
@@ -25,7 +28,7 @@ public class ServicesController : ControllerBase
         _logger.LogInformation("Pobieranie listy usług");
         var services = await _context.Services
             .Include(s => s.Company)
-            .Select(s => new 
+            .Select(s => new
             {
                 id = s.Id,
                 serviceName = s.ServiceName,
@@ -36,7 +39,7 @@ public class ServicesController : ControllerBase
                 companyName = s.Company != null ? s.Company.CompanyName : null
             })
             .ToListAsync();
-        
+
         return Ok(services);
     }
 
@@ -61,17 +64,33 @@ public class ServicesController : ControllerBase
     [HttpGet("company/{companyId}")]
     public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCompany(int companyId)
     {
+        // 🚨 DODATKOWA WALIDACJA (Opcjonalnie, ale zalecana):
+        // Sprawdź, czy zalogowany użytkownik ma uprawnienia do przeglądania usług tej firmy
+        // (W Twoim przypadku, przyjmujemy, że ogląda tylko swoje usługi lub jesteś wewnątrz panelu admina)
+
         return await _context.Services
             .Where(s => s.CompanyId == companyId)
             .ToListAsync();
     }
 
-    // POST: api/services
     [HttpPost]
     public async Task<ActionResult<Service>> CreateService(Service service)
     {
-        _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", service.ServiceName);
-        
+        // 1. Pobierz CompanyId z tokena
+        var companyIdClaim = User.FindFirst("companyId")?.Value;
+        if (string.IsNullOrEmpty(companyIdClaim))
+        {
+            return StatusCode(403, new { message = "Nie masz przypisanej firmy, nie możesz tworzyć usług." });
+        }
+
+        int loggedInCompanyId = int.Parse(companyIdClaim);
+        service.CompanyId = loggedInCompanyId;
+        service.Company = null;
+
+        // 3. Walidacja modelu
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
         _context.Services.Add(service);
         await _context.SaveChangesAsync();
 
@@ -87,6 +106,31 @@ public class ServicesController : ControllerBase
             return BadRequest();
         }
 
+        // 1. POBIERANIE ID FIRMY Z TOKENA
+        var companyIdClaim = User.FindFirst("companyId")?.Value;
+
+        if (string.IsNullOrEmpty(companyIdClaim) || !int.TryParse(companyIdClaim, out int loggedInCompanyId))
+        {
+            return StatusCode(403, new { message = "Brak uprawnień. Company ID nie jest dostępne w tokenie." });
+        }
+
+        // 2. WERYFIKACJA WŁASNOŚCI
+        var existingService = await _context.Services.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
+
+        if (existingService == null)
+        {
+            return NotFound();
+        }
+
+        // Upewnij się, że usługa należy do firmy zalogowanego użytkownika
+        if (existingService.CompanyId != loggedInCompanyId)
+        {
+            _logger.LogWarning("Użytkownik (CompanyId: {LoggedIn}) próbuje edytować usługę (ID: {ServiceId}) innej firmy (CompanyId: {Target})", loggedInCompanyId, id, existingService.CompanyId);
+            return StatusCode(403, new { message = "Nie masz uprawnień do edycji tej usługi." });
+        }
+
+        // Zachowanie CompanyId z bazy
+        service.CompanyId = existingService.CompanyId;
         _context.Entry(service).State = EntityState.Modified;
 
         try
@@ -112,10 +156,25 @@ public class ServicesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteService(int id)
     {
+        // 1. POBIERANIE ID FIRMY Z TOKENA
+        var companyIdClaim = User.FindFirst("companyId")?.Value;
+
+        if (string.IsNullOrEmpty(companyIdClaim) || !int.TryParse(companyIdClaim, out int loggedInCompanyId))
+        {
+            return StatusCode(403, new { message = "Brak uprawnień." });
+        }
+
         var service = await _context.Services.FindAsync(id);
         if (service == null)
         {
             return NotFound();
+        }
+
+        // 2. WERYFIKACJA WŁASNOŚCI
+        if (service.CompanyId != loggedInCompanyId)
+        {
+            _logger.LogWarning("Użytkownik (CompanyId: {LoggedIn}) próbuje usunąć usługę (ID: {ServiceId}) innej firmy (CompanyId: {Target})", loggedInCompanyId, id, service.CompanyId);
+            return StatusCode(403, new { message = "Nie masz uprawnień do usunięcia tej usługi." });
         }
 
         _context.Services.Remove(service);

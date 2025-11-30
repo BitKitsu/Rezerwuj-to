@@ -2,225 +2,134 @@ using IdentityService.Data;
 using IdentityService.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Pobranie Connection Stringu (z appsettings.json LUB zmiennej środowiskowej Docker!)
-var connectionString = builder.Configuration.GetConnectionString("IdentityConnection") 
-                       ?? throw new InvalidOperationException("Connection string 'IdentityConnection' not found.");
+// ========================================
+// DATABASE
+// ========================================
+var connectionString = builder.Configuration.GetConnectionString("IdentityConnection")
+    ?? throw new InvalidOperationException("Connection string 'IdentityConnection' not found.");
 
-// 1. Rejestracja DbContext z dostawcą Npgsql
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 2. Dodanie ASP.NET Core Identity z ApplicationUser
-builder.Services.AddIdentityApiEndpoints<ApplicationUser>() // Użyj API Endpoints dla nowoczesnego mikroserwisu
+// ========================================
+// IDENTITY
+// ========================================
+builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
-// Konfiguracja wymagań dla hasła - bardziej liberalne i czytelne komunikaty
 builder.Services.Configure<IdentityOptions>(options =>
 {
-    // Wymagania hasła
-    options.Password.RequireDigit = true;           // Wymaga cyfry
-    options.Password.RequiredLength = 6;            // Minimum 6 znaków
-    options.Password.RequireNonAlphanumeric = false; // NIE wymaga znaków specjalnych
-    options.Password.RequireUppercase = false;       // NIE wymaga wielkiej litery
-    options.Password.RequireLowercase = false;       // NIE wymaga małej litery
-    options.Password.RequiredUniqueChars = 1;       // Minimum 1 unikalny znak
-    
-    // Lockout settings
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.AllowedForNewUsers = true;
-    
-    // User settings
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 6;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequiredUniqueChars = 1;
+
     options.User.RequireUniqueEmail = true;
-    options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
 });
 
-// Dodatkowe usługi
+// ========================================
+// JWT
+// ========================================
+var jwtSection = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSection["SecretKey"]
+    ?? throw new InvalidOperationException("JWT secret key missing!");
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+// ========================================
+// SERVICES
+// ========================================
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddHttpContextAccessor();
 
-// JWT Authentication
-var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"] ?? "MikroSaaS-IdentityService",
-        ValidAudience = jwtSettings["Audience"] ?? "MikroSaaS-Apps",
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        ClockSkew = TimeSpan.Zero
-    };
-});
-
+// ========================================
+// MVC / SWAGGER / CORS
+// ========================================
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// CORS dla frontendu
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy
+            .WithOrigins("http://localhost:3000", "http://localhost:5173")
+            .AllowAnyMethod()
+            .AllowAnyHeader();
     });
 });
 
 var app = builder.Build();
 
-// Automatyczna migracja i tworzenie bazy + testowy użytkownik
+// ========================================
+// MIGRACJE + USER SEED
+// ========================================
 using (var scope = app.Services.CreateScope())
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
-    // Retry logic dla migracji bazy danych
-    var maxRetryCount = 5;
-    var delayMilliseconds = 1000;
-    
-    for (int retry = 0; retry < maxRetryCount; retry++)
+
+    logger.LogInformation("Applying migrations...");
+    db.Database.Migrate();
+
+    logger.LogInformation("Checking for test user...");
+
+    var testEmail = "test@example.com";
+    var testUser = await userManager.FindByEmailAsync(testEmail);
+
+    if (testUser == null)
     {
-        try
+        testUser = new ApplicationUser
         {
-            if (retry > 0)
-            {
-                logger.LogInformation($"Retry {retry}/{maxRetryCount} - waiting {delayMilliseconds}ms...");
-                Thread.Sleep(delayMilliseconds);
-                delayMilliseconds *= 2; // Exponential backoff
-            }
-            
-            logger.LogInformation("Ensuring database exists and applying schema...");
-            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
-            logger.LogInformation("Database schema ready!");
-            break; // Sukces
+            Email = testEmail,
+            UserName = testEmail,
+            EmailConfirmed = true,
+            FirstName = "Test",
+            LastName = "User",
+            CompanyId = 1
+        };
+
+        var result = await userManager.CreateAsync(testUser, "Test123!");
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+                logger.LogError($"Seed user error: {error.Description}");
         }
-        catch (Exception ex)
+        else
         {
-            if (retry == maxRetryCount - 1)
-            {
-                logger.LogError(ex, "Failed to apply database migrations after {RetryCount} attempts", maxRetryCount);
-                throw; // Ostatnia próba nieudana - rzucamy wyjątek
-            }
-            else
-            {
-                logger.LogWarning(ex, "Migration attempt {Retry} failed, will retry...", retry + 1);
-            }
-        }
-    }
-    
-    // Seedowanie danych - również z retry logic
-    for (int retry = 0; retry < maxRetryCount; retry++)
-    {
-        try
-        {
-            if (retry > 0)
-            {
-                logger.LogInformation($"Retry seeding {retry}/{maxRetryCount} - waiting 2000ms...");
-                Thread.Sleep(2000);
-            }
-            
-            // Sprawdzenie czy tabele istnieją przed seedowaniem
-            var canConnect = dbContext.Database.CanConnect();
-            
-            if (!canConnect)
-            {
-                logger.LogWarning("Cannot connect to database yet, waiting...");
-                Thread.Sleep(3000);
-                continue;
-            }
-            
-            // Dodatkowa weryfikacja czy tabele AspNetUsers istnieją
-            try 
-            {
-                var tableCheck = dbContext.Database.ExecuteSqlRaw(
-                    "SELECT COUNT(*) FROM pg_tables WHERE tablename = 'AspNetUsers'");
-            }
-            catch
-            {
-                logger.LogWarning("AspNetUsers table not ready yet, waiting...");
-                Thread.Sleep(3000);
-                continue;
-            }
-            
-            // Utworzenie testowego użytkownika
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var testEmail = "test@example.com";
-            
-            logger.LogInformation("Checking for test user...");
-            var testUser = userManager.FindByEmailAsync(testEmail).GetAwaiter().GetResult();
-            
-            if (testUser == null)
-            {
-                logger.LogInformation("Creating test user...");
-                testUser = new ApplicationUser
-                {
-                    UserName = testEmail,
-                    Email = testEmail,
-                    EmailConfirmed = true,
-                    FirstName = "Test",
-                    LastName = "User",
-                    Phone = "",
-                    CompanyId = 1
-                };
-                
-                var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
-                
-                if (result.Succeeded)
-                {
-                    Console.WriteLine($"Utworzono testowego użytkownika: {testEmail} / Test123!");
-                    logger.LogInformation("Test user created successfully");
-                }
-                else
-                {
-                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    logger.LogError("Failed to create test user: {Errors}", errors);
-                    Console.WriteLine($"Błąd tworzenia użytkownika testowego: {errors}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"Użytkownik testowy już istnieje: {testEmail}");
-                logger.LogInformation("Test user already exists");
-            }
-            
-            break; // Sukces - wychodzimy z pętli
-        }
-        catch (Exception ex)
-        {
-            if (retry == maxRetryCount - 1)
-            {
-                logger.LogError(ex, "Failed to seed test data after {RetryCount} attempts", maxRetryCount);
-                // Nie rzucamy wyjątku - aplikacja może działać bez testowego użytkownika
-            }
-            else
-            {
-                logger.LogWarning(ex, "Seeding attempt {Retry} failed, will retry...", retry + 1);
-            }
+            logger.LogInformation($"Created test user: {testEmail} / Test123!");
         }
     }
 }
 
-// Konfiguracja HTTP request pipeline
+// ========================================
+// PIPELINE
+// ========================================
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -228,20 +137,17 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowFrontend");
-
-// Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 3. Włączenie Identity API Endpoints 
+// Identity endpoints
 app.MapIdentityApi<ApplicationUser>();
 
+// Controllers
 app.MapControllers();
 
-// Endpoint healthcheck
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "IdentityService" }))
-   .WithName("HealthCheck");
+// Healthcheck
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "IdentityService" }));
 
 app.Run();

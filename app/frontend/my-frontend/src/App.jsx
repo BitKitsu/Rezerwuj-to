@@ -6,6 +6,8 @@ import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import BookingPage from './pages/BookingPage';
 import CompanySetupPage from './pages/CompanySetupPage';
+import ManageCompanyPage from './pages/ManageCompanyPage';
+import ManageServicesPage from './pages/ManageServicesPage';
 import Header from './pages/Header';
 
 console.log("APP RENDERUJE SIĘ");
@@ -24,7 +26,9 @@ function App() {
         <Route path="/register" element={<RegisterPage setUser={setUser} />} />
         <Route path="/dashboard" element={<DashboardPage user={user} setUser={setUser} />} />
         <Route path="/dashboard/staff" element={<DashboardPage user={user} setUser={setUser} />} />
-        <Route path="/company/create" element={<CompanySetupPage user={user} setUser={setUser} />} />
+        <Route path="/create-company" element={<CompanySetupPage user={user} setUser={setUser} />} />
+        <Route path="/manage-company" element={<ManageCompanyPage user={user} setUser={setUser} />} />
+        <Route path="/manage-services" element={<ManageServicesPage user={user} />} />
       </Routes>
     </Router>
   );

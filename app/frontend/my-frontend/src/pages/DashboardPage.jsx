@@ -92,7 +92,7 @@ const DashboardPage = ({ user, setUser }) => {
   // --- Nawigacja ---
   const navigateToCreateCompany = () => navigate('/create-company');
   const navigateToEditCompany = () => navigate('/manage-company');
-  const navigateToManageServices = () => alert('Funkcjonalność zarządzania usług w budowie.');
+  const navigateToManageServices = () => navigate('/manage-services');
   const navigateToManageStaff = () => alert('Funkcjonalność zarządzania personelem w budowie.');
 
   // --- Obsługa daty i slotów ---

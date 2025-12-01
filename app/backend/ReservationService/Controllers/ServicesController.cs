@@ -64,10 +64,6 @@ public class ServicesController : ControllerBase
     [HttpGet("company/{companyId}")]
     public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCompany(int companyId)
     {
-        // 🚨 DODATKOWA WALIDACJA (Opcjonalnie, ale zalecana):
-        // Sprawdź, czy zalogowany użytkownik ma uprawnienia do przeglądania usług tej firmy
-        // (W Twoim przypadku, przyjmujemy, że ogląda tylko swoje usługi lub jesteś wewnątrz panelu admina)
-
         return await _context.Services
             .Where(s => s.CompanyId == companyId)
             .ToListAsync();
@@ -76,18 +72,14 @@ public class ServicesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Service>> CreateService(Service service)
     {
-        // 1. Pobierz CompanyId z tokena
         var companyIdClaim = User.FindFirst("companyId")?.Value;
         if (string.IsNullOrEmpty(companyIdClaim))
-        {
-            return StatusCode(403, new { message = "Nie masz przypisanej firmy, nie możesz tworzyć usług." });
-        }
+            return StatusCode(403, new { message = "Nie masz przypisanej firmy." });
 
         int loggedInCompanyId = int.Parse(companyIdClaim);
         service.CompanyId = loggedInCompanyId;
-        service.Company = null;
+        service.Company = null; // <- ważne
 
-        // 3. Walidacja modelu
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
@@ -96,6 +88,7 @@ public class ServicesController : ControllerBase
 
         return CreatedAtAction(nameof(GetService), new { id = service.Id }, service);
     }
+
 
     // PUT: api/services/5
     [HttpPut("{id}")]

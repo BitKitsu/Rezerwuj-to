@@ -1,9 +1,9 @@
 // src/pages/ManageCompanyPage.jsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { companiesAPI, tokenManager } from '../services/api'; 
+import { companiesAPI } from '../services/api';
 
-export default function ManageCompanyPage({ user, setUser }) {
+export default function ManageCompanyPage({ user }) {
   const navigate = useNavigate();
   const [companyData, setCompanyData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,8 +24,8 @@ export default function ManageCompanyPage({ user, setUser }) {
         const response = await companiesAPI.getById(companyId);
         setCompanyData(response.data);
       } catch (err) {
-        console.error('Błąd pobierania danych firmy:', err);
-        setError('Nie udało się załadować danych firmy. Spróbuj ponownie.');
+        console.error('Błąd pobierania firmy:', err);
+        setError('Nie udało się załadować danych firmy.');
       } finally {
         setLoading(false);
       }
@@ -36,7 +36,10 @@ export default function ManageCompanyPage({ user, setUser }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setCompanyData(prev => ({ ...prev, [name]: value }));
+    setCompanyData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -46,15 +49,16 @@ export default function ManageCompanyPage({ user, setUser }) {
     setLoading(true);
 
     try {
-      await companiesAPI.update(companyId, companyData);
-      setSuccess(true);
+      // 🔧 Tworzymy payload bez services i appointments
+      const { services, appointments, ...payload } = companyData;
 
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1000);
+      await companiesAPI.update(companyId, payload);
+
+      setSuccess(true);
+      setTimeout(() => navigate('/dashboard'), 1000);
     } catch (err) {
       console.error('Błąd aktualizacji firmy:', err);
-      setError('Nie udało się zapisać zmian. Sprawdź, czy dane są poprawne.');
+      setError('Nie udało się zapisać zmian. Sprawdź dane.');
     } finally {
       setLoading(false);
     }
@@ -67,17 +71,19 @@ export default function ManageCompanyPage({ user, setUser }) {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-blue-50 p-4">
       <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg transition-all duration-300 transform hover:scale-[1.01]">
-        <h2 className="text-2xl font-bold text-center text-blue-800 mb-6"> Edytuj firmę</h2>
+        <h2 className="text-2xl font-bold text-center text-blue-800 mb-6">
+          Edytuj firmę
+        </h2>
 
         {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 border border-red-300" role="alert">
+          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 border border-red-300">
             {error}
           </div>
         )}
 
         {success && (
-          <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-4 border border-green-300" role="alert">
-             Dane zapisane! Powrót do dashboardu...
+          <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-4 border border-green-300">
+            Dane zapisane! Powrót do panelu...
           </div>
         )}
 
@@ -90,8 +96,8 @@ export default function ManageCompanyPage({ user, setUser }) {
             { name: 'city', label: 'Miasto', type: 'text', required: true },
             { name: 'postalCode', label: 'Kod pocztowy', type: 'text', required: true },
             { name: 'country', label: 'Kraj', type: 'text', required: true },
-            { name: 'website', label: 'Strona WWW', type: 'text', required: false }
-          ].map(field => (
+            { name: 'website', label: 'Strona WWW (opcjonalnie)', type: 'text', required: false },
+          ].map((field) => (
             <div key={field.name}>
               <label className="block text-gray-700 font-medium mb-1">{field.label}</label>
               <input
@@ -121,8 +127,11 @@ export default function ManageCompanyPage({ user, setUser }) {
           <button
             type="submit"
             disabled={loading || success}
-            className={`w-full py-3 text-lg font-semibold rounded-lg transition-all duration-300 shadow-md
-              ${loading || success ? 'bg-gray-400 cursor-not-allowed text-gray-700' : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'}`}
+            className={`w-full py-3 text-lg font-semibold rounded-lg transition-all duration-300 shadow-md ${
+              loading || success
+                ? 'bg-gray-400 cursor-not-allowed text-gray-700'
+                : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'
+            }`}
           >
             {loading ? 'Zapisywanie...' : 'Zapisz zmiany'}
           </button>

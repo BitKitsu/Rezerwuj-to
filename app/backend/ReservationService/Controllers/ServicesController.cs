@@ -23,6 +23,7 @@ public class ServicesController : ControllerBase
 
     // GET: api/services
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<object>>> GetServices()
     {
         _logger.LogInformation("Pobieranie listy usług");

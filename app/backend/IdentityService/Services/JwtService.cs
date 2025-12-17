@@ -106,8 +106,9 @@ public class JwtService : IJwtService
     private (string Token, string Id) GenerateJwtToken(ApplicationUser user)
     {
         var jwtId = Guid.NewGuid().ToString();
+        var jwtSection = _configuration.GetSection("JwtSettings");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured")));
+            jwtSection["SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured")));
 
         var claims = new List<Claim>
         {
@@ -128,8 +129,8 @@ public class JwtService : IJwtService
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: jwtSection["Issuer"],
+            audience: jwtSection["Audience"],
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: creds

@@ -48,73 +48,45 @@ function LoginPage() {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      backgroundColor: '#f5f5f5'
-    }}>
-      <div style={{ 
-        backgroundColor: 'white',
-        padding: '2rem',
-        borderRadius: '10px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        width: '400px'
-      }}>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>🔐 Logowanie</h2>
-        
+    <div className="auth-shell">
+      <div className="auth-card">
+        <h2 className="form-title">Logowanie</h2>
+
         {error && (
-          <div style={{ 
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            padding: '0.75rem',
-            borderRadius: '5px',
-            marginBottom: '1rem'
-          }}>
+          <div className="form-message form-message-error">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Email:
+        <form onSubmit={handleSubmit} className="form">
+          <div className="form-field">
+            <label className="form-label" htmlFor="email">
+              Email
             </label>
             <input
+              id="email"
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
+              className="form-input"
               placeholder="jan@example.com"
             />
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem' }}>
-              Hasło:
+          <div className="form-field">
+            <label className="form-label" htmlFor="password">
+              Hasło
             </label>
             <input
+              id="password"
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               required
-              style={{
-                width: '100%',
-                padding: '0.5rem',
-                fontSize: '1rem',
-                border: '1px solid #ddd',
-                borderRadius: '5px'
-              }}
+              className="form-input"
               placeholder="••••••••"
             />
           </div>
@@ -122,36 +94,26 @@ function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '0.75rem',
-              fontSize: '1.1rem',
-              backgroundColor: loading ? '#ccc' : '#4CAF50',
-              color: 'white',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
+            className="btn btn-primary form-button"
           >
             {loading ? 'Logowanie...' : 'Zaloguj'}
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <p>Nie masz konta? <Link to="/register">Zarejestruj się</Link></p>
+        <div className="form-footer">
+          <p>
+            Nie masz konta? <Link to="/register">Zarejestruj się</Link>
+          </p>
           <Link to="/">Powrót do strony głównej</Link>
         </div>
 
         {/* Dane testowe dla łatwiejszego testowania */}
-        <div style={{ 
-          marginTop: '2rem', 
-          padding: '1rem', 
-          backgroundColor: '#f0f8ff',
-          borderRadius: '5px'
-        }}>
+        <div className="form-info">
           <small>
-            <strong>Dane testowe:</strong><br />
-            Email: test@example.com<br />
+            <strong>Dane testowe:</strong>
+            <br />
+            Email: test@example.com
+            <br />
             Hasło: Test123!
           </small>
         </div>

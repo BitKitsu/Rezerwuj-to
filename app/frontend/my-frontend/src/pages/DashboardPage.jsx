@@ -104,7 +104,7 @@ function DashboardPage() {
         marginBottom: '2rem'
       }}>
         <div>
-          <h1>📊 Panel Zarządzania</h1>
+          <h1>Panel zarządzania</h1>
           {user && (
             <p style={{ margin: 0, color: '#666' }}>
               Witaj, {user.firstName} {user.lastName} ({user.email})
@@ -129,7 +129,7 @@ function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
         {/* Lista usług */}
         <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2>💇 Dostępne Usługi</h2>
+          <h2>Dostępne usługi</h2>
           {services.length > 0 ? (
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {services.map(service => (
@@ -146,7 +146,7 @@ function DashboardPage() {
                     {service.description}
                   </div>
                   <div style={{ marginTop: '0.5rem' }}>
-                    💰 {service.price} zł | ⏱️ {service.durationMinutes} min
+                    Cena: {service.price} zł | Czas: {service.durationMinutes} min
                   </div>
                 </li>
               ))}
@@ -158,8 +158,7 @@ function DashboardPage() {
 
         {/* Rezerwacja */}
         <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
-          <h2>📅 Nowa Rezerwacja</h2>
-          
+          <h2>Nowa rezerwacja</h2>
           {selectedService ? (
             <>
               <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f0f8ff', borderRadius: '5px' }}>
@@ -219,14 +218,16 @@ function DashboardPage() {
       </div>
 
       {/* Lista rezerwacji */}
-      <div style={{ 
-        marginTop: '2rem',
-        backgroundColor: 'white', 
-        padding: '1.5rem', 
-        borderRadius: '10px', 
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)' 
-      }}>
-        <h2>📋 Moje Rezerwacje</h2>
+      <div
+        style={{
+          marginTop: '2rem',
+          backgroundColor: 'white',
+          padding: '1.5rem',
+          borderRadius: '10px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+        }}
+      >
+        <h2>Moje rezerwacje</h2>
         {appointments.length > 0 ? (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -238,7 +239,7 @@ function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {appointments.map(appointment => (
+              {appointments.map((appointment) => (
                 <tr key={appointment.id} style={{ borderBottom: '1px solid #eee' }}>
                   <td style={{ padding: '0.5rem' }}>
                     {appointment.service?.serviceName || 'Usługa #' + appointment.serviceId}
@@ -247,25 +248,36 @@ function DashboardPage() {
                     {new Date(appointment.dateStart).toLocaleDateString('pl-PL')}
                   </td>
                   <td style={{ padding: '0.5rem' }}>
-                    {new Date(appointment.dateStart).toLocaleTimeString('pl-PL', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
+                    {new Date(appointment.dateStart).toLocaleTimeString('pl-PL', {
+                      hour: '2-digit',
+                      minute: '2-digit',
                     })}
                   </td>
                   <td style={{ padding: '0.5rem' }}>
-                    <span style={{
-                      padding: '0.25rem 0.5rem',
-                      borderRadius: '15px',
-                      fontSize: '0.9rem',
-                      backgroundColor: 
-                        appointment.status === 'confirmed' ? '#d4edda' :
-                        appointment.status === 'pending' ? '#fff3cd' : '#f8d7da',
-                      color:
-                        appointment.status === 'confirmed' ? '#155724' :
-                        appointment.status === 'pending' ? '#856404' : '#721c24'
-                    }}>
-                      {appointment.status === 'confirmed' ? '✅ Potwierdzone' :
-                       appointment.status === 'pending' ? '⏳ Oczekuje' : '❌ Anulowane'}
+                    <span
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '15px',
+                        fontSize: '0.9rem',
+                        backgroundColor:
+                          appointment.status === 'confirmed'
+                            ? '#d4edda'
+                            : appointment.status === 'pending'
+                            ? '#fff3cd'
+                            : '#f8d7da',
+                        color:
+                          appointment.status === 'confirmed'
+                            ? '#155724'
+                            : appointment.status === 'pending'
+                            ? '#856404'
+                            : '#721c24',
+                      }}
+                    >
+                      {appointment.status === 'confirmed'
+                        ? 'Potwierdzone'
+                        : appointment.status === 'pending'
+                        ? 'Oczekuje'
+                        : 'Anulowane'}
                     </span>
                   </td>
                 </tr>

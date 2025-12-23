@@ -2,51 +2,66 @@ import { Link } from 'react-router-dom';
 
 function HomePage() {
   return (
-    <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>🏢 System Rezerwacji dla Małych Firm</h1>
-      <p style={{ fontSize: '1.2rem', margin: '2rem 0' }}>
-        Zarządzaj rezerwacjami swojej firmy w prosty sposób!
-      </p>
-      
-      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '3rem' }}>
-        <Link to="/login">
-          <button style={{ 
-            padding: '1rem 2rem', 
-            fontSize: '1.1rem',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}>
-            Zaloguj się
-          </button>
-        </Link>
-        
-        <Link to="/register">
-          <button style={{ 
-            padding: '1rem 2rem', 
-            fontSize: '1.1rem',
-            backgroundColor: '#2196F3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}>
-            Zarejestruj się
-          </button>
-        </Link>
-      </div>
+    <div className="home-page">
+      <section className="home-hero">
+        <div className="home-hero-text">
+          <h1>Umów wizytę u fryzjera online</h1>
+          <p>
+            Prosty system rezerwacji dla małych salonów fryzjerskich. Dodawaj usługi,
+            zarządzaj kalendarzem i pozwól klientom umawiać wizyty 24/7.
+          </p>
 
-      <div style={{ marginTop: '4rem' }}>
-        <h2>📋 Nasze funkcje:</h2>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          <li>✅ Zarządzanie kalendarzem rezerwacji</li>
-          <li>✅ Definiowanie usług i cennika</li>
-          <li>✅ Powiadomienia dla klientów</li>
-          <li>✅ Panel administracyjny</li>
-        </ul>
-      </div>
+          <div className="home-hero-actions">
+            <Link to="/services" className="btn btn-primary">
+              Przeglądaj usługi
+            </Link>
+            <Link to="/login" className="btn btn-ghost">
+              Zaloguj się
+            </Link>
+            <Link to="/register" className="btn btn-outline">
+              Załóż konto
+            </Link>
+          </div>
+        </div>
+
+        <div className="home-hero-card">
+          <div className="home-hero-card-header">
+            <div className="home-hero-avatar" />
+            <div>
+              <div className="home-hero-salon-name">Przykładowy Fryzjer</div>
+              <div className="home-hero-salon-meta">Strzyżenie damskie i męskie</div>
+            </div>
+          </div>
+          <div className="home-hero-service">
+            <div>
+              <div className="home-hero-service-name">Strzyżenie damskie</div>
+              <div className="home-hero-service-meta">Modelowanie | 60 min</div>
+            </div>
+            <div className="home-hero-service-price">80 zł</div>
+          </div>
+          <div className="home-hero-footer">
+            <span>Następny dostępny termin dzisiaj po południu</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-features">
+        <h2>Co oferuje system</h2>
+        <div className="home-features-grid">
+          <div className="home-feature">
+            <h3>Kalendarz online</h3>
+            <p>Przeglądaj wszystkie nadchodzące wizyty w jednym miejscu.</p>
+          </div>
+          <div className="home-feature">
+            <h3>Usługi i cennik</h3>
+            <p>Definiuj własne usługi, czas trwania oraz ceny.</p>
+          </div>
+          <div className="home-feature">
+            <h3>Panel klienta</h3>
+            <p>Klient może samodzielnie rezerwować i przeglądać swoje wizyty.</p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

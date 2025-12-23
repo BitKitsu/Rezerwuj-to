@@ -181,3 +181,11 @@ Automatycznie tworzony użytkownik testowy:
 | API Gateway (Ocelot)    | Gotowe | Średni   |
 | CI/CD Pipeline          | Gotowe | Wysoki    |
 | Rozszerzenie frontendu  | TODO | Wysoki    |
+
+## TODO (backend – wyszukiwarka usług i salonów)
+
+- Rozszerzenie endpointów ReservationService pod kątem wyszukiwarki i paginacji:
+  - `GET /reservation/services` – wsparcie dla parametrów `query`, `city`, `sort`, `page`, `pageSize`.
+  - `GET /reservation/companies` – wsparcie dla parametrów `query`, `city`, `sort`, `page`, `pageSize`.
+- Sortowanie po odległości (`sort=distance`) – wymagane pola lokalizacji w modelach firm/salonów.
+- Sortowanie po ocenach (`sort=rating`) – wymaga systemu opinii/recenzji.

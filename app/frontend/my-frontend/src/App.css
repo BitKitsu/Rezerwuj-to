@@ -155,10 +155,19 @@ h2 {
 
 .theme-toggle-icon {
   font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .theme-toggle-label {
   white-space: nowrap;
+}
+
+.theme-toggle-icon svg {
+  display: block;
+  transform: translateY(1px);
 }
 
 .app-main {
@@ -738,7 +747,7 @@ h2 {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: 1fr 420px;
   gap: 2rem;
   margin-bottom: 2rem;
 }
@@ -749,6 +758,7 @@ h2 {
   padding: 1.5rem;
   border: 1px solid var(--color-border-subtle);
   box-shadow: var(--shadow-soft);
+  min-width: 0;
 }
 
 .dashboard-services-list {
@@ -758,24 +768,23 @@ h2 {
 }
 
 .dashboard-service-item {
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  margin-bottom: 0.4rem;
   cursor: pointer;
-}
-
-.dashboard-service-item:last-child {
-  border-bottom: none;
 }
 
 .dashboard-service-item--active {
   background-color: var(--color-primary-soft);
-  border-radius: 0.75rem;
-  padding-inline: 1rem;
-  margin-inline: -1rem;
+  border-color: var(--color-primary);
 }
 
 .dashboard-service-name {
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dashboard-service-description {
@@ -794,6 +803,9 @@ h2 {
   padding: 1rem;
   border-radius: 0.75rem;
   background-color: var(--color-primary-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-field {

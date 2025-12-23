@@ -1,37 +1,45 @@
 #!/bin/bash
 
 # ==============================================
-# Quick Commit Helper - automatyczny commit
+# Quick Commit Helper - automatic commit
 # ==============================================
 
-# Kolory
+# Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo "🚀 Quick Commit Helper"
+echo "Quick Commit Helper"
 echo "======================="
 echo ""
 
-# 1. Sprawdź status
-echo "📋 Status repozytorium:"
+# Ensure we operate from the repository root
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ $? -ne 0 ] || [ -z "$REPO_ROOT" ]; then
+    echo -e "${RED}This directory is not inside a Git repository.${NC}"
+    exit 1
+fi
+cd "$REPO_ROOT" || exit 1
+
+# 1. Check status
+echo "Repository status:"
 git status --short
 echo ""
 
-# 2. Pobierz typ commita
-echo "📝 Wybierz typ commita:"
-echo "  1) feat      - Nowa funkcjonalność"
-echo "  2) fix       - Poprawka błędu"
-echo "  3) docs      - Dokumentacja"
-echo "  4) style     - Formatowanie"
-echo "  5) refactor  - Refaktoryzacja"
-echo "  6) test      - Testy"
-echo "  7) chore     - Narzędzia/konfiguracja"
+# 2. Choose commit type
+echo "Choose commit type:"
+echo "  1) feat      - New feature"
+echo "  2) fix       - Bug fix"
+echo "  3) docs      - Documentation"
+echo "  4) style     - Formatting"
+echo "  5) refactor  - Refactor"
+echo "  6) test      - Tests"
+echo "  7) chore     - Chores / configuration"
 echo "  8) ci        - CI/CD"
-echo "  9) perf      - Wydajność"
+echo "  9) perf      - Performance"
 echo ""
-read -p "Wybierz numer (1-9): " type_choice
+read -p "Select number (1-9): " type_choice
 
 case $type_choice in
     1) commit_type="feat" ;;
@@ -43,27 +51,28 @@ case $type_choice in
     7) commit_type="chore" ;;
     8) commit_type="ci" ;;
     9) commit_type="perf" ;;
-    *) echo -e "${RED}Nieprawidłowy wybór${NC}"; exit 1 ;;
+    *) echo -e "${RED}Invalid choice${NC}"; exit 1 ;;
 esac
 
-# 3. Opcjonalny scope
+# 3. Optional scope
 echo ""
-read -p "Scope (opcjonalnie, np: api, gateway, frontend): " scope
+read -p "Scope (optional, e.g.: api, gateway, frontend): " scope
 
 # 4. Subject
 echo ""
-read -p "Krótki opis (np: Add user authentication): " subject
+read -p "Short description (e.g.: Add user authentication): " subject
 
 if [ -z "$subject" ]; then
-    echo -e "${RED}Opis nie może być pusty!${NC}"
+    echo -e "${RED}Description cannot be empty!${NC}"
     exit 1
 fi
 
-# 5. Dodatkowy opis
+# 5. Additional description
 echo ""
-read -p "Dodatkowy opis (opcjonalnie, Enter aby pominąć): " body
+# shellcheck disable=SC2162
+read -p "Additional description (optional, press Enter to skip): " body
 
-# 6. Zbuduj commit message
+# 6. Build commit message
 if [ -n "$scope" ]; then
     commit_msg="$commit_type($scope): $subject"
 else
@@ -76,35 +85,35 @@ if [ -n "$body" ]; then
 $body"
 fi
 
-# 7. Pokaż podgląd
+# 7. Show preview
 echo ""
-echo -e "${YELLOW}Podgląd commita:${NC}"
+echo -e "${YELLOW}Commit preview:${NC}"
 echo "---"
 echo "$commit_msg"
 echo "---"
 echo ""
 
-# 8. Potwierdź
-read -p "Kontynuować? (y/n): " confirm
+# 8. Confirm
+read -p "Continue? (y/n): " confirm
 
 if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
-    echo -e "${YELLOW}Anulowano${NC}"
+    echo -e "${YELLOW}Cancelled${NC}"
     exit 0
 fi
 
-# 9. Dodaj pliki
-git add .
+# 9. Add files (whole repository)
+git add -A
 
 # 10. Commit
 git commit -m "$commit_msg"
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo -e "${GREEN}✅ Commit utworzony pomyślnie!${NC}"
+    echo -e "${GREEN}Commit created successfully!${NC}"
     echo ""
     
-    # 11. Zapytaj o push
-    read -p "Czy wypchnąć zmiany do zdalnego repo? (y/n): " push_confirm
+    # 11. Ask about push
+    read -p "Push changes to remote repo? (y/n): " push_confirm
     
     if [ "$push_confirm" == "y" ] || [ "$push_confirm" == "Y" ]; then
         current_branch=$(git branch --show-current)
@@ -114,20 +123,20 @@ if [ $? -eq 0 ]; then
         
         if [ $? -eq 0 ]; then
             echo ""
-            echo -e "${GREEN}✅ Zmiany wypchnięte pomyślnie!${NC}"
+            echo -e "${GREEN}Changes pushed successfully!${NC}"
             echo ""
-            echo "📊 Sprawdź Actions na GitHub:"
+            echo "Check GitHub Actions:"
             repo_url=$(git config --get remote.origin.url | sed 's/\.git$//')
             echo "${repo_url}/actions"
         else
-            echo -e "${RED}❌ Błąd podczas push${NC}"
+            echo -e "${RED}Error while pushing${NC}"
         fi
     else
         echo ""
-        echo -e "${YELLOW}💡 Aby wypchnąć później:${NC}"
+        echo -e "${YELLOW}To push later:${NC}"
         echo "   git push origin $(git branch --show-current)"
     fi
 else
-    echo -e "${RED}❌ Błąd podczas tworzenia commita${NC}"
+    echo -e "${RED}Error while creating commit${NC}"
     exit 1
 fi

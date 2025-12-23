@@ -5,10 +5,10 @@ function HomePage() {
     <div className="home-page">
       <section className="home-hero">
         <div className="home-hero-text">
-          <h1>Umów wizytę u fryzjera online</h1>
+          <h1>Umów wizytę online</h1>
           <p>
-            Prosty system rezerwacji dla małych salonów fryzjerskich. Dodawaj usługi,
-            zarządzaj kalendarzem i pozwól klientom umawiać wizyty 24/7.
+            Prosty system rezerwacji dla małych firm usługowych. Salony fryzjerskie,
+            stylizacja paznokci, salony piękności i inne usługi lokalne w jednym miejscu.
           </p>
 
           <div className="home-hero-actions">
@@ -24,7 +24,7 @@ function HomePage() {
           </div>
         </div>
 
-        <div className="home-hero-card">
+        <Link to="/services" className="home-hero-card">
           <div className="home-hero-card-header">
             <div className="home-hero-avatar" />
             <div>
@@ -42,7 +42,7 @@ function HomePage() {
           <div className="home-hero-footer">
             <span>Następny dostępny termin dzisiaj po południu</span>
           </div>
-        </div>
+        </Link>
       </section>
 
       <section className="home-features">

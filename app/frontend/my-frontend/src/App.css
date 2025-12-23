@@ -304,11 +304,14 @@ h2 {
 }
 
 .home-hero-card {
+  display: block;
   background-color: var(--color-surface);
   border-radius: 1.25rem;
   padding: 1.25rem 1.5rem;
   box-shadow: var(--shadow-soft);
   border: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
 }
 
 .home-hero-card-header {
@@ -357,6 +360,13 @@ h2 {
 .home-hero-footer {
   font-size: 0.85rem;
   color: var(--color-text-muted);
+}
+
+.home-hero-card:hover,
+.home-hero-card:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.45);
+  transform: translateY(-1px);
 }
 
 .home-features {
@@ -595,6 +605,10 @@ h2 {
   color: var(--color-danger);
 }
 
+.list-state-spaced {
+  margin-bottom: 1rem;
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -685,4 +699,189 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+/* === Dashboard page === */
+
+.dashboard-loading {
+  padding: 2rem;
+  text-align: center;
+}
+
+.dashboard-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-greeting {
+  margin-top: 0.25rem;
+  color: var(--color-text-muted);
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  filter: brightness(0.95);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.dashboard-card {
+  background-color: var(--color-surface);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-soft);
+}
+
+.dashboard-services-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-service-item {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+}
+
+.dashboard-service-item:last-child {
+  border-bottom: none;
+}
+
+.dashboard-service-item--active {
+  background-color: var(--color-primary-soft);
+  border-radius: 0.75rem;
+  padding-inline: 1rem;
+  margin-inline: -1rem;
+}
+
+.dashboard-service-name {
+  font-weight: 600;
+}
+
+.dashboard-service-description {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.dashboard-service-meta {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.dashboard-selected-service {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background-color: var(--color-primary-soft);
+}
+
+.dashboard-field {
+  margin-bottom: 1rem;
+}
+
+.dashboard-field-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.dashboard-slots {
+  margin-top: 1rem;
+}
+
+.dashboard-slots-grid {
+  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+.dashboard-slot-button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-primary);
+  background-color: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.dashboard-slot-button:hover {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.dashboard-empty {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.dashboard-appointments {
+  margin-top: 2rem;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.dashboard-table thead tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.dashboard-table tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-badge--confirmed {
+  background-color: rgba(22, 163, 74, 0.15);
+  color: #15803d;
+}
+
+.status-badge--pending {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+}
+
+.status-badge--cancelled {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
 }

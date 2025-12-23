@@ -92,118 +92,96 @@ function DashboardPage() {
   };
 
   if (loading) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Ładowanie...</div>;
+    return <div className="dashboard-loading">Ładowanie...</div>;
   }
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: '2rem'
-      }}>
+    <div className="dashboard-page">
+      <header className="dashboard-header">
         <div>
           <h1>Panel zarządzania</h1>
           {user && (
-            <p style={{ margin: 0, color: '#666' }}>
+            <p className="dashboard-greeting">
               Witaj, {user.firstName} {user.lastName} ({user.email})
             </p>
           )}
         </div>
-        <button 
+        <button
+          type="button"
           onClick={handleLogout}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: '#f44336',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer'
-          }}
+          className="btn btn-danger"
         >
           Wyloguj
         </button>
-      </div>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+      <section className="dashboard-grid">
         {/* Lista usług */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+        <div className="dashboard-card">
           <h2>Dostępne usługi</h2>
           {services.length > 0 ? (
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              {services.map(service => (
-                <li key={service.id} style={{ 
-                  padding: '1rem',
-                  borderBottom: '1px solid #eee',
-                  cursor: 'pointer',
-                  backgroundColor: selectedService?.id === service.id ? '#e3f2fd' : 'transparent'
-                }}
-                onClick={() => setSelectedService(service)}
+            <ul className="dashboard-services-list">
+              {services.map((service) => (
+                <li
+                  key={service.id}
+                  className={
+                    'dashboard-service-item' +
+                    (selectedService?.id === service.id ? ' dashboard-service-item--active' : '')
+                  }
+                  onClick={() => setSelectedService(service)}
                 >
-                  <strong>{service.serviceName}</strong>
-                  <div style={{ color: '#666', fontSize: '0.9rem' }}>
-                    {service.description}
-                  </div>
-                  <div style={{ marginTop: '0.5rem' }}>
+                  <div className="dashboard-service-name">{service.serviceName}</div>
+                  {service.description && (
+                    <div className="dashboard-service-description">{service.description}</div>
+                  )}
+                  <div className="dashboard-service-meta">
                     Cena: {service.price} zł | Czas: {service.durationMinutes} min
                   </div>
                 </li>
               ))}
             </ul>
           ) : (
-            <p>Brak dostępnych usług</p>
+            <p className="dashboard-empty">Brak dostępnych usług</p>
           )}
         </div>
 
         {/* Rezerwacja */}
-        <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '10px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
+        <div className="dashboard-card">
           <h2>Nowa rezerwacja</h2>
           {selectedService ? (
             <>
-              <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f0f8ff', borderRadius: '5px' }}>
+              <div className="dashboard-selected-service">
                 <strong>Wybrana usługa:</strong> {selectedService.serviceName}
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem' }}>
+              <div className="dashboard-field">
+                <label className="dashboard-field-label" htmlFor="reservation-date">
                   Wybierz datę:
                 </label>
                 <input
+                  id="reservation-date"
                   type="date"
                   value={selectedDate}
                   onChange={handleDateChange}
                   min={new Date().toISOString().split('T')[0]}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    fontSize: '1rem',
-                    border: '1px solid #ddd',
-                    borderRadius: '5px'
-                  }}
+                  className="form-input"
                 />
               </div>
 
               {availableSlots.length > 0 && (
-                <div>
+                <div className="dashboard-slots">
                   <h3>Dostępne terminy:</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div className="dashboard-slots-grid">
                     {availableSlots.map((slot, index) => (
                       <button
                         key={index}
+                        type="button"
                         onClick={() => handleBookAppointment(slot)}
-                        style={{
-                          padding: '0.5rem',
-                          backgroundColor: '#4CAF50',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '5px',
-                          cursor: 'pointer'
-                        }}
+                        className="dashboard-slot-button"
                       >
-                        {new Date(slot.start).toLocaleTimeString('pl-PL', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
+                        {new Date(slot.start).toLocaleTimeString('pl-PL', {
+                          hour: '2-digit',
+                          minute: '2-digit',
                         })}
                       </button>
                     ))}
@@ -212,66 +190,49 @@ function DashboardPage() {
               )}
             </>
           ) : (
-            <p style={{ color: '#666' }}>Wybierz usługę z listy po lewej stronie</p>
+            <p className="dashboard-empty">Wybierz usługę z listy po lewej stronie</p>
           )}
         </div>
-      </div>
+      </section>
 
       {/* Lista rezerwacji */}
-      <div
-        style={{
-          marginTop: '2rem',
-          backgroundColor: 'white',
-          padding: '1.5rem',
-          borderRadius: '10px',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
-        }}
-      >
+      <section className="dashboard-card dashboard-appointments">
         <h2>Moje rezerwacje</h2>
         {appointments.length > 0 ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="dashboard-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #ddd' }}>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Usługa</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Data</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Godzina</th>
-                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Status</th>
+              <tr>
+                <th>Usługa</th>
+                <th>Data</th>
+                <th>Godzina</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {appointments.map((appointment) => (
-                <tr key={appointment.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: '0.5rem' }}>
+                <tr key={appointment.id}>
+                  <td>
                     {appointment.service?.serviceName || 'Usługa #' + appointment.serviceId}
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td>
                     {new Date(appointment.dateStart).toLocaleDateString('pl-PL')}
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td>
                     {new Date(appointment.dateStart).toLocaleTimeString('pl-PL', {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
                   </td>
-                  <td style={{ padding: '0.5rem' }}>
+                  <td>
                     <span
-                      style={{
-                        padding: '0.25rem 0.5rem',
-                        borderRadius: '15px',
-                        fontSize: '0.9rem',
-                        backgroundColor:
-                          appointment.status === 'confirmed'
-                            ? '#d4edda'
-                            : appointment.status === 'pending'
-                            ? '#fff3cd'
-                            : '#f8d7da',
-                        color:
-                          appointment.status === 'confirmed'
-                            ? '#155724'
-                            : appointment.status === 'pending'
-                            ? '#856404'
-                            : '#721c24',
-                      }}
+                      className={
+                        'status-badge ' +
+                        (appointment.status === 'confirmed'
+                          ? 'status-badge--confirmed'
+                          : appointment.status === 'pending'
+                          ? 'status-badge--pending'
+                          : 'status-badge--cancelled')
+                      }
                     >
                       {appointment.status === 'confirmed'
                         ? 'Potwierdzone'
@@ -285,9 +246,9 @@ function DashboardPage() {
             </tbody>
           </table>
         ) : (
-          <p>Nie masz jeszcze żadnych rezerwacji</p>
+          <p className="dashboard-empty">Nie masz jeszcze żadnych rezerwacji</p>
         )}
-      </div>
+      </section>
     </div>
   );
 }

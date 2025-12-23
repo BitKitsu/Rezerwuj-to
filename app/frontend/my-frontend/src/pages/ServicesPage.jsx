@@ -172,7 +172,7 @@ function ServicesPage() {
       {!loading && !error && filteredServices.length > 0 && (
         <>
           {!hasRealData && (
-            <div className="list-state" style={{ marginBottom: '1rem' }}>
+            <div className="list-state list-state-spaced">
               Brak danych z backendu. Poniżej przykładowe usługi demonstracyjne.
             </div>
           )}

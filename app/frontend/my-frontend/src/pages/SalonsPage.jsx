@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { companiesAPI } from '../services/api';
 
 function SalonsPage() {
   const [salons, setSalons] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -17,8 +18,23 @@ function SalonsPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await companiesAPI.getAll();
-        setSalons(res.data || []);
+        const res = await companiesAPI.getAll({
+          query: query.trim() || undefined,
+          city: city.trim() || undefined,
+          sort: sortBy === 'recommended' ? undefined : sortBy,
+          page,
+          pageSize,
+        });
+
+        const data = res.data || {};
+        const items = data.items || [];
+        const total =
+          typeof data.totalCount === 'number'
+            ? data.totalCount
+            : items.length;
+
+        setSalons(items);
+        setTotalCount(total);
       } catch (err) {
         console.error('Error loading salons', err);
         setError('Nie udało się pobrać listy salonów. Sprawdź, czy backend działa.');
@@ -28,43 +44,11 @@ function SalonsPage() {
     };
 
     load();
-  }, []);
+  }, [query, city, sortBy, page, pageSize]);
 
-  const filteredSalons = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    let items = salons.filter((salon) => {
-      if (!normalizedQuery && !city.trim()) return true;
-
-      const name = (salon.name || salon.companyName || '').toLowerCase();
-      const description = (salon.description || '').toLowerCase();
-      const cityValue = (salon.city || '').toLowerCase();
-
-      const matchesQuery = normalizedQuery
-        ? name.includes(normalizedQuery) || description.includes(normalizedQuery)
-        : true;
-
-      const matchesCity = city.trim() ? cityValue.includes(city.trim().toLowerCase()) : true;
-
-      return matchesQuery && matchesCity;
-    });
-
-    if (sortBy === 'name_asc') {
-      items = [...items].sort((a, b) => {
-        const an = (a.name || a.companyName || '').localeCompare(b.name || b.companyName || '');
-        return an;
-      });
-    }
-
-    // TODO (backend): sortowanie po odległości i ocenach powinno być realizowane po stronie API
-
-    return items;
-  }, [salons, query, city, sortBy]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredSalons.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil((totalCount || salons.length) / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const startIndex = (currentPage - 1) * pageSize;
-  const visibleSalons = filteredSalons.slice(startIndex, startIndex + pageSize);
+  const visibleSalons = salons;
 
   const handlePageSizeChange = (e) => {
     setPageSize(Number(e.target.value));
@@ -133,11 +117,11 @@ function SalonsPage() {
 
       {error && !loading && <div className="list-state list-state-error">{error}</div>}
 
-      {!loading && !error && filteredSalons.length === 0 && (
+      {!loading && !error && salons.length === 0 && (
         <div className="list-state">Brak dopasowanych salonów. Zmień kryteria wyszukiwania.</div>
       )}
 
-      {!loading && !error && filteredSalons.length > 0 && (
+      {!loading && !error && salons.length > 0 && (
         <>
           <section className="card-grid">
             {visibleSalons.map((salon) => {

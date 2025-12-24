@@ -119,6 +119,9 @@ export const authAPI = {
         firstName: response.data.firstName,
         lastName: response.data.lastName
       });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('authChanged'));
+      }
     }
     return response;
   },
@@ -127,7 +130,10 @@ export const authAPI = {
       await identityAPI.post('/account/logout');
     } finally {
       tokenManager.clearTokens();
-      window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('authChanged'));
+        window.location.href = '/login';
+      }
     }
   },
   refreshToken: (refreshToken) => identityAPI.post('/refreshtoken/refresh', { refreshToken }),

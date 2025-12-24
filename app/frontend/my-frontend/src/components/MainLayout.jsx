@@ -1,9 +1,50 @@
 import { Link, useLocation } from 'react-router-dom';
 import LogoIcon from './LogoIcon';
 import { IconMoon, IconSun } from './ThemeIcons';
+import { tokenManager } from '../services/api';
+import { useEffect, useState } from 'react';
 
 function MainLayout({ children, theme, toggleTheme }) {
   const location = useLocation();
+
+  const [authState, setAuthState] = useState(() => ({
+    isAuthenticated: tokenManager.isAuthenticated(),
+    user: tokenManager.getUser(),
+  }));
+
+  useEffect(() => {
+    const updateAuth = () => {
+      setAuthState({
+        isAuthenticated: tokenManager.isAuthenticated(),
+        user: tokenManager.getUser(),
+      });
+    };
+
+    updateAuth();
+
+    window.addEventListener('authChanged', updateAuth);
+
+    return () => {
+      window.removeEventListener('authChanged', updateAuth);
+    };
+  }, [location.pathname]);
+
+  const { isAuthenticated, user } = authState;
+
+  const displayNameRaw = user
+    ? user.firstName && user.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : user.firstName || user.email || 'Użytkowniku'
+    : 'Użytkowniku';
+
+  const displayName =
+    displayNameRaw.length > 24 ? `${displayNameRaw.slice(0, 21)}…` : displayNameRaw;
+
+  const initialsSource = `${
+    (user?.firstName && user.firstName[0]) || (user?.email && user.email[0]) || 'U'
+  }${user?.lastName && user.lastName[0] ? user.lastName[0] : ''}`;
+
+  const initials = initialsSource.toUpperCase().slice(0, 2);
 
   const navLinkClass = (path) => {
     const isActive = location.pathname === path;
@@ -45,6 +86,23 @@ function MainLayout({ children, theme, toggleTheme }) {
                 {theme === 'light' ? 'Tryb ciemny' : 'Tryb jasny'}
               </span>
             </button>
+            {!isAuthenticated ? (
+              <Link to="/login" className="btn btn-outline header-login-btn">
+                Logowanie
+              </Link>
+            ) : (
+              <Link
+                to="/account"
+                className="header-user"
+                aria-label="Przejdź do ustawień konta"
+              >
+                <div className="header-user-avatar">{initials}</div>
+                <div className="header-user-text">
+                  <span className="header-user-greeting">Witaj,</span>
+                  <span className="header-user-name">{displayName}</span>
+                </div>
+              </Link>
+            )}
           </div>
         </div>
       </header>

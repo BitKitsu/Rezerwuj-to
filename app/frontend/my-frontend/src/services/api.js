@@ -135,7 +135,10 @@ export const authAPI = {
 
 // ===== Company Service =====
 export const companiesAPI = {
-  getAll: () => reservationAPI.get('/companies'),
+  getAll: (params) =>
+    reservationAPI.get('/companies', {
+      params,
+    }),
   getById: (id) => reservationAPI.get(`/companies/${id}`),
   create: (data) => reservationAPI.post('/companies', data),
   update: (id, data) => reservationAPI.put(`/companies/${id}`, data),
@@ -144,7 +147,10 @@ export const companiesAPI = {
 
 // ===== Services API =====
 export const servicesAPI = {
-  getAll: () => reservationAPI.get('/services'),
+  getAll: (params) =>
+    reservationAPI.get('/services', {
+      params,
+    }),
   getById: (id) => reservationAPI.get(`/services/${id}`),
   getByCompany: (companyId) => reservationAPI.get(`/services/company/${companyId}`),
   create: (data) => reservationAPI.post('/services', data),

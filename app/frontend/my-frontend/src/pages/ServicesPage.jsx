@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { servicesAPI } from '../services/api';
 
 const demoServices = [
@@ -22,6 +22,7 @@ const demoServices = [
 
 function ServicesPage() {
   const [services, setServices] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -36,61 +37,48 @@ function ServicesPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await servicesAPI.getAll();
-        setServices(res.data || []);
+        const res = await servicesAPI.getAll({
+          query: query.trim() || undefined,
+          city: city.trim() || undefined,
+          sort: sortBy === 'recommended' ? undefined : sortBy,
+          page,
+          pageSize,
+        });
+
+        const data = res.data || {};
+        const items = data.items || [];
+        const total =
+          typeof data.totalCount === 'number'
+            ? data.totalCount
+            : items.length;
+
+        // Fallback do danych demo, jeśli backend nie zwraca nic (np. w trybie offline)
+        if (!items.length) {
+          setServices(demoServices);
+          setTotalCount(demoServices.length);
+        } else {
+          setServices(items);
+          setTotalCount(total);
+        }
       } catch (err) {
         console.error('Error loading services', err);
         setError('Nie udało się pobrać listy usług. Sprawdź, czy backend działa.');
+        // W trybie błędu zostaw ostatnie dane; jeśli ich nie ma, pokaż demo
+        if (!services.length) {
+          setServices(demoServices);
+          setTotalCount(demoServices.length);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, []);
+  }, [query, city, sortBy, page, pageSize]);
 
-  const filteredServices = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const normalizedCity = city.trim().toLowerCase();
-
-    const base = services.length > 0 ? services : demoServices;
-
-    let items = base.filter((service) => {
-      const name = (service.serviceName || '').toLowerCase();
-      const description = (service.description || '').toLowerCase();
-      const company = (service.companyName || '').toLowerCase();
-      const cityValue = (service.city || '').toLowerCase();
-
-      const matchesQuery = normalizedQuery
-        ? name.includes(normalizedQuery) ||
-          description.includes(normalizedQuery) ||
-          company.includes(normalizedQuery)
-        : true;
-
-      const matchesCity = normalizedCity ? cityValue.includes(normalizedCity) : true;
-
-      return matchesQuery && matchesCity;
-    });
-
-    if (sortBy === 'price_asc') {
-      items = [...items].sort((a, b) => (a.price || 0) - (b.price || 0));
-    } else if (sortBy === 'price_desc') {
-      items = [...items].sort((a, b) => (b.price || 0) - (a.price || 0));
-    } else if (sortBy === 'duration_asc') {
-      items = [...items].sort(
-        (a, b) => (a.durationMinutes || 0) - (b.durationMinutes || 0)
-      );
-    }
-
-    // TODO (backend): sortowanie po odległości, ocenach oraz paginacja po stronie API
-
-    return items;
-  }, [services, query, city, sortBy]);
-
-  const pageCount = Math.max(1, Math.ceil(filteredServices.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil((totalCount || services.length) / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const startIndex = (currentPage - 1) * pageSize;
-  const visibleServices = filteredServices.slice(startIndex, startIndex + pageSize);
+  const visibleServices = services;
 
   const handlePageSizeChange = (e) => {
     setPageSize(Number(e.target.value));
@@ -165,11 +153,11 @@ function ServicesPage() {
         <div className="list-state list-state-error">{error}</div>
       )}
 
-      {!loading && !error && filteredServices.length === 0 && (
+      {!loading && !error && services.length === 0 && (
         <div className="list-state">Brak dopasowanych usług. Zmień kryteria wyszukiwania.</div>
       )}
 
-      {!loading && !error && filteredServices.length > 0 && (
+      {!loading && !error && services.length > 0 && (
         <>
           {!hasRealData && (
             <div className="list-state list-state-spaced">

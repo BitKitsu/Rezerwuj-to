@@ -29,11 +29,12 @@ function DashboardPage() {
   const loadData = async () => {
     try {
       const [servicesRes, appointmentsRes] = await Promise.all([
-        servicesAPI.getAll(),
+        servicesAPI.getAll({ pageSize: 50 }),
         appointmentsAPI.getAll()
       ]);
-      
-      setServices(servicesRes.data);
+
+      const servicesData = servicesRes.data?.items ?? servicesRes.data ?? [];
+      setServices(servicesData);
       setAppointments(appointmentsRes.data);
     } catch (error) {
       console.error('Error loading data:', error);

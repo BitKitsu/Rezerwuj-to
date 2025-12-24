@@ -18,11 +18,55 @@ public class CompaniesController : ControllerBase
 
     // GET: api/companies
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Company>>> GetCompanies()
+    public async Task<ActionResult<PagedResult<CompanyListItemDto>>> GetCompanies(
+        [FromQuery] string? query,
+        [FromQuery] string? city,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        return await _context.Companies
-            .Include(c => c.Services)
+        if (page <= 0) page = 1;
+        if (pageSize <= 0) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var companiesQuery = _context.Companies.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var normalizedQuery = query.Trim().ToLower();
+            companiesQuery = companiesQuery.Where(c =>
+                c.CompanyName.ToLower().Contains(normalizedQuery) ||
+                (c.Description != null && c.Description.ToLower().Contains(normalizedQuery)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            var normalizedCity = city.Trim().ToLower();
+            companiesQuery = companiesQuery.Where(c =>
+                c.City != null && c.City.ToLower().Contains(normalizedCity));
+        }
+
+        companiesQuery = sort switch
+        {
+            "name_asc" => companiesQuery.OrderBy(c => c.CompanyName),
+            _ => companiesQuery.OrderBy(c => c.Id)
+        };
+
+        var totalCount = await companiesQuery.CountAsync();
+
+        var items = await companiesQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new CompanyListItemDto(
+                c.Id,
+                c.CompanyName,
+                c.Description,
+                c.City
+            ))
             .ToListAsync();
+
+        var result = new PagedResult<CompanyListItemDto>(items, totalCount, page, pageSize);
+        return Ok(result);
     }
 
     // GET: api/companies/5

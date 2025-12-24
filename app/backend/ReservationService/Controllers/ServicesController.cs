@@ -20,24 +20,68 @@ public class ServicesController : ControllerBase
 
     // GET: api/services
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<object>>> GetServices()
+    public async Task<ActionResult<PagedResult<ServiceListItemDto>>> GetServices(
+        [FromQuery] string? query,
+        [FromQuery] string? city,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        _logger.LogInformation("Pobieranie listy usług");
-        var services = await _context.Services
+        _logger.LogInformation("Pobieranie listy usług z filtrowaniem i paginacją");
+
+        if (page <= 0) page = 1;
+        if (pageSize <= 0) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var servicesQuery = _context.Services
             .Include(s => s.Company)
-            .Select(s => new 
-            {
-                id = s.Id,
-                serviceName = s.ServiceName,
-                description = s.Description,
-                durationMinutes = s.DurationMinutes,
-                price = s.Price,
-                companyId = s.CompanyId,
-                companyName = s.Company != null ? s.Company.CompanyName : null
-            })
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var normalizedQuery = query.Trim().ToLower();
+            servicesQuery = servicesQuery.Where(s =>
+                s.ServiceName.ToLower().Contains(normalizedQuery) ||
+                s.Description.ToLower().Contains(normalizedQuery) ||
+                (s.Company != null && s.Company.CompanyName.ToLower().Contains(normalizedQuery)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(city))
+        {
+            var normalizedCity = city.Trim().ToLower();
+            servicesQuery = servicesQuery.Where(s =>
+                s.Company != null && s.Company.City != null &&
+                s.Company.City.ToLower().Contains(normalizedCity));
+        }
+
+        servicesQuery = sort switch
+        {
+            "price_asc" => servicesQuery.OrderBy(s => s.Price),
+            "price_desc" => servicesQuery.OrderByDescending(s => s.Price),
+            "duration_asc" => servicesQuery.OrderBy(s => s.DurationMinutes),
+            "name_asc" => servicesQuery.OrderBy(s => s.ServiceName),
+            _ => servicesQuery.OrderBy(s => s.Id)
+        };
+
+        var totalCount = await servicesQuery.CountAsync();
+
+        var items = await servicesQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(s => new ServiceListItemDto(
+                s.Id,
+                s.ServiceName,
+                s.Description,
+                s.DurationMinutes,
+                s.Price,
+                s.CompanyId,
+                s.Company != null ? s.Company.CompanyName : string.Empty,
+                s.Company != null ? s.Company.City : null
+            ))
             .ToListAsync();
-        
-        return Ok(services);
+
+        var result = new PagedResult<ServiceListItemDto>(items, totalCount, page, pageSize);
+        return Ok(result);
     }
 
     // GET: api/services/5

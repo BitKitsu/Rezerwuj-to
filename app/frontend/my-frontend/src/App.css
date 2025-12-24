@@ -69,15 +69,15 @@ h2 {
 
 .app-header > div,
 .app-main {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 1.75rem;
+  padding: 0 1.25rem;
 }
 
 .app-header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 1rem 0.25rem;
   gap: 1.5rem;
 }
@@ -111,6 +111,8 @@ h2 {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  flex: 1;
+  justify-content: center;
 }
 
 .nav-link {
@@ -135,6 +137,66 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.header-login-btn {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 220px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.header-user:hover,
+.header-user:focus-visible {
+  border-color: var(--color-border-subtle);
+  background-color: var(--color-surface);
+  text-decoration: none;
+}
+
+.header-user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #6366f1, #ec4899);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.header-user-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.header-user-greeting {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.header-user-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .theme-toggle {
@@ -434,6 +496,11 @@ h2 {
   background-color: transparent;
   border-color: var(--color-border-subtle);
   color: var(--color-text);
+}
+
+.btn.header-login-btn {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
 }
 
 /* === Auth pages === */
@@ -852,6 +919,12 @@ h2 {
 .dashboard-empty {
   color: var(--color-text-muted);
   font-size: 0.9rem;
+}
+
+.account-note {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
 }
 
 .dashboard-appointments {

@@ -26,6 +26,8 @@ function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [usingDemoData, setUsingDemoData] = useState(false);
+
   const [query, setQuery] = useState('');
   const [city, setCity] = useState('');
   const [sortBy, setSortBy] = useState('recommended');
@@ -56,9 +58,11 @@ function ServicesPage() {
         if (!items.length) {
           setServices(demoServices);
           setTotalCount(demoServices.length);
+          setUsingDemoData(true);
         } else {
           setServices(items);
           setTotalCount(total);
+          setUsingDemoData(false);
         }
       } catch (err) {
         console.error('Error loading services', err);
@@ -67,6 +71,7 @@ function ServicesPage() {
         if (!services.length) {
           setServices(demoServices);
           setTotalCount(demoServices.length);
+          setUsingDemoData(true);
         }
       } finally {
         setLoading(false);
@@ -79,6 +84,8 @@ function ServicesPage() {
   const pageCount = Math.max(1, Math.ceil((totalCount || services.length) / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visibleServices = services;
+
+  const hasRealData = !usingDemoData && services.length > 0;
 
   const handlePageSizeChange = (e) => {
     setPageSize(Number(e.target.value));
@@ -99,8 +106,6 @@ function ServicesPage() {
     setCity(e.target.value);
     setPage(1);
   };
-
-  const hasRealData = services.length > 0;
 
   return (
     <div className="list-page">
@@ -140,6 +145,7 @@ function ServicesPage() {
               <option value="price_asc">Cena: od najniższej</option>
               <option value="price_desc">Cena: od najwyższej</option>
               <option value="duration_asc">Czas trwania: najkrótszy</option>
+              <option value="name_asc">Nazwa usługi (A–Z)</option>
               <option value="distance">Najbliżej (TODO: backend)</option>
               <option value="rating">Najwyżej oceniane (TODO: backend)</option>
             </select>

@@ -832,6 +832,10 @@ h2 {
   min-width: 0;
 }
 
+.dashboard-card + .dashboard-card {
+  margin-top: 1.5rem;
+}
+
 .dashboard-services-list {
   list-style: none;
   margin: 0;

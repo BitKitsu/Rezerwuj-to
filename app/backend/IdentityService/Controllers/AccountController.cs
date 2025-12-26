@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 using IdentityService.Data;
 using IdentityService.Services;
 
@@ -103,6 +105,119 @@ namespace IdentityService.Controllers
             return Unauthorized(new { message = "Nieprawidłowy email lub hasło" });
         }
 
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetProfile()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            var dto = new UserProfileDto
+            {
+                Email = user.Email ?? string.Empty,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Phone = user.Phone ?? string.Empty
+            };
+
+            return Ok(dto);
+        }
+
+        [HttpPut("profile")]
+        [Authorize]
+        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            user.FirstName = model.FirstName;
+            user.LastName = model.LastName;
+            user.Phone = model.Phone ?? string.Empty;
+
+            var result = await _userManager.UpdateAsync(user);
+
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => new
+                {
+                    code = e.Code,
+                    description = TranslateError(e.Description)
+                });
+
+                return BadRequest(new { errors });
+            }
+
+            var dto = new UserProfileDto
+            {
+                Email = user.Email ?? string.Empty,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Phone = user.Phone ?? string.Empty
+            };
+
+            return Ok(dto);
+        }
+
+        [HttpPost("change-password")]
+        [Authorize]
+        public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
+
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => new
+                {
+                    code = e.Code,
+                    description = TranslateError(e.Description)
+                });
+
+                return BadRequest(new { errors });
+            }
+
+            return Ok(new { message = "Hasło zostało pomyślnie zmienione." });
+        }
+
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
@@ -125,7 +240,8 @@ namespace IdentityService.Controllers
                 ["Passwords must be at least 6 characters."] = "Hasło musi mieć minimum 6 znaków",
                 ["User name is already taken."] = "Ten email jest już zarejestrowany",
                 ["Email is already taken."] = "Ten email jest już zarejestrowany",
-                ["Invalid email."] = "Nieprawidłowy adres email"
+                ["Invalid email."] = "Nieprawidłowy adres email",
+                ["Incorrect password."] = "Nieprawidłowe obecne hasło"
             };
 
             foreach (var translation in translations)
@@ -151,5 +267,26 @@ namespace IdentityService.Controllers
     {
         public required string Email { get; set; }
         public required string Password { get; set; }
+    }
+
+    public class UserProfileDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+    }
+
+    public class UpdateProfileDto
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string? Phone { get; set; }
+    }
+
+    public class ChangePasswordDto
+    {
+        public required string CurrentPassword { get; set; }
+        public required string NewPassword { get; set; }
     }
 }

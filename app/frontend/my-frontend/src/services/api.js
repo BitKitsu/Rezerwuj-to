@@ -137,6 +137,9 @@ export const authAPI = {
     }
   },
   refreshToken: (refreshToken) => identityAPI.post('/refreshtoken/refresh', { refreshToken }),
+  getProfile: () => identityAPI.get('/account/profile'),
+  updateProfile: (data) => identityAPI.put('/account/profile', data),
+  changePassword: (data) => identityAPI.post('/account/change-password', data),
 };
 
 // ===== Company Service =====

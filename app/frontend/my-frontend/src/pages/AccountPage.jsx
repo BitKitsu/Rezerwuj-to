@@ -168,7 +168,7 @@ function AccountPage() {
         <div>
           <h1>Ustawienia konta</h1>
           <p className="dashboard-greeting">
-            Zarządzaj podstawowymi informacjami o swoim koncie SalonBook.
+            Zarządzaj podstawowymi informacjami o swoim koncie REZERWUJ.TO
           </p>
         </div>
       </header>

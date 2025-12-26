@@ -69,7 +69,7 @@ function MainLayout({ children, theme, toggleTheme }) {
             <span className="logo-mark">
               <LogoIcon />
             </span>
-            <span className="logo-text">SalonBook</span>
+            <span className="logo-text">REZERWUJ.TO</span>
           </div>
 
           <nav className="app-nav">

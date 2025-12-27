@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Security.Claims;
 using IdentityService.Data;
+using IdentityService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,11 +18,13 @@ namespace IdentityService.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<AdminUsersController> _logger;
+        private readonly IJwtService _jwtService;
 
-        public AdminUsersController(UserManager<ApplicationUser> userManager, ILogger<AdminUsersController> logger)
+        public AdminUsersController(UserManager<ApplicationUser> userManager, ILogger<AdminUsersController> logger, IJwtService jwtService)
         {
             _userManager = userManager;
             _logger = logger;
+            _jwtService = jwtService;
         }
 
         [HttpGet]
@@ -122,6 +125,13 @@ namespace IdentityService.Controllers
                 return Ok(new { message = "Użytkownik nie ma roli Admin." });
             }
 
+            // Zabezpieczenie: w systemie zawsze musi pozostać co najmniej jeden administrator
+            var admins = await _userManager.GetUsersInRoleAsync("Admin");
+            if (admins.Count <= 1)
+            {
+                return BadRequest(new { message = "Nie można odebrać roli ostatniemu administratorowi. System wymaga co najmniej jednego konta administratora." });
+            }
+
             var result = await _userManager.RemoveFromRoleAsync(user, "Admin");
             if (!result.Succeeded)
             {
@@ -131,6 +141,45 @@ namespace IdentityService.Controllers
             }
 
             return Ok(new { message = "Rola Admin została odebrana użytkownikowi." });
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUser(string id)
+        {
+            var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(currentUserId) && currentUserId == id)
+            {
+                return BadRequest(new { message = "Nie możesz usunąć własnego konta z poziomu panelu administratora." });
+            }
+
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            // Jeśli użytkownik jest administratorem, sprawdź czy nie jest ostatnim adminem
+            if (await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                var admins = await _userManager.GetUsersInRoleAsync("Admin");
+                if (admins.Count <= 1)
+                {
+                    return BadRequest(new { message = "Nie można usunąć ostatniego administratora. System wymaga co najmniej jednego konta administratora." });
+                }
+            }
+
+            await _jwtService.RevokeAllUserTokensAsync(user.Id);
+
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => e.Description);
+                _logger.LogWarning("Failed to delete user {UserId}: {Errors}", user.Id, string.Join(", ", errors));
+                return BadRequest(new { errors });
+            }
+
+            _logger.LogInformation("User {UserId} deleted by admin", user.Id);
+            return Ok(new { message = "Konto użytkownika zostało usunięte." });
         }
     }
 }

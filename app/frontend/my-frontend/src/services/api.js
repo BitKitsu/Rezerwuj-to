@@ -118,7 +118,8 @@ export const authAPI = {
         email: response.data.email,
         firstName: response.data.firstName,
         lastName: response.data.lastName,
-        roles: response.data.roles || []
+        roles: response.data.roles || [],
+        companyId: response.data.companyId ?? null,
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('authChanged'));
@@ -141,6 +142,7 @@ export const authAPI = {
   getProfile: () => identityAPI.get('/account/profile'),
   updateProfile: (data) => identityAPI.put('/account/profile', data),
   changePassword: (data) => identityAPI.post('/account/change-password', data),
+  deleteAccount: () => identityAPI.delete('/account/delete'),
 };
 
 // ===== Company Service =====
@@ -190,6 +192,7 @@ export const adminAPI = {
     }),
   grantAdmin: (userId) => identityAPI.post(`/admin/users/${userId}/roles/admin`),
   revokeAdmin: (userId) => identityAPI.delete(`/admin/users/${userId}/roles/admin`),
+  deleteUser: (userId) => identityAPI.delete(`/admin/users/${userId}`),
 };
 
 export default reservationAPI;

@@ -100,7 +100,8 @@ namespace IdentityService.Controllers
                         email = user.Email,
                         firstName = user.FirstName,
                         lastName = user.LastName,
-                        roles = tokens.Roles
+                        roles = tokens.Roles,
+                        companyId = user.CompanyId
                     });
                 }
             }
@@ -233,6 +234,45 @@ namespace IdentityService.Controllers
             }
             
             return Ok(new { message = "Wylogowano pomyślnie" });
+        }
+
+        [HttpDelete("delete")]
+        [Authorize]
+        public async Task<IActionResult> DeleteOwnAccount()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            // Administrator nie może samodzielnie usunąć swojego konta
+            if (await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                return BadRequest(new { message = "Konto administratora nie może zostać usunięte przez samego administratora. Skontaktuj się z innym administratorem." });
+            }
+
+            await _jwtService.RevokeAllUserTokensAsync(user.Id);
+
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = result.Errors.Select(e => new
+                {
+                    code = e.Code,
+                    description = TranslateError(e.Description)
+                });
+
+                return BadRequest(new { errors });
+            }
+
+            return Ok(new { message = "Konto zostało usunięte." });
         }
 
         private string TranslateError(string error)

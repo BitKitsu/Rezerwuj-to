@@ -131,6 +131,24 @@ const AdminPanel = () => {
     }
   };
 
+  const handleDeleteUser = async (user) => {
+    if (
+      !window.confirm(
+        `Na pewno chcesz usunąć konto użytkownika "${user.email}"? Ta operacja jest nieodwracalna.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await adminAPI.deleteUser(user.id);
+      await loadUsers(usersPage);
+    } catch (error) {
+      console.error('Delete user error', error);
+      window.alert('Nie udało się usunąć użytkownika.');
+    }
+  };
+
   const handleOpenCreateCompany = () => {
     resetCompanyForm();
     setCompanyFormVisible(true);
@@ -248,7 +266,8 @@ const AdminPanel = () => {
                   <th>Imię i nazwisko</th>
                   <th>Firma (CompanyId)</th>
                   <th>Typ konta</th>
-                  <th>Uprawnienia Administratora</th>
+                  <th>Uprawnienia administratora</th>
+                  <th>Akcje</th>
                 </tr>
               </thead>
               <tbody>
@@ -301,6 +320,23 @@ const AdminPanel = () => {
                             Nadaj
                           </button>
                         )}
+                      </td>
+                      <td>
+                        <div className="admin-user-actions">
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs admin-table__delete-btn"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={isCurrentUser}
+                            title={
+                              isCurrentUser
+                                ? 'Nie możesz usunąć własnego konta z poziomu panelu administratora'
+                                : 'Usuń użytkownika'
+                            }
+                          >
+                            Usuń
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -396,20 +432,22 @@ const AdminPanel = () => {
                     <td>{company.city || '-'}</td>
                     <td>{company.description || '-'}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-xs"
-                        onClick={() => handleOpenEditCompany(company)}
-                      >
-                        Edytuj
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-xs admin-table__delete-btn"
-                        onClick={() => handleDeleteCompany(company)}
-                      >
-                        Usuń
-                      </button>
+                      <div className="admin-user-actions">
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs"
+                          onClick={() => handleOpenEditCompany(company)}
+                        >
+                          Edytuj
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs admin-table__delete-btn"
+                          onClick={() => handleDeleteCompany(company)}
+                        >
+                          Usuń
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -25,6 +25,9 @@ function AccountPage() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
+  const [deleteError, setDeleteError] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   useEffect(() => {
     const loadProfile = async () => {
       setProfileLoading(true);
@@ -159,6 +162,48 @@ function AccountPage() {
       }
     } finally {
       setChangingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (
+      !window.confirm(
+        'Na pewno chcesz trwale usunąć swoje konto? Ta operacja jest nieodwracalna.',
+      )
+    ) {
+      return;
+    }
+
+    setDeleteError('');
+    setDeleteLoading(true);
+
+    try {
+      await authAPI.deleteAccount();
+
+      try {
+        await authAPI.logout();
+      } catch (err) {
+        console.error('Logout after delete error:', err);
+        tokenManager.clearTokens();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('authChanged'));
+          window.location.href = '/';
+        }
+      }
+    } catch (err) {
+      console.error('Delete account error:', err);
+      if (err.response?.data?.errors) {
+        const message = err.response.data.errors
+          .map((e) => e.description)
+          .join(' ');
+        setDeleteError(message);
+      } else if (err.response?.data?.message) {
+        setDeleteError(err.response.data.message);
+      } else {
+        setDeleteError('Nie udało się usunąć konta.');
+      }
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -328,6 +373,28 @@ function AccountPage() {
             {changingPassword ? 'Zmiana hasła...' : 'Zmień hasło'}
           </button>
         </form>
+      </section>
+
+      <section className="dashboard-card">
+        <h2>Usunięcie konta</h2>
+        <p>
+          Usunięcie konta spowoduje trwałe skasowanie Twoich danych logowania i dostępu do
+          historii rezerwacji. Tej operacji nie można cofnąć.
+        </p>
+
+        {deleteError && (
+          <div className="form-message form-message-error">{deleteError}</div>
+        )}
+
+        <button
+          type="button"
+          className="btn btn-outline form-button"
+          style={{ borderColor: '#ef4444', color: '#fecaca' }}
+          onClick={handleDeleteAccount}
+          disabled={deleteLoading}
+        >
+          {deleteLoading ? 'Usuwanie konta...' : 'Usuń konto'}
+        </button>
       </section>
     </div>
   );

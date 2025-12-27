@@ -118,7 +118,7 @@
 }
 
 .admin-table thead {
-  text-align: left;
+  text-align: center;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -195,4 +195,17 @@
 .admin-table__delete-btn {
   color: #f97373;
   border-color: rgba(248, 113, 113, 0.6);
+}
+
+.admin-user-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.admin-table th:nth-child(5),
+.admin-table th:nth-child(6),
+.admin-table td:nth-child(5),
+.admin-table td:nth-child(6) {
+  text-align: center;
 }

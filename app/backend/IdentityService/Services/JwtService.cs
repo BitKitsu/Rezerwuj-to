@@ -47,7 +47,8 @@ public class JwtService : IJwtService
             RefreshToken = refreshToken.Token,
             ExpiresIn = 900, // 15 minut
             TokenType = "Bearer",
-            Roles = roles.ToList()
+            Roles = roles.ToList(),
+            CompanyId = user.CompanyId
         };
     }
     
@@ -130,6 +131,7 @@ public class JwtService : IJwtService
             new Claim(JwtRegisteredClaimNames.Sub, user.Id),
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
             new Claim(JwtRegisteredClaimNames.Jti, jwtId),
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Name, user.UserName ?? ""),
             new Claim("FirstName", user.FirstName),
             new Claim("LastName", user.LastName)
@@ -196,4 +198,5 @@ public class TokenResponse
     public int ExpiresIn { get; set; }
     public string TokenType { get; set; } = "Bearer";
     public List<string> Roles { get; set; } = new();
+    public int? CompanyId { get; set; }
 }

@@ -47,10 +47,17 @@ const AdminPanel = () => {
   }, []);
 
   useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      loadCompanies(1);
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [companyQuery, companyCity]);
+
+  useEffect(() => {
     if (activeTab === 'companies') {
       loadCompanies(companiesPage);
     }
-  }, [activeTab, companiesPage, companyQuery, companyCity]);
+  }, [activeTab, companiesPage]);
 
   const loadUsers = async (page) => {
     setUsersLoading(true);
@@ -96,10 +103,12 @@ const AdminPanel = () => {
     }
   };
 
-  const handleUserSearchSubmit = (event) => {
-    event.preventDefault();
-    loadUsers(1);
-  };
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      loadUsers(1);
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [userQuery]);
 
   const handleUsersPageChange = (newPage) => {
     if (newPage < 1) return;
@@ -236,18 +245,13 @@ const AdminPanel = () => {
     <section className="admin-section">
       <div className="admin-section__header">
         <h2 className="admin-section__title">Użytkownicy</h2>
-        <form className="admin-section__filters" onSubmit={handleUserSearchSubmit}>
-          <input
-            type="text"
-            className="admin-input"
-            placeholder="Szukaj po emailu lub nazwisku..."
-            value={userQuery}
-            onChange={(e) => setUserQuery(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary">
-            Szukaj
-          </button>
-        </form>
+        <input
+          type="text"
+          className="admin-input"
+          placeholder="Szukaj po emailu lub nazwisku..."
+          value={userQuery}
+          onChange={(e) => setUserQuery(e.target.value)}
+        />
       </div>
 
       {usersError && <div className="admin-alert admin-alert--error">{usersError}</div>}
@@ -376,13 +380,7 @@ const AdminPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Firmy</h2>
         <div className="admin-section__actions">
-          <form
-            className="admin-section__filters"
-            onSubmit={(e) => {
-              e.preventDefault();
-              loadCompanies(1);
-            }}
-          >
+          <div className="admin-section__filters">
             <input
               type="text"
               className="admin-input"
@@ -397,10 +395,7 @@ const AdminPanel = () => {
               value={companyCity}
               onChange={(e) => setCompanyCity(e.target.value)}
             />
-            <button type="submit" className="btn btn-primary">
-              Filtruj
-            </button>
-          </form>
+          </div>
           <button type="button" className="btn btn-primary" onClick={handleOpenCreateCompany}>
             Dodaj firmę
           </button>

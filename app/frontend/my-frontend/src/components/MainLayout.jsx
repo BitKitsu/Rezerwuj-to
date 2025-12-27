@@ -78,7 +78,7 @@ function MainLayout({ children, theme, toggleTheme }) {
               Usługi
             </Link>
             <Link to="/salons" className={navLinkClass('/salons')}>
-              Salony
+              Firmy
             </Link>
             <Link to="/dashboard" className={navLinkClass('/dashboard')}>
               Panel rezerwacji

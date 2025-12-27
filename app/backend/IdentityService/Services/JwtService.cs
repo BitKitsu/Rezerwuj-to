@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using IdentityService.Data;
 using IdentityService.Models;
+using Microsoft.AspNetCore.Identity;
 
 namespace IdentityService.Services;
 
@@ -22,17 +23,22 @@ public class JwtService : IJwtService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<JwtService> _logger;
+    private readonly UserManager<ApplicationUser> _userManager;
     
-    public JwtService(ApplicationDbContext context, IConfiguration configuration, ILogger<JwtService> logger)
+    public JwtService(ApplicationDbContext context, IConfiguration configuration, ILogger<JwtService> logger, UserManager<ApplicationUser> userManager)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _userManager = userManager;
     }
     
     public async Task<TokenResponse> GenerateTokensAsync(ApplicationUser user)
     {
-        var jwtToken = GenerateJwtToken(user);
+        // Pobierz role użytkownika, aby dodać je do JWT i odpowiedzi
+        var roles = await _userManager.GetRolesAsync(user);
+
+        var jwtToken = GenerateJwtToken(user, roles);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id, jwtToken.Id);
         
         return new TokenResponse
@@ -40,7 +46,8 @@ public class JwtService : IJwtService
             AccessToken = jwtToken.Token,
             RefreshToken = refreshToken.Token,
             ExpiresIn = 900, // 15 minut
-            TokenType = "Bearer"
+            TokenType = "Bearer",
+            Roles = roles.ToList()
         };
     }
     
@@ -112,7 +119,7 @@ public class JwtService : IJwtService
         await _context.SaveChangesAsync();
     }
     
-    private (string Token, string Id) GenerateJwtToken(ApplicationUser user)
+    private (string Token, string Id) GenerateJwtToken(ApplicationUser user, IList<string> roles)
     {
         var jwtId = Guid.NewGuid().ToString();
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
@@ -131,6 +138,15 @@ public class JwtService : IJwtService
         if (user.CompanyId.HasValue)
         {
             claims.Add(new Claim("CompanyId", user.CompanyId.Value.ToString()));
+        }
+
+        // Dodaj role użytkownika jako osobne claimy typu Role
+        if (roles != null)
+        {
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
         }
         
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -179,4 +195,5 @@ public class TokenResponse
     public string RefreshToken { get; set; } = string.Empty;
     public int ExpiresIn { get; set; }
     public string TokenType { get; set; } = "Bearer";
+    public List<string> Roles { get; set; } = new();
 }

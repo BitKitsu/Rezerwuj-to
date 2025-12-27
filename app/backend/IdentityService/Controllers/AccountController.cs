@@ -97,7 +97,8 @@ namespace IdentityService.Controllers
                         userId = user.Id,
                         email = user.Email,
                         firstName = user.FirstName,
-                        lastName = user.LastName
+                        lastName = user.LastName,
+                        roles = tokens.Roles
                     });
                 }
             }

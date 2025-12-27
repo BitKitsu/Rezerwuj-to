@@ -17,8 +17,9 @@ var connectionString = builder.Configuration.GetConnectionString("IdentityConnec
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// 2. Dodanie ASP.NET Core Identity z ApplicationUser
+// 2. Dodanie ASP.NET Core Identity z ApplicationUser i rolami
 builder.Services.AddIdentityApiEndpoints<ApplicationUser>() // Użyj API Endpoints dla nowoczesnego mikroserwisu
+    .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>();
 
 // Konfiguracja wymagań dla hasła - bardziej liberalne i czytelne komunikaty
@@ -162,8 +163,22 @@ using (var scope = app.Services.CreateScope())
                 continue;
             }
             
-            // Utworzenie testowego użytkownika
+            // Utworzenie roli administratora i testowego użytkownika
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+
+            var adminRoleName = "Admin";
+            if (!roleManager.RoleExistsAsync(adminRoleName).GetAwaiter().GetResult())
+            {
+                logger.LogInformation("Creating admin role...");
+                var roleResult = roleManager.CreateAsync(new IdentityRole(adminRoleName)).GetAwaiter().GetResult();
+                if (!roleResult.Succeeded)
+                {
+                    var roleErrors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                    logger.LogError("Failed to create admin role: {Errors}", roleErrors);
+                }
+            }
+
             var testEmail = "test@example.com";
             
             logger.LogInformation("Checking for test user...");
@@ -189,6 +204,22 @@ using (var scope = app.Services.CreateScope())
                 {
                     Console.WriteLine($"Utworzono testowego użytkownika: {testEmail} / Test123!");
                     logger.LogInformation("Test user created successfully");
+
+                    // Upewnij się, że testowy użytkownik ma rolę Admin
+                    var isInRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                    if (!isInRole)
+                    {
+                        var addToRoleResult = userManager.AddToRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                        if (addToRoleResult.Succeeded)
+                        {
+                            logger.LogInformation("Test user added to Admin role");
+                        }
+                        else
+                        {
+                            var addRoleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => e.Description));
+                            logger.LogError("Failed to add test user to Admin role: {Errors}", addRoleErrors);
+                        }
+                    }
                 }
                 else
                 {
@@ -201,6 +232,22 @@ using (var scope = app.Services.CreateScope())
             {
                 Console.WriteLine($"Użytkownik testowy już istnieje: {testEmail}");
                 logger.LogInformation("Test user already exists");
+
+                // Upewnij się, że istniejący testowy użytkownik ma rolę Admin
+                var isInRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                if (!isInRole)
+                {
+                    var addToRoleResult = userManager.AddToRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                    if (addToRoleResult.Succeeded)
+                    {
+                        logger.LogInformation("Existing test user added to Admin role");
+                    }
+                    else
+                    {
+                        var addRoleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => e.Description));
+                        logger.LogError("Failed to add existing test user to Admin role: {Errors}", addRoleErrors);
+                    }
+                }
             }
             
             break; // Sukces - wychodzimy z pętli

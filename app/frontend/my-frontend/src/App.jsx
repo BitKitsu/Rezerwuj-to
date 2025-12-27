@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import ServicesPage from './pages/ServicesPage'
 import SalonsPage from './pages/SalonsPage'
 import AccountPage from './pages/AccountPage'
+import AdminPanel from './pages/AdminPanel'
 import ProtectedRoute from './components/ProtectedRoute'
 import MainLayout from './components/MainLayout'
 import './App.css'
@@ -55,6 +56,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AccountPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute requiredRole="Admin">
+                <AdminPanel />
               </ProtectedRoute>
             }
           />

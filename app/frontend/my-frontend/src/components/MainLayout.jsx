@@ -83,6 +83,11 @@ function MainLayout({ children, theme, toggleTheme }) {
             <Link to="/dashboard" className={navLinkClass('/dashboard')}>
               Panel rezerwacji
             </Link>
+            {isAuthenticated && user?.roles?.includes('Admin') && (
+              <Link to="/admin" className={navLinkClass('/admin')}>
+                Panel administratora
+              </Link>
+            )}
           </nav>
 
           <div className="app-header-actions">

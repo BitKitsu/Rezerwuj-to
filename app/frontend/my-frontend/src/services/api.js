@@ -117,7 +117,8 @@ export const authAPI = {
         userId: response.data.userId,
         email: response.data.email,
         firstName: response.data.firstName,
-        lastName: response.data.lastName
+        lastName: response.data.lastName,
+        roles: response.data.roles || []
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('authChanged'));

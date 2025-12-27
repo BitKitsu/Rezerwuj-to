@@ -1,17 +1,20 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace ReservationService.Models;
 
-public class Service
+public class ServiceCreateUpdateDto
 {
-    public int Id { get; set; }
+    [Required]
     public string ServiceName { get; set; } = string.Empty;
+
     public string Description { get; set; } = string.Empty;
+
+    [Range(0, double.MaxValue)]
     public decimal Price { get; set; }
+
+    [Range(1, int.MaxValue)]
     public int DurationMinutes { get; set; } = 60;
-    
-    // Foreign keys
+
+    [Required]
     public int CompanyId { get; set; }
-    public Company? Company { get; set; }
-    
-    // Relacje
-    public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
 }

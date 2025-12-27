@@ -112,10 +112,25 @@ public class ServicesController : ControllerBase
 
     // POST: api/services
     [HttpPost]
-    public async Task<ActionResult<Service>> CreateService(Service service)
+    public async Task<ActionResult<Service>> CreateService(ServiceCreateUpdateDto dto)
     {
-        _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", service.ServiceName);
-        
+        _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", dto.ServiceName);
+
+        var companyExists = await _context.Companies.AnyAsync(c => c.Id == dto.CompanyId);
+        if (!companyExists)
+        {
+            return BadRequest(new { message = "Firma o podanym ID nie istnieje." });
+        }
+
+        var service = new Service
+        {
+            ServiceName = dto.ServiceName,
+            Description = dto.Description ?? string.Empty,
+            Price = dto.Price,
+            DurationMinutes = dto.DurationMinutes,
+            CompanyId = dto.CompanyId
+        };
+
         _context.Services.Add(service);
         await _context.SaveChangesAsync();
 
@@ -124,14 +139,28 @@ public class ServicesController : ControllerBase
 
     // PUT: api/services/5
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateService(int id, Service service)
+    public async Task<IActionResult> UpdateService(int id, ServiceCreateUpdateDto dto)
     {
-        if (id != service.Id)
+        var service = await _context.Services.FindAsync(id);
+        if (service == null)
         {
-            return BadRequest();
+            return NotFound();
         }
 
-        _context.Entry(service).State = EntityState.Modified;
+        if (service.CompanyId != dto.CompanyId)
+        {
+            var companyExists = await _context.Companies.AnyAsync(c => c.Id == dto.CompanyId);
+            if (!companyExists)
+            {
+                return BadRequest(new { message = "Firma o podanym ID nie istnieje." });
+            }
+        }
+
+        service.ServiceName = dto.ServiceName;
+        service.Description = dto.Description ?? string.Empty;
+        service.Price = dto.Price;
+        service.DurationMinutes = dto.DurationMinutes;
+        service.CompanyId = dto.CompanyId;
 
         try
         {

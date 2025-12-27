@@ -16,6 +16,8 @@ public class Company
     // Dodatkowe
     public string? Description { get; set; }
     public string? Website { get; set; }
+    public string? OpeningHour { get; set; }
+    public string? ClosingHour { get; set; }
     public DateTime RegistrationDate { get; set; } = DateTime.UtcNow;
     
     // Relacje

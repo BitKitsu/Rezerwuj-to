@@ -88,6 +88,11 @@ function MainLayout({ children, theme, toggleTheme }) {
                 Panel administratora
               </Link>
             )}
+            {(isAuthenticated && (user?.roles?.includes('Admin') || user?.roles?.includes('CompanyOwner')) && user?.companyId) && (
+              <Link to="/company-panel" className={navLinkClass('/company-panel')}>
+                Panel Firmy
+              </Link>
+            )}
           </nav>
 
           <div className="app-header-actions">

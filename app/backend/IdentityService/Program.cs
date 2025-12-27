@@ -201,8 +201,7 @@ using (var scope = app.Services.CreateScope())
                     EmailConfirmed = true,
                     FirstName = "Test",
                     LastName = "User",
-                    Phone = "",
-                    CompanyId = 1
+                    Phone = ""
                 };
                 
                 var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
@@ -285,6 +284,23 @@ using (var scope = app.Services.CreateScope())
                     {
                         var addUserRoleErrors = string.Join(", ", addToUserRoleResult.Errors.Select(e => e.Description));
                         logger.LogError("Failed to add existing test user to User role: {Errors}", addUserRoleErrors);
+                    }
+                }
+
+                // Dla istniejących baz, w których testowy użytkownik miał kiedyś przypisane CompanyId,
+                // wyczyść to powiązanie – admin startowo nie powinien być przypisany do żadnej firmy.
+                if (testUser.CompanyId != null)
+                {
+                    testUser.CompanyId = null;
+                    var updateResult = userManager.UpdateAsync(testUser).GetAwaiter().GetResult();
+                    if (updateResult.Succeeded)
+                    {
+                        logger.LogInformation("Cleared CompanyId for existing test user.");
+                    }
+                    else
+                    {
+                        var updateErrors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
+                        logger.LogWarning("Failed to clear CompanyId for existing test user: {Errors}", updateErrors);
                     }
                 }
             }

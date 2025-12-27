@@ -111,6 +111,12 @@
   box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.6);
 }
 
+.admin-form textarea.admin-input {
+  border-radius: 0.75rem;
+  min-height: 6rem;
+  resize: vertical;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -201,6 +207,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
+}
+
+.admin-user-actions--center {
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .admin-table th:nth-child(5),

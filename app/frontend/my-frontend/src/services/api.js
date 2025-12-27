@@ -143,6 +143,42 @@ export const authAPI = {
   updateProfile: (data) => identityAPI.put('/account/profile', data),
   changePassword: (data) => identityAPI.post('/account/change-password', data),
   deleteAccount: () => identityAPI.delete('/account/delete'),
+  assignCompany: async (companyId) => {
+    const response = await identityAPI.post('/account/assign-company', { companyId });
+    if (response.data.accessToken && response.data.refreshToken) {
+      tokenManager.setTokens(response.data.accessToken, response.data.refreshToken);
+      tokenManager.setUser({
+        userId: response.data.userId,
+        email: response.data.email,
+        firstName: response.data.firstName,
+        lastName: response.data.lastName,
+        roles: response.data.roles || [],
+        companyId: response.data.companyId ?? null,
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('authChanged'));
+      }
+    }
+    return response;
+  },
+  unassignCompany: async () => {
+    const response = await identityAPI.post('/account/unassign-company');
+    if (response.data.accessToken && response.data.refreshToken) {
+      tokenManager.setTokens(response.data.accessToken, response.data.refreshToken);
+      tokenManager.setUser({
+        userId: response.data.userId,
+        email: response.data.email,
+        firstName: response.data.firstName,
+        lastName: response.data.lastName,
+        roles: response.data.roles || [],
+        companyId: response.data.companyId ?? null,
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('authChanged'));
+      }
+    }
+    return response;
+  },
 };
 
 // ===== Company Service =====
@@ -170,7 +206,16 @@ export const servicesAPI = {
   delete: (id) => reservationAPI.delete(`/services/${id}`),
 };
 
-// ===== Appointments API =====
+// ===== Company Users API (Identity) =====
+export const companyUsersAPI = {
+  getUsers: () => identityAPI.get('/company/users'),
+  addUser: (data) => identityAPI.post('/company/users/add', data),
+  removeUser: (userId) => identityAPI.delete(`/company/users/${userId}`),
+  updateUserRole: (userId, role) => identityAPI.put(`/company/users/${userId}/role`, { role }),
+  transferOwnership: (newOwnerUserId) => identityAPI.post('/company/users/transfer-ownership', { newOwnerUserId }),
+};
+
+// ===== Appointments API ===== 
 export const appointmentsAPI = {
   getAll: () => reservationAPI.get('/appointments'),
   getById: (id) => reservationAPI.get(`/appointments/${id}`),

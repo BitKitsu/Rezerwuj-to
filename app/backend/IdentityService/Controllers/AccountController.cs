@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using IdentityService.Data;
+using IdentityService.Models;
 using IdentityService.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace IdentityService.Controllers
 {
@@ -15,17 +17,20 @@ namespace IdentityService.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IJwtService _jwtService;
         private readonly IAuditService _auditService;
+        private readonly ApplicationDbContext _context;
 
         public AccountController(
             UserManager<ApplicationUser> userManager, 
             SignInManager<ApplicationUser> signInManager,
             IJwtService jwtService,
-            IAuditService auditService)
+            IAuditService auditService,
+            ApplicationDbContext context)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _jwtService = jwtService;
             _auditService = auditService;
+            _context = context;
         }
 
         [HttpPost("register")]
@@ -275,6 +280,148 @@ namespace IdentityService.Controllers
             return Ok(new { message = "Konto zostało usunięte." });
         }
 
+        [HttpPost("assign-company")]
+        [Authorize]
+        public async Task<IActionResult> AssignCompanyToUser([FromBody] AssignCompanyRequest request)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            if (user.CompanyId.HasValue)
+            {
+                return BadRequest(new { message = "Użytkownik ma już przypisaną firmę." });
+            }
+
+            user.CompanyId = request.CompanyId;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                return BadRequest(new { message = "Nie udało się przypisać firmy do użytkownika." });
+            }
+
+            if (!await _userManager.IsInRoleAsync(user, "CompanyOwner"))
+            {
+                var roleResult = await _userManager.AddToRoleAsync(user, "CompanyOwner");
+                if (!roleResult.Succeeded)
+                {
+                    return BadRequest(new { message = "Nie udało się nadać roli firmowej." });
+                }
+            }
+
+            var existingCompanyRole = await _context.UserCompanyRoles
+                .FirstOrDefaultAsync(r => r.UserId == user.Id && r.CompanyId == request.CompanyId);
+
+            if (existingCompanyRole == null)
+            {
+                _context.UserCompanyRoles.Add(new UserCompanyRole
+                {
+                    UserId = user.Id,
+                    CompanyId = request.CompanyId,
+                    Role = CompanyRoles.Owner,
+                    IsActive = true
+                });
+            }
+            else
+            {
+                existingCompanyRole.Role = CompanyRoles.Owner;
+                existingCompanyRole.IsActive = true;
+            }
+
+            await _context.SaveChangesAsync();
+
+            var tokens = await _jwtService.GenerateTokensAsync(user);
+
+            return Ok(new
+            {
+                message = "Firma została pomyślnie przypisana do konta.",
+                accessToken = tokens.AccessToken,
+                refreshToken = tokens.RefreshToken,
+                expiresIn = tokens.ExpiresIn,
+                tokenType = tokens.TokenType,
+                userId = user.Id,
+                email = user.Email,
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                roles = tokens.Roles,
+                companyId = user.CompanyId
+            });
+        }
+
+        [HttpPost("unassign-company")]
+        [Authorize]
+        public async Task<IActionResult> UnassignCompanyFromUser()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Nie można zidentyfikować użytkownika." });
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            if (!user.CompanyId.HasValue)
+            {
+                return Ok(new { message = "Użytkownik nie ma przypisanej żadnej firmy." });
+            }
+
+            var companyId = user.CompanyId.Value;
+            user.CompanyId = null;
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+            {
+                return BadRequest(new { message = "Nie udało się odpiąć firmy od użytkownika." });
+            }
+
+            if (await _userManager.IsInRoleAsync(user, "CompanyOwner"))
+            {
+                await _userManager.RemoveFromRoleAsync(user, "CompanyOwner");
+            }
+
+            var activeCompanyRoles = await _context.UserCompanyRoles
+                .Where(r => r.UserId == user.Id && r.CompanyId == companyId && r.IsActive)
+                .ToListAsync();
+
+            if (activeCompanyRoles.Count > 0)
+            {
+                foreach (var role in activeCompanyRoles)
+                {
+                    role.IsActive = false;
+                }
+
+                await _context.SaveChangesAsync();
+            }
+
+            var tokens = await _jwtService.GenerateTokensAsync(user);
+
+            return Ok(new
+            {
+                message = "Firma została pomyślnie odpięta od konta.",
+                accessToken = tokens.AccessToken,
+                refreshToken = tokens.RefreshToken,
+                expiresIn = tokens.ExpiresIn,
+                tokenType = tokens.TokenType,
+                userId = user.Id,
+                email = user.Email,
+                firstName = user.FirstName,
+                lastName = user.LastName,
+                roles = tokens.Roles,
+                companyId = user.CompanyId
+            });
+        }
+
         private string TranslateError(string error)
         {
             var translations = new Dictionary<string, string>
@@ -331,5 +478,10 @@ namespace IdentityService.Controllers
     {
         public required string CurrentPassword { get; set; }
         public required string NewPassword { get; set; }
+    }
+
+    public class AssignCompanyRequest
+    {
+        public int CompanyId { get; set; }
     }
 }

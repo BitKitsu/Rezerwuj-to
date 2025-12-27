@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { authAPI, tokenManager } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { authAPI, companiesAPI, tokenManager } from '../services/api';
+import '../admin.css'; // Reuse some admin styles for the form
 
 function AccountPage() {
   const [profile, setProfile] = useState(null);
@@ -27,6 +28,21 @@ function AccountPage() {
 
   const [deleteError, setDeleteError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const [showCompanyForm, setShowCompanyForm] = useState(false);
+  const [companyForm, setCompanyForm] = useState({
+    companyName: '',
+    email: '',
+    phone: '',
+    city: '',
+    street: '',
+    postalCode: '',
+    description: '',
+    openingHour: '08:00',
+    closingHour: '18:00',
+  });
+  const [companyFormError, setCompanyFormError] = useState('');
+  const [companyFormLoading, setCompanyFormLoading] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -165,6 +181,45 @@ function AccountPage() {
     }
   };
 
+  const handleCompanyFormChange = (e) => {
+    const { name, value } = e.target;
+    setCompanyForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleCompanyFormSubmit = async (e) => {
+    e.preventDefault();
+    setCompanyFormError('');
+    setCompanyFormLoading(true);
+
+    try {
+      // Step 1: Create the company in ReservationService
+      const createCompanyResponse = await companiesAPI.create(companyForm);
+      const newCompanyId = createCompanyResponse.data.id;
+
+      if (!newCompanyId) {
+        throw new Error('Nie udało się uzyskać ID nowej firmy.');
+      }
+
+      // Step 2: Assign the new company to the user in IdentityService
+      await authAPI.assignCompany(newCompanyId);
+
+      setShowCompanyForm(false);
+      // The user's state is updated by assignCompany, no need to reload page
+    } catch (err) {
+      console.error('Create company error:', err);
+      if (err.response?.data?.errors) {
+        const message = Object.values(err.response.data.errors).flat().join(' ');
+        setCompanyFormError(message);
+      } else if (err.response?.data?.message) {
+        setCompanyFormError(err.response.data.message);
+      } else {
+        setCompanyFormError('Wystąpił nieoczekiwany błąd podczas tworzenia firmy.');
+      }
+    } finally {
+      setCompanyFormLoading(false);
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (
       !window.confirm(
@@ -207,8 +262,70 @@ function AccountPage() {
     }
   };
 
+  const currentUser = tokenManager.getUser();
+  const hasCompany = currentUser && currentUser.companyId;
+
+  const renderCreateCompanyForm = () => (
+    <div className="admin-card--form-container">
+      <div className="admin-card admin-card--form">
+        <div className="admin-form__header">
+          <h2>Zarejestruj swoją firmę</h2>
+          <button type="button" className="btn-close" onClick={() => setShowCompanyForm(false)} aria-label="Close"></button>
+        </div>
+        <form onSubmit={handleCompanyFormSubmit} className="admin-form">
+          {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
+          <div className="admin-form__grid">
+            <div className="admin-form__field admin-form__field--full">
+              <label htmlFor="companyName">Nazwa firmy</label>
+              <input id="companyName" name="companyName" type="text" value={companyForm.companyName} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="email">Email kontaktowy</label>
+              <input id="email" name="email" type="email" value={companyForm.email} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="phone">Telefon kontaktowy</label>
+              <input id="phone" name="phone" type="tel" value={companyForm.phone} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="city">Miasto</label>
+              <input id="city" name="city" type="text" value={companyForm.city} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="street">Ulica i numer</label>
+              <input id="street" name="street" type="text" value={companyForm.street} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="postalCode">Kod pocztowy</label>
+              <input id="postalCode" name="postalCode" type="text" value={companyForm.postalCode} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field admin-form__field--full">
+              <label htmlFor="description">Opis firmy</label>
+              <textarea id="description" name="description" value={companyForm.description} onChange={handleCompanyFormChange} rows="4" className="admin-input"></textarea>
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="openingHour">Godzina otwarcia</label>
+              <input id="openingHour" name="openingHour" type="time" value={companyForm.openingHour} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="closingHour">Godzina zamknięcia</label>
+              <input id="closingHour" name="closingHour" type="time" value={companyForm.closingHour} onChange={handleCompanyFormChange} required className="admin-input" />
+            </div>
+          </div>
+          <div className="admin-form__actions">
+            <button type="button" className="btn btn-outline" onClick={() => setShowCompanyForm(false)}>Anuluj</button>
+            <button type="submit" className="btn btn-primary" disabled={companyFormLoading}>
+              {companyFormLoading ? 'Tworzenie firmy...' : 'Utwórz firmę'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   return (
     <div className="dashboard-page">
+      {showCompanyForm && renderCreateCompanyForm()}
       <header className="dashboard-header">
         <div>
           <h1>Ustawienia konta</h1>
@@ -217,6 +334,22 @@ function AccountPage() {
           </p>
         </div>
       </header>
+
+      {!hasCompany && (
+        <section className="dashboard-card">
+          <h2>Zostań partnerem REZERWUJ.TO</h2>
+          <p>
+            Chcesz dotrzeć do nowych klientów i usprawnić zarządzanie rezerwacjami w swojej firmie? Zarejestruj swój biznes na naszej platformie.
+          </p>
+          <button
+            type="button"
+            className="btn btn-primary form-button"
+            onClick={() => setShowCompanyForm(true)}
+          >
+            Dodaj swoją firmę
+          </button>
+        </section>
+      )}
 
       <section className="dashboard-card">
         <h2>Dane profilu</h2>

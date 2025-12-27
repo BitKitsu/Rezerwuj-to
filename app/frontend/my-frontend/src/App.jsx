@@ -8,6 +8,7 @@ import ServicesPage from './pages/ServicesPage'
 import SalonsPage from './pages/SalonsPage'
 import AccountPage from './pages/AccountPage'
 import AdminPanel from './pages/AdminPanel'
+import CompanyPanel from './pages/CompanyPanel'
 import ProtectedRoute from './components/ProtectedRoute'
 import MainLayout from './components/MainLayout'
 import './App.css'
@@ -64,6 +65,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="Admin">
                 <AdminPanel />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/company-panel"
+            element={
+              <ProtectedRoute requiredRole={['Admin', 'CompanyOwner']}>
+                <CompanyPanel />
               </ProtectedRoute>
             }
           />

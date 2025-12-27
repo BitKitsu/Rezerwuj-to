@@ -14,6 +14,7 @@ const CompanyPanel = () => {
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
   const [companyFormError, setCompanyFormError] = useState('');
   const [companyFormSuccess, setCompanyFormSuccess] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
 
   // Services form (for create/edit)
   const [serviceFormVisible, setServiceFormVisible] = useState(false);
@@ -126,6 +127,15 @@ const CompanyPanel = () => {
     setCompanyFormSubmitting(true);
     setCompanyFormError('');
     setCompanyFormSuccess('');
+    if (
+      companyForm.openingHour &&
+      companyForm.closingHour &&
+      companyForm.closingHour <= companyForm.openingHour
+    ) {
+      setCompanyFormSubmitting(false);
+      setCompanyFormError('Godzina zamknięcia musi być późniejsza niż godzina otwarcia.');
+      return;
+    }
     try {
       await companiesAPI.update(companyId, companyForm);
       setCompanyFormSuccess('Dane firmy zostały zaktualizowane.');
@@ -133,7 +143,16 @@ const CompanyPanel = () => {
       // (np. godzin otwarcia/zamknięcia, które backend na razie ignoruje).
     } catch (err) {
       console.error('Failed to update company', err);
-      setCompanyFormError('Nie udało się zaktualizować danych firmy.');
+      if (err.response?.data?.errors) {
+        const message = Array.isArray(err.response.data.errors)
+          ? err.response.data.errors.join(' ')
+          : Object.values(err.response.data.errors).flat().join(' ');
+        setCompanyFormError(message);
+      } else if (err.response?.data?.message) {
+        setCompanyFormError(err.response.data.message);
+      } else {
+        setCompanyFormError('Nie udało się zaktualizować danych firmy.');
+      }
     } finally {
       setCompanyFormSubmitting(false);
     }
@@ -322,7 +341,15 @@ const CompanyPanel = () => {
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
               <label>Nazwa firmy</label>
-              <input name="companyName" type="text" value={companyForm.companyName} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="companyName"
+                type="text"
+                value={companyForm.companyName}
+                onChange={handleCompanyFormChange}
+                required
+                maxLength={100}
+                className="admin-input"
+              />
             </div>
             {/* Add other company fields here, similar to AccountPage company form */}
             <div className="admin-form__field">
@@ -331,23 +358,90 @@ const CompanyPanel = () => {
             </div>
             <div className="admin-form__field">
               <label>Telefon</label>
-              <input name="phone" type="tel" value={companyForm.phone} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="phone"
+                type="tel"
+                value={companyForm.phone}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                placeholder="+48 111 222 333"
+              />
             </div>
              <div className="admin-form__field">
               <label>Miasto</label>
-              <input name="city" type="text" value={companyForm.city} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="city"
+                type="text"
+                value={companyForm.city}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                list="company-panel-city-options"
+              />
+              <datalist id="company-panel-city-options">
+                {citySuggestions.map((cityOption) => (
+                  <option key={cityOption} value={cityOption} />
+                ))}
+              </datalist>
             </div>
             <div className="admin-form__field">
-              <label>Ulica i numer</label>
-              <input name="street" type="text" value={companyForm.street} onChange={handleCompanyFormChange} required className="admin-input" />
+              <label>Ulica</label>
+              <input
+                name="streetName"
+                type="text"
+                value={companyForm.streetName || ''}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Numer budynku</label>
+              <input
+                name="streetNumber"
+                type="text"
+                value={companyForm.streetNumber || ''}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Nr lokalu (opcjonalnie)</label>
+              <input
+                name="apartmentNumber"
+                type="text"
+                value={companyForm.apartmentNumber || ''}
+                onChange={handleCompanyFormChange}
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label>Kod pocztowy</label>
-              <input name="postalCode" type="text" value={companyForm.postalCode} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="postalCode"
+                type="text"
+                value={companyForm.postalCode}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                placeholder="00-000"
+                pattern="^[0-9]{2}-[0-9]{3}$"
+                maxLength={6}
+                title="Kod pocztowy w formacie 00-000"
+              />
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label>Opis</label>
-              <textarea name="description" value={companyForm.description} onChange={handleCompanyFormChange} rows="4" className="admin-input"></textarea>
+              <label>Opis (max. 1000 znaków)</label>
+              <textarea
+                name="description"
+                value={companyForm.description}
+                onChange={handleCompanyFormChange}
+                rows="4"
+                maxLength={1000}
+                className="admin-input"
+              ></textarea>
             </div>
             <div className="admin-form__field">
               <label>Godzina otwarcia</label>

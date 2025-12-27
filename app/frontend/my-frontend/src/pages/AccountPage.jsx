@@ -35,7 +35,9 @@ function AccountPage() {
     email: '',
     phone: '',
     city: '',
-    street: '',
+    streetName: '',
+    streetNumber: '',
+    apartmentNumber: '',
     postalCode: '',
     description: '',
     openingHour: '08:00',
@@ -189,6 +191,14 @@ function AccountPage() {
   const handleCompanyFormSubmit = async (e) => {
     e.preventDefault();
     setCompanyFormError('');
+    if (
+      companyForm.openingHour &&
+      companyForm.closingHour &&
+      companyForm.closingHour <= companyForm.openingHour
+    ) {
+      setCompanyFormError('Godzina zamknięcia musi być późniejsza niż godzina otwarcia.');
+      return;
+    }
     setCompanyFormLoading(true);
 
     try {
@@ -277,7 +287,16 @@ function AccountPage() {
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
               <label htmlFor="companyName">Nazwa firmy</label>
-              <input id="companyName" name="companyName" type="text" value={companyForm.companyName} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                id="companyName"
+                name="companyName"
+                type="text"
+                value={companyForm.companyName}
+                onChange={handleCompanyFormChange}
+                required
+                maxLength={100}
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label htmlFor="email">Email kontaktowy</label>
@@ -285,23 +304,59 @@ function AccountPage() {
             </div>
             <div className="admin-form__field">
               <label htmlFor="phone">Telefon kontaktowy</label>
-              <input id="phone" name="phone" type="tel" value={companyForm.phone} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                value={companyForm.phone}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                placeholder="+48 111 222 333"
+              />
             </div>
             <div className="admin-form__field">
               <label htmlFor="city">Miasto</label>
               <input id="city" name="city" type="text" value={companyForm.city} onChange={handleCompanyFormChange} required className="admin-input" />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="street">Ulica i numer</label>
-              <input id="street" name="street" type="text" value={companyForm.street} onChange={handleCompanyFormChange} required className="admin-input" />
+              <label htmlFor="apartmentNumber">Nr lokalu (opcjonalnie)</label>
+              <input
+                id="apartmentNumber"
+                name="apartmentNumber"
+                type="text"
+                value={companyForm.apartmentNumber}
+                onChange={handleCompanyFormChange}
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label htmlFor="postalCode">Kod pocztowy</label>
-              <input id="postalCode" name="postalCode" type="text" value={companyForm.postalCode} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                id="postalCode"
+                name="postalCode"
+                type="text"
+                value={companyForm.postalCode}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                placeholder="00-000"
+                pattern="^[0-9]{2}-[0-9]{3}$"
+                maxLength={6}
+                title="Kod pocztowy w formacie 00-000"
+              />
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label htmlFor="description">Opis firmy</label>
-              <textarea id="description" name="description" value={companyForm.description} onChange={handleCompanyFormChange} rows="4" className="admin-input"></textarea>
+              <label htmlFor="description">Opis firmy (max. 1000 znaków)</label>
+              <textarea
+                id="description"
+                name="description"
+                value={companyForm.description}
+                onChange={handleCompanyFormChange}
+                rows="4"
+                maxLength={1000}
+                className="admin-input"
+              ></textarea>
             </div>
             <div className="admin-form__field">
               <label htmlFor="openingHour">Godzina otwarcia</label>

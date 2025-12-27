@@ -6,6 +6,7 @@ using IdentityService.Data;
 using IdentityService.Models;
 using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace IdentityService.Controllers
 {
@@ -446,16 +447,31 @@ namespace IdentityService.Controllers
 
     public class RegisterDto
     {
+        [Required]
+        [EmailAddress]
+        [StringLength(100)]
         public required string Email { get; set; }
+
+        [Required]
         public required string Password { get; set; }
+
+        [Required]
         public required string FirstName { get; set; }
+
+        [Required]
         public required string LastName { get; set; }
+
+        [RegularExpression(@"^$|^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 111 222 333.")]
         public string? Phone { get; set; }
     }
 
     public class LoginDto
     {
+        [Required]
+        [EmailAddress]
         public required string Email { get; set; }
+
+        [Required]
         public required string Password { get; set; }
     }
 
@@ -471,6 +487,8 @@ namespace IdentityService.Controllers
     {
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
+
+        [RegularExpression(@"^$|^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 666 777 999.")]
         public string? Phone { get; set; }
     }
 

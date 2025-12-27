@@ -26,6 +26,8 @@ const AdminPanel = () => {
   const [companyFormVisible, setCompanyFormVisible] = useState(false);
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
+  const [companyFilterCitySuggestions, setCompanyFilterCitySuggestions] = useState([]);
+  const [companyFormCitySuggestions, setCompanyFormCitySuggestions] = useState([]);
 
   const resetCompanyForm = () => {
     setEditingCompany({
@@ -33,7 +35,9 @@ const AdminPanel = () => {
       companyName: '',
       email: '',
       phone: '',
-      street: '',
+      streetName: '',
+      streetNumber: '',
+      apartmentNumber: '',
       city: '',
       postalCode: '',
       country: 'Polska',
@@ -169,7 +173,9 @@ const AdminPanel = () => {
       companyName: company.companyName,
       email: company.email || '',
       phone: company.phone || '',
-      street: company.street || '',
+      streetName: company.streetName || '',
+      streetNumber: company.streetNumber || '',
+      apartmentNumber: company.apartmentNumber || '',
       city: company.city || '',
       postalCode: company.postalCode || '',
       country: company.country || 'Polska',
@@ -199,7 +205,9 @@ const AdminPanel = () => {
         companyName: editingCompany.companyName,
         email: editingCompany.email,
         phone: editingCompany.phone,
-        street: editingCompany.street,
+        streetName: editingCompany.streetName,
+        streetNumber: editingCompany.streetNumber,
+        apartmentNumber: editingCompany.apartmentNumber,
         city: editingCompany.city,
         postalCode: editingCompany.postalCode,
         country: editingCompany.country,
@@ -490,6 +498,7 @@ const AdminPanel = () => {
                   value={editingCompany.companyName}
                   onChange={(e) => handleCompanyFormChange('companyName', e.target.value)}
                   required
+                  maxLength={100}
                 />
               </label>
               <label className="admin-form__field">
@@ -504,10 +513,11 @@ const AdminPanel = () => {
               <label className="admin-form__field">
                 <span>Telefon</span>
                 <input
-                  type="text"
+                  type="tel"
                   className="admin-input"
                   value={editingCompany.phone}
                   onChange={(e) => handleCompanyFormChange('phone', e.target.value)}
+                  placeholder="+48 111 222 333"
                 />
               </label>
               <label className="admin-form__field">
@@ -515,8 +525,28 @@ const AdminPanel = () => {
                 <input
                   type="text"
                   className="admin-input"
-                  value={editingCompany.street}
-                  onChange={(e) => handleCompanyFormChange('street', e.target.value)}
+                  value={editingCompany.streetName || ''}
+                  onChange={(e) => handleCompanyFormChange('streetName', e.target.value)}
+                  required
+                />
+              </label>
+              <label className="admin-form__field">
+                <span>Numer budynku</span>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={editingCompany.streetNumber || ''}
+                  onChange={(e) => handleCompanyFormChange('streetNumber', e.target.value)}
+                  required
+                />
+              </label>
+              <label className="admin-form__field">
+                <span>Nr lokalu (opcjonalnie)</span>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={editingCompany.apartmentNumber || ''}
+                  onChange={(e) => handleCompanyFormChange('apartmentNumber', e.target.value)}
                 />
               </label>
               <label className="admin-form__field">
@@ -526,7 +556,13 @@ const AdminPanel = () => {
                   className="admin-input"
                   value={editingCompany.city}
                   onChange={(e) => handleCompanyFormChange('city', e.target.value)}
+                  list="admin-company-form-city-options"
                 />
+                <datalist id="admin-company-form-city-options">
+                  {companyFormCitySuggestions.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </label>
               <label className="admin-form__field">
                 <span>Kod pocztowy</span>
@@ -535,6 +571,10 @@ const AdminPanel = () => {
                   className="admin-input"
                   value={editingCompany.postalCode}
                   onChange={(e) => handleCompanyFormChange('postalCode', e.target.value)}
+                  placeholder="00-000"
+                  pattern="^[0-9]{2}-[0-9]{3}$"
+                  maxLength={6}
+                  title="Kod pocztowy w formacie 00-000"
                 />
               </label>
               <label className="admin-form__field">
@@ -556,12 +596,13 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field admin-form__field--full">
-                <span>Opis</span>
+                <span>Opis (max. 1000 znaków)</span>
                 <textarea
                   className="admin-input"
                   rows={3}
                   value={editingCompany.description}
                   onChange={(e) => handleCompanyFormChange('description', e.target.value)}
+                  maxLength={1000}
                 />
               </label>
             </div>

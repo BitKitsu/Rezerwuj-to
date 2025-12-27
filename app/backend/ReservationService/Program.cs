@@ -61,11 +61,13 @@ using (var scope = app.Services.CreateScope())
                     Id = 1,
                     CompanyName = "Przykładowy Fryzjer",
                     Description = "Najlepszy fryzjer w mieście",
-                    Street = "ul. Testowa 123",
+                    StreetName = "ul. Testowa",
+                    StreetNumber = "123",
+                    ApartmentNumber = null,
                     City = "Warszawa",
                     PostalCode = "00-001",
                     Country = "Polska",
-                    Phone = "123456789",
+                    Phone = "+48 111 222 333",
                     Email = "fryzjer@example.com"
                 };
                 

@@ -70,19 +70,26 @@ function RegisterPage() {
       
     } catch (err) {
       console.error('Registration error:', err);
-      
-      // Szczegółowa obsługa błędów walidacji
+
+      // Szczegółowa obsługa błędów walidacji (zarówno ModelState, jak i IdentityResult)
       if (err.response?.data?.errors) {
         const errors = err.response.data.errors;
         let errorMessages = [];
-        
-        // Sprawdź różne typy błędów
-        for (const [key, value] of Object.entries(errors)) {
-          if (Array.isArray(value)) {
-            errorMessages = errorMessages.concat(value);
+
+        if (Array.isArray(errors)) {
+          // IdentityResult z backendu: [{ code, description }, ...]
+          errorMessages = errors
+            .map((e) => e.description || e.Description)
+            .filter(Boolean);
+        } else if (typeof errors === 'object' && errors !== null) {
+          // ModelState: { field: ["komunikat1", ...], ... }
+          for (const [, value] of Object.entries(errors)) {
+            if (Array.isArray(value)) {
+              errorMessages = errorMessages.concat(value);
+            }
           }
         }
-        
+
         if (errorMessages.length > 0) {
           setError(
             <div>

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 
 namespace IdentityService.Controllers
 {
@@ -219,6 +220,8 @@ namespace IdentityService.Controllers
 
     public class AddUserToCompanyRequest
     {
+        [Required]
+        [EmailAddress]
         public required string Email { get; set; }
         public required string Role { get; set; }
     }

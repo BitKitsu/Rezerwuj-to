@@ -182,4 +182,14 @@ export const appointmentsAPI = {
   delete: (id) => reservationAPI.delete(`/appointments/${id}`),
 };
 
+// ===== Admin API (Identity) =====
+export const adminAPI = {
+  getUsers: (params) =>
+    identityAPI.get('/admin/users', {
+      params,
+    }),
+  grantAdmin: (userId) => identityAPI.post(`/admin/users/${userId}/roles/admin`),
+  revokeAdmin: (userId) => identityAPI.delete(`/admin/users/${userId}/roles/admin`),
+};
+
 export default reservationAPI;

@@ -163,21 +163,28 @@ using (var scope = app.Services.CreateScope())
                 continue;
             }
             
-            // Utworzenie roli administratora i testowego użytkownika
+            // Utworzenie podstawowych ról i testowego użytkownika
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
-            var adminRoleName = "Admin";
-            if (!roleManager.RoleExistsAsync(adminRoleName).GetAwaiter().GetResult())
+            var roleNames = new[] { "Admin", "User", "CompanyOwner" };
+
+            foreach (var roleName in roleNames)
             {
-                logger.LogInformation("Creating admin role...");
-                var roleResult = roleManager.CreateAsync(new IdentityRole(adminRoleName)).GetAwaiter().GetResult();
-                if (!roleResult.Succeeded)
+                if (!roleManager.RoleExistsAsync(roleName).GetAwaiter().GetResult())
                 {
-                    var roleErrors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
-                    logger.LogError("Failed to create admin role: {Errors}", roleErrors);
+                    logger.LogInformation("Creating role {RoleName}...", roleName);
+                    var roleResult = roleManager.CreateAsync(new IdentityRole(roleName)).GetAwaiter().GetResult();
+                    if (!roleResult.Succeeded)
+                    {
+                        var roleErrors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                        logger.LogError("Failed to create role {RoleName}: {Errors}", roleName, roleErrors);
+                    }
                 }
             }
+
+            var adminRoleName = "Admin";
+            var userRoleName = "User";
 
             var testEmail = "test@example.com";
             
@@ -206,8 +213,8 @@ using (var scope = app.Services.CreateScope())
                     logger.LogInformation("Test user created successfully");
 
                     // Upewnij się, że testowy użytkownik ma rolę Admin
-                    var isInRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
-                    if (!isInRole)
+                    var isInAdminRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                    if (!isInAdminRole)
                     {
                         var addToRoleResult = userManager.AddToRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
                         if (addToRoleResult.Succeeded)
@@ -218,6 +225,22 @@ using (var scope = app.Services.CreateScope())
                         {
                             var addRoleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => e.Description));
                             logger.LogError("Failed to add test user to Admin role: {Errors}", addRoleErrors);
+                        }
+                    }
+
+                    // Upewnij się, że testowy użytkownik ma również rolę User
+                    var isInUserRole = userManager.IsInRoleAsync(testUser, userRoleName).GetAwaiter().GetResult();
+                    if (!isInUserRole)
+                    {
+                        var addToUserRoleResult = userManager.AddToRoleAsync(testUser, userRoleName).GetAwaiter().GetResult();
+                        if (addToUserRoleResult.Succeeded)
+                        {
+                            logger.LogInformation("Test user added to User role");
+                        }
+                        else
+                        {
+                            var addUserRoleErrors = string.Join(", ", addToUserRoleResult.Errors.Select(e => e.Description));
+                            logger.LogError("Failed to add test user to User role: {Errors}", addUserRoleErrors);
                         }
                     }
                 }
@@ -234,8 +257,8 @@ using (var scope = app.Services.CreateScope())
                 logger.LogInformation("Test user already exists");
 
                 // Upewnij się, że istniejący testowy użytkownik ma rolę Admin
-                var isInRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
-                if (!isInRole)
+                var isInAdminRole = userManager.IsInRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
+                if (!isInAdminRole)
                 {
                     var addToRoleResult = userManager.AddToRoleAsync(testUser, adminRoleName).GetAwaiter().GetResult();
                     if (addToRoleResult.Succeeded)
@@ -246,6 +269,22 @@ using (var scope = app.Services.CreateScope())
                     {
                         var addRoleErrors = string.Join(", ", addToRoleResult.Errors.Select(e => e.Description));
                         logger.LogError("Failed to add existing test user to Admin role: {Errors}", addRoleErrors);
+                    }
+                }
+
+                // Upewnij się, że istniejący testowy użytkownik ma również rolę User
+                var isInUserRole = userManager.IsInRoleAsync(testUser, userRoleName).GetAwaiter().GetResult();
+                if (!isInUserRole)
+                {
+                    var addToUserRoleResult = userManager.AddToRoleAsync(testUser, userRoleName).GetAwaiter().GetResult();
+                    if (addToUserRoleResult.Succeeded)
+                    {
+                        logger.LogInformation("Existing test user added to User role");
+                    }
+                    else
+                    {
+                        var addUserRoleErrors = string.Join(", ", addToUserRoleResult.Errors.Select(e => e.Description));
+                        logger.LogError("Failed to add existing test user to User role: {Errors}", addUserRoleErrors);
                     }
                 }
             }

@@ -48,6 +48,8 @@ namespace IdentityService.Controllers
 
             if (result.Succeeded)
             {
+                await _userManager.AddToRoleAsync(user, "User");
+
                 // Automatyczne logowanie po rejestracji
                 await _signInManager.SignInAsync(user, isPersistent: false);
                 

@@ -45,6 +45,7 @@ function AccountPage() {
   });
   const [companyFormError, setCompanyFormError] = useState('');
   const [companyFormLoading, setCompanyFormLoading] = useState(false);
+  const [citySuggestions, setCitySuggestions] = useState([]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -230,6 +231,31 @@ function AccountPage() {
     }
   };
 
+  useEffect(() => {
+    const query = companyForm.city?.trim();
+    if (!query || query.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(query);
+        if (!cancelled) {
+          setCitySuggestions(res.data || []);
+        }
+      } catch (err) {
+        console.error('City suggestions load error:', err);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [companyForm.city]);
+
   const handleDeleteAccount = async () => {
     if (
       !window.confirm(
@@ -317,7 +343,45 @@ function AccountPage() {
             </div>
             <div className="admin-form__field">
               <label htmlFor="city">Miasto</label>
-              <input id="city" name="city" type="text" value={companyForm.city} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                id="city"
+                name="city"
+                type="text"
+                value={companyForm.city}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+                list="account-city-options"
+              />
+              <datalist id="account-city-options">
+                {citySuggestions.map((cityOption) => (
+                  <option key={cityOption} value={cityOption} />
+                ))}
+              </datalist>
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="streetName">Ulica</label>
+              <input
+                id="streetName"
+                name="streetName"
+                type="text"
+                value={companyForm.streetName}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label htmlFor="streetNumber">Numer budynku</label>
+              <input
+                id="streetNumber"
+                name="streetNumber"
+                type="text"
+                value={companyForm.streetNumber}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label htmlFor="apartmentNumber">Nr lokalu (opcjonalnie)</label>

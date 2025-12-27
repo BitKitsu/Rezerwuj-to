@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { servicesAPI } from '../services/api';
+import { servicesAPI, companiesAPI } from '../services/api';
 
 const demoServices = [
   {
@@ -30,6 +30,7 @@ function ServicesPage() {
 
   const [query, setQuery] = useState('');
   const [city, setCity] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
   const [sortBy, setSortBy] = useState('recommended');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -80,6 +81,31 @@ function ServicesPage() {
 
     load();
   }, [query, city, sortBy, page, pageSize]);
+
+  useEffect(() => {
+    const q = city.trim();
+    if (!q || q.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(q);
+        if (!cancelled) {
+          setCitySuggestions(res.data || []);
+        }
+      } catch (err) {
+        console.error('City suggestions load error (services):', err);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [city]);
 
   const pageCount = Math.max(1, Math.ceil((totalCount || services.length) / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -135,7 +161,13 @@ function ServicesPage() {
               placeholder="np. Warszawa"
               value={city}
               onChange={handleCityChange}
+              list="services-city-options"
             />
+            <datalist id="services-city-options">
+              {citySuggestions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
 
           <div className="list-filter-group">

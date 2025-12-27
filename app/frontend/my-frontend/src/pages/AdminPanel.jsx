@@ -58,6 +58,31 @@ const AdminPanel = () => {
   }, [companyQuery, companyCity]);
 
   useEffect(() => {
+    const q = companyCity.trim();
+    if (!q || q.length < 2) {
+      setCompanyFilterCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(q);
+        if (!cancelled) {
+          setCompanyFilterCitySuggestions(res.data || []);
+        }
+      } catch (error) {
+        console.error('City suggestions load error (admin filter):', error);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [companyCity]);
+
+  useEffect(() => {
     if (activeTab === 'companies') {
       loadCompanies(companiesPage);
     }
@@ -231,6 +256,35 @@ const AdminPanel = () => {
     }
   };
 
+  useEffect(() => {
+    if (!editingCompany || !editingCompany.city) {
+      setCompanyFormCitySuggestions([]);
+      return;
+    }
+    const q = editingCompany.city.trim();
+    if (!q || q.length < 2) {
+      setCompanyFormCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(q);
+        if (!cancelled) {
+          setCompanyFormCitySuggestions(res.data || []);
+        }
+      } catch (error) {
+        console.error('City suggestions load error (admin form):', error);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [editingCompany && editingCompany.city]);
+
   const handleDeleteCompany = async (company) => {
     if (
       !window.confirm(
@@ -402,7 +456,13 @@ const AdminPanel = () => {
               placeholder="Miasto"
               value={companyCity}
               onChange={(e) => setCompanyCity(e.target.value)}
+              list="admin-companies-filter-city-options"
             />
+            <datalist id="admin-companies-filter-city-options">
+              {companyFilterCitySuggestions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
           <button type="button" className="btn btn-primary" onClick={handleOpenCreateCompany}>
             Dodaj firmę

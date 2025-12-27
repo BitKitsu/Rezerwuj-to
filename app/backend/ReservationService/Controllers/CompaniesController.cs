@@ -69,6 +69,29 @@ public class CompaniesController : ControllerBase
         return Ok(result);
     }
 
+    // GET: api/companies/cities
+    [HttpGet("cities")]
+    public async Task<ActionResult<IEnumerable<string>>> GetCities([FromQuery] string? query)
+    {
+        var citiesQuery = _context.Companies
+            .Where(c => c.City != null)
+            .Select(c => c.City!)
+            .Distinct();
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var normalized = query.Trim().ToLower();
+            citiesQuery = citiesQuery.Where(c => c.ToLower().Contains(normalized));
+        }
+
+        var cities = await citiesQuery
+            .OrderBy(c => c)
+            .Take(20)
+            .ToListAsync();
+
+        return Ok(cities);
+    }
+
     // GET: api/companies/5
     [HttpGet("{id}")]
     public async Task<ActionResult<Company>> GetCompany(int id)

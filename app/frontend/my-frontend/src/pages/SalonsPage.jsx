@@ -9,6 +9,7 @@ function SalonsPage() {
 
   const [query, setQuery] = useState('');
   const [city, setCity] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
   const [sortBy, setSortBy] = useState('recommended');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -46,6 +47,31 @@ function SalonsPage() {
     load();
   }, [query, city, sortBy, page, pageSize]);
 
+  useEffect(() => {
+    const q = city.trim();
+    if (!q || q.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(q);
+        if (!cancelled) {
+          setCitySuggestions(res.data || []);
+        }
+      } catch (err) {
+        console.error('City suggestions load error (salons):', err);
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [city]);
+
   const pageCount = Math.max(1, Math.ceil((totalCount || salons.length) / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visibleSalons = salons;
@@ -73,8 +99,8 @@ function SalonsPage() {
   return (
     <div className="list-page">
       <header className="list-header">
-        <h1>Salony fryzjerskie</h1>
-        <p>Znajdź salon w swoim mieście i umów wizytę w kilka kliknięć.</p>
+        <h1>Firmy usługowe</h1>
+        <p>Znajdź firmę w swoim mieście i umów wizytę w kilka kliknięć.</p>
       </header>
 
       <section className="list-filters">
@@ -84,7 +110,7 @@ function SalonsPage() {
             <input
               type="text"
               className="list-filter-input"
-              placeholder="Nazwa salonu lub usługi"
+              placeholder="Nazwa firmy lub usługi"
               value={query}
               onChange={handleQueryChange}
             />
@@ -98,7 +124,13 @@ function SalonsPage() {
               placeholder="np. Warszawa"
               value={city}
               onChange={handleCityChange}
+              list="salons-city-options"
             />
+            <datalist id="salons-city-options">
+              {citySuggestions.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
 
           <div className="list-filter-group">
@@ -113,12 +145,12 @@ function SalonsPage() {
         </div>
       </section>
 
-      {loading && <div className="list-state">Ładowanie salonów...</div>}
+      {loading && <div className="list-state">Ładowanie firm...</div>}
 
       {error && !loading && <div className="list-state list-state-error">{error}</div>}
 
       {!loading && !error && salons.length === 0 && (
-        <div className="list-state">Brak dopasowanych salonów. Zmień kryteria wyszukiwania.</div>
+        <div className="list-state">Brak dopasowanych firm. Zmień kryteria wyszukiwania.</div>
       )}
 
       {!loading && !error && salons.length > 0 && (

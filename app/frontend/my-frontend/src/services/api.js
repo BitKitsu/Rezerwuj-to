@@ -191,6 +191,10 @@ export const companiesAPI = {
   create: (data) => reservationAPI.post('/companies', data),
   update: (id, data) => reservationAPI.put(`/companies/${id}`, data),
   delete: (id) => reservationAPI.delete(`/companies/${id}`),
+  getCities: (query) =>
+    reservationAPI.get('/companies/cities', {
+      params: query ? { query } : undefined,
+    }),
 };
 
 // ===== Services API =====

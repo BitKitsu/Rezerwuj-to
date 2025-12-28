@@ -54,7 +54,7 @@ namespace IdentityService.Controllers
 
             var user = new ApplicationUser
             {
-                UserName = model.Email,
+                UserName = model.Username,
                 Email = model.Email,
                 FirstName = model.FirstName,
                 LastName = model.LastName,
@@ -94,12 +94,14 @@ namespace IdentityService.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto model)
         {
-            var result = await _signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
+            // Find user by username or email
+            var user = await _userManager.FindByNameAsync(model.LoginIdentifier) 
+                       ?? await _userManager.FindByEmailAsync(model.LoginIdentifier);
 
-            if (result.Succeeded)
+            if (user != null)
             {
-                var user = await _userManager.FindByEmailAsync(model.Email);
-                if (user != null)
+                var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
+                if (result.Succeeded)
                 {
                     // Generuj JWT tokeny
                     var tokens = await _jwtService.GenerateTokensAsync(user);
@@ -125,7 +127,7 @@ namespace IdentityService.Controllers
                 }
             }
 
-            return Unauthorized(new { message = "Nieprawidłowy email lub hasło" });
+            return Unauthorized(new { message = "Nieprawidłowy login lub hasło" });
         }
 
         [HttpGet("profile")]
@@ -146,6 +148,7 @@ namespace IdentityService.Controllers
 
             var dto = new UserProfileDto
             {
+                Username = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
@@ -187,9 +190,51 @@ namespace IdentityService.Controllers
                 return NotFound(new { message = "Użytkownik nie został znaleziony." });
             }
 
-            user.FirstName = model.FirstName;
-            user.LastName = model.LastName;
-            user.Phone = model.Phone ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(model.FirstName) || string.IsNullOrWhiteSpace(model.LastName))
+            {
+                var error = new { code = "InvalidName", description = "Imię i nazwisko są wymagane." };
+                return BadRequest(new { errors = new[] { error } });
+            }
+
+            var trimmedFirstName = model.FirstName.Trim();
+            var trimmedLastName = model.LastName.Trim();
+
+            // Update username only if it's provided and different
+            var trimmedUsername = model.Username?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmedUsername) && !string.Equals(user.UserName, trimmedUsername, StringComparison.OrdinalIgnoreCase))
+            {
+                // Check if the new username is already taken
+                var existingUser = await _userManager.FindByNameAsync(trimmedUsername);
+                if (existingUser != null && existingUser.Id != user.Id)
+                {
+                    var error = new { code = "DuplicateUserName", description = $"Nazwa użytkownika '{trimmedUsername}' jest już zajęta." };
+                    return BadRequest(new { errors = new[] { error } });
+                }
+                user.UserName = trimmedUsername;
+            }
+
+            // Normalizacja i aktualizacja numeru telefonu
+            if (model.Phone != null)
+            {
+                var normalizedPhone = SanitizePhoneNumber(model.Phone);
+                if (user.PhoneNumber != normalizedPhone)
+                {
+                    if (!string.IsNullOrEmpty(normalizedPhone))
+                    {
+                        var existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
+                        if (existingUser != null && existingUser.Id != user.Id)
+                        {
+                            var error = new { code = "DuplicatePhoneNumber", description = "Ten numer telefonu jest już przypisany do innego konta." };
+                            return BadRequest(new { errors = new[] { error } });
+                        }
+                    }
+
+                    user.PhoneNumber = normalizedPhone;
+                }
+            }
+
+            user.FirstName = trimmedFirstName;
+            user.LastName = trimmedLastName;
 
             var result = await _userManager.UpdateAsync(user);
 
@@ -206,6 +251,7 @@ namespace IdentityService.Controllers
 
             var dto = new UserProfileDto
             {
+                Username = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
@@ -462,12 +508,23 @@ namespace IdentityService.Controllers
         // Metoda do tłumaczenia błędów Identity
         private string TranslateError(string error)
         {
+            // Handle duplicate username/email errors without exposing the value
+            if (error.Contains("is already taken"))
+            {
+                if (error.StartsWith("User name") || error.StartsWith("Username")) // "User name" for older Identity versions
+                {
+                    return "Ta nazwa użytkownika jest już zajęta.";
+                }
+                if (error.StartsWith("Email"))
+                {
+                    return "Ten adres e-mail jest już zarejestrowany.";
+                }
+            }
+
             var translations = new Dictionary<string, string>
             {
                 ["Passwords must have at least one digit ('0'-'9')."] = "Hasło musi zawierać przynajmniej jedną cyfrę (0-9)",
                 ["Passwords must be at least 6 characters."] = "Hasło musi mieć minimum 6 znaków",
-                ["User name is already taken."] = "Ten email jest już zarejestrowany",
-                ["Email is already taken."] = "Ten email jest już zarejestrowany",
                 ["Invalid email."] = "Nieprawidłowy adres email",
                 ["Incorrect password."] = "Nieprawidłowe obecne hasło"
             };
@@ -478,7 +535,7 @@ namespace IdentityService.Controllers
                     return translation.Value;
             }
 
-            return error;
+            return error; // Fallback to original error if no translation is found
         }
     }
 
@@ -488,6 +545,11 @@ namespace IdentityService.Controllers
         [EmailAddress]
         [StringLength(100)]
         public required string Email { get; set; }
+
+        [Required(ErrorMessage = "Nazwa użytkownika jest wymagana.")]
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "Nazwa użytkownika musi mieć od 3 do 50 znaków.")]
+        [RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Nazwa użytkownika może zawierać tylko litery, cyfry, kropki, myślniki i podkreślniki.")]
+        public required string Username { get; set; }
 
         [Required]
         public required string Password { get; set; }
@@ -506,8 +568,7 @@ namespace IdentityService.Controllers
     public class LoginDto
     {
         [Required]
-        [EmailAddress]
-        public required string Email { get; set; }
+        public required string LoginIdentifier { get; set; }
 
         [Required]
         public required string Password { get; set; }
@@ -515,6 +576,7 @@ namespace IdentityService.Controllers
 
     public class UserProfileDto
     {
+        public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
@@ -523,6 +585,9 @@ namespace IdentityService.Controllers
 
     public class UpdateProfileDto
     {
+        [StringLength(50, MinimumLength = 3, ErrorMessage = "Nazwa użytkownika musi mieć od 3 do 50 znaków.")]
+        [RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Nazwa użytkownika może zawierać tylko litery, cyfry, kropki, myślniki i podkreślniki.")]
+        public string? Username { get; set; }
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
 

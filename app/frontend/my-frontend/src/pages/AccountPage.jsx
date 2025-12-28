@@ -9,6 +9,7 @@ function AccountPage() {
   const [profileSuccess, setProfileSuccess] = useState('');
 
   const [profileForm, setProfileForm] = useState({
+    username: '',
     firstName: '',
     lastName: '',
     phone: '',
@@ -58,6 +59,7 @@ function AccountPage() {
 
         setProfile(data);
         setProfileForm({
+          username: data.username || '',
           firstName: data.firstName || '',
           lastName: data.lastName || '',
           phone: data.phone || '',
@@ -99,6 +101,7 @@ function AccountPage() {
 
       setProfile(data);
       setProfileForm({
+        username: data.username || '',
         firstName: data.firstName || '',
         lastName: data.lastName || '',
         phone: data.phone || '',
@@ -491,13 +494,33 @@ function AccountPage() {
             {profile && (
               <>
                 <p>
+                  <strong>Nazwa użytkownika:</strong> {profile.username}
+                </p>
+                <p>
                   <strong>Email:</strong> {profile.email}
                 </p>
                 <p>
-                  <strong>Nazwa wyświetlana:</strong> {displayName}
+                  <strong>Imię:</strong> {profile.firstName}
                 </p>
 
                 <form onSubmit={handleProfileSubmit} className="form">
+                  <div className="form-field">
+                    <label className="form-label" htmlFor="username">
+                      Nazwa użytkownika
+                    </label>
+                    <input
+                      id="username"
+                      name="username"
+                      type="text"
+                      className="form-input"
+                      value={profileForm.username}
+                      onChange={handleProfileInputChange}
+                      placeholder="Twoja nazwa użytkownika"
+                      minLength="3"
+                      maxLength="50"
+                    />
+                  </div>
+
                   <div className="form-field">
                     <label className="form-label" htmlFor="firstName">
                       Imię

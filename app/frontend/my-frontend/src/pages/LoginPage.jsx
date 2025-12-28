@@ -4,7 +4,7 @@ import { authAPI } from '../services/api';
 
 function LoginPage() {
   const [formData, setFormData] = useState({
-    email: '',
+    loginIdentifier: '',
     password: ''
   });
   const [error, setError] = useState('');
@@ -60,18 +60,18 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit} className="form">
           <div className="form-field">
-            <label className="form-label" htmlFor="email">
-              Email
+            <label className="form-label" htmlFor="loginIdentifier">
+              Nazwa użytkownika lub e-mail
             </label>
             <input
-              id="email"
-              type="email"
-              name="email"
-              value={formData.email}
+              id="loginIdentifier"
+              type="text"
+              name="loginIdentifier"
+              value={formData.loginIdentifier}
               onChange={handleChange}
               required
               className="form-input"
-              placeholder="jan@example.com"
+              placeholder="np. jankowalski lub jan@example.com"
             />
           </div>
 

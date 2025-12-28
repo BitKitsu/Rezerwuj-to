@@ -6,6 +6,7 @@ function RegisterPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
+    username: '',
     password: '',
     confirmPassword: '',
     firstName: '',
@@ -55,6 +56,7 @@ function RegisterPage() {
     try {
       const response = await authAPI.register({
         email: formData.email,
+        username: formData.username,
         password: formData.password,
         firstName: formData.firstName,
         lastName: formData.lastName,
@@ -175,6 +177,24 @@ function RegisterPage() {
               required
               className="form-input"
               placeholder="twoj@email.com"
+            />
+          </div>
+
+          <div className="form-field">
+            <label className="form-label" htmlFor="username">
+              Nazwa użytkownika: *
+            </label>
+            <input
+              id="username"
+              type="text"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              required
+              className="form-input"
+              placeholder="np. jankowalski123"
+              minLength="3"
+              maxLength="50"
             />
           </div>
           

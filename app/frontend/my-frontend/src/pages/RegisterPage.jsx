@@ -180,7 +180,7 @@ function RegisterPage() {
           
           <div className="form-field">
             <label className="form-label" htmlFor="phone">
-              Telefon: (opcjonalnie)
+              Telefon: *
             </label>
             <input
               id="phone"
@@ -188,6 +188,7 @@ function RegisterPage() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
+              required
               className="form-input"
               placeholder="+48 123 456 789"
             />

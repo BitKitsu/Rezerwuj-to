@@ -40,13 +40,26 @@ namespace IdentityService.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            // Normalizacja i sprawdzenie unikalności numeru telefonu
+            var normalizedPhone = SanitizePhoneNumber(model.Phone);
+            if (!string.IsNullOrEmpty(normalizedPhone))
+            {
+                var existingUser = await _userManager.Users.FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
+                if (existingUser != null)
+                {
+                    var error = new { code = "DuplicatePhoneNumber", description = "Ten numer telefonu jest już przypisany do innego konta." };
+                    return BadRequest(new { errors = new[] { error } });
+                }
+            }
+
             var user = new ApplicationUser
             {
                 UserName = model.Email,
                 Email = model.Email,
                 FirstName = model.FirstName,
                 LastName = model.LastName,
-                Phone = model.Phone ?? string.Empty,
+                // Zapisujemy znormalizowany numer zarówno w Phone, jak i PhoneNumber (Identity)
+                PhoneNumber = normalizedPhone,
                 EmailConfirmed = true // Auto-confirm dla developmentu
             };
 
@@ -136,10 +149,21 @@ namespace IdentityService.Controllers
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Phone = user.Phone ?? string.Empty
+                Phone = user.PhoneNumber ?? string.Empty
             };
 
             return Ok(dto);
+        }
+
+        private static IEnumerable<object> GetModelErrors(Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary modelState)
+        {
+            return modelState
+                .Where(kvp => kvp.Value != null && kvp.Value.Errors.Count > 0)
+                .SelectMany(kvp => kvp.Value!.Errors.Select(e => new
+                {
+                    code = "ValidationError",
+                    description = string.IsNullOrWhiteSpace(kvp.Key) ? e.ErrorMessage : $"{kvp.Key}: {e.ErrorMessage}"
+                }));
         }
 
         [HttpPut("profile")]
@@ -148,7 +172,7 @@ namespace IdentityService.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(new { errors = GetModelErrors(ModelState) });
             }
 
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -185,7 +209,7 @@ namespace IdentityService.Controllers
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Phone = user.Phone ?? string.Empty
+                Phone = user.PhoneNumber ?? string.Empty
             };
 
             return Ok(dto);
@@ -423,6 +447,19 @@ namespace IdentityService.Controllers
             });
         }
 
+        private string? SanitizePhoneNumber(string? phoneNumber)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNumber))
+                return null;
+
+            // Usuwa wszystko oprócz cyfr i znaku '+'
+            var sanitized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+            // Zwraca null jeśli po czyszczeniu numer jest pusty
+            return string.IsNullOrEmpty(sanitized) ? null : sanitized;
+        }
+
+        // Metoda do tłumaczenia błędów Identity
         private string TranslateError(string error)
         {
             var translations = new Dictionary<string, string>
@@ -461,8 +498,9 @@ namespace IdentityService.Controllers
         [Required]
         public required string LastName { get; set; }
 
-        [RegularExpression(@"^$|^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 111 222 333.")]
-        public string? Phone { get; set; }
+        [Required(ErrorMessage = "Numer telefonu jest wymagany.")]
+        [RegularExpression(@"^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 111 222 333.")]
+        public required string Phone { get; set; }
     }
 
     public class LoginDto

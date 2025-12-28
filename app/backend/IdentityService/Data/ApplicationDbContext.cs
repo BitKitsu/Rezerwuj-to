@@ -45,6 +45,18 @@ namespace IdentityService.Data
                 
             builder.Entity<AuditLog>()
                 .HasIndex(al => al.CreatedAt);
+
+            builder.Entity<AuditLog>()
+                .HasOne(al => al.User)
+                .WithMany()
+                .HasForeignKey(al => al.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Unikalny numer telefonu (tylko jeśli nie jest pusty)
+            builder.Entity<ApplicationUser>()
+                .HasIndex(u => u.PhoneNumber)
+                .IsUnique()
+                .HasFilter("\"PhoneNumber\" IS NOT NULL AND \"PhoneNumber\" != ''"); // Filtr dla PostgreSQL
         }
     }
 }

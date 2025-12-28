@@ -110,9 +110,9 @@ using (var scope = app.Services.CreateScope())
                 delayMilliseconds *= 2; // Exponential backoff
             }
             
-            logger.LogInformation("Ensuring database exists and applying schema...");
-            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
-            logger.LogInformation("Database schema ready!");
+            logger.LogInformation("Applying database migrations...");
+            dbContext.Database.Migrate(); // Stosuje migracje
+            logger.LogInformation("Database is up to date!");
             break; // Sukces
         }
         catch (Exception ex)
@@ -187,6 +187,7 @@ using (var scope = app.Services.CreateScope())
             var userRoleName = "User";
 
             var testEmail = "test@example.com";
+            var testUserName = "testadmin";
             
             logger.LogInformation("Checking for test user...");
             var testUser = userManager.FindByEmailAsync(testEmail).GetAwaiter().GetResult();
@@ -196,12 +197,13 @@ using (var scope = app.Services.CreateScope())
                 logger.LogInformation("Creating test user...");
                 testUser = new ApplicationUser
                 {
-                    UserName = testEmail,
+                    UserName = testUserName,
                     Email = testEmail,
                     EmailConfirmed = true,
                     FirstName = "Test",
                     LastName = "User",
-                    Phone = ""
+                    // Domyślny numer telefonu testowego administratora
+                    PhoneNumber = "+420111222333"
                 };
                 
                 var result = userManager.CreateAsync(testUser, "Test123!").GetAwaiter().GetResult();
@@ -287,20 +289,45 @@ using (var scope = app.Services.CreateScope())
                     }
                 }
 
-                // Dla istniejących baz, w których testowy użytkownik miał kiedyś przypisane CompanyId,
-                // wyczyść to powiązanie – admin startowo nie powinien być przypisany do żadnej firmy.
+                // Dla istniejących baz, w których testowy użytkownik miał kiedyś przypisane CompanyId
+                // lub nie miał jeszcze ustawionego numeru telefonu, wykonaj jedną aktualizację.
+                var shouldUpdateTestUser = false;
+
+                if (string.IsNullOrWhiteSpace(testUser.UserName) || testUser.UserName.Contains('@'))
+                {
+                    var existingUserNameUser = userManager.FindByNameAsync(testUserName).GetAwaiter().GetResult();
+                    if (existingUserNameUser == null || existingUserNameUser.Id == testUser.Id)
+                    {
+                        testUser.UserName = testUserName;
+                        shouldUpdateTestUser = true;
+                    }
+                }
+
                 if (testUser.CompanyId != null)
                 {
                     testUser.CompanyId = null;
+                    shouldUpdateTestUser = true;
+                }
+
+                const string testPhone = "+420111222333";
+
+                if (string.IsNullOrEmpty(testUser.PhoneNumber))
+                {
+                    testUser.PhoneNumber = testPhone;
+                    shouldUpdateTestUser = true;
+                }
+
+                if (shouldUpdateTestUser)
+                {
                     var updateResult = userManager.UpdateAsync(testUser).GetAwaiter().GetResult();
                     if (updateResult.Succeeded)
                     {
-                        logger.LogInformation("Cleared CompanyId for existing test user.");
+                        logger.LogInformation("Updated existing test user (cleared CompanyId and/or set phone).");
                     }
                     else
                     {
                         var updateErrors = string.Join(", ", updateResult.Errors.Select(e => e.Description));
-                        logger.LogWarning("Failed to clear CompanyId for existing test user: {Errors}", updateErrors);
+                        logger.LogWarning("Failed to update existing test user: {Errors}", updateErrors);
                     }
                 }
             }

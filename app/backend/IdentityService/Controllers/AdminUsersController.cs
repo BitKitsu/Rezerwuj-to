@@ -65,7 +65,7 @@ namespace IdentityService.Controllers
                     email = user.Email ?? string.Empty,
                     firstName = user.FirstName,
                     lastName = user.LastName,
-                    phone = user.Phone,
+                    phone = user.PhoneNumber,
                     companyId = user.CompanyId,
                     roles = roles
                 });

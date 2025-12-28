@@ -75,12 +75,6 @@ function AccountPage() {
     loadProfile();
   }, []);
 
-  const displayName = profile
-    ? profile.firstName && profile.lastName
-      ? `${profile.firstName} ${profile.lastName}`
-      : profile.firstName || profile.email || 'Użytkownik'
-    : 'Użytkownik';
-
   const handleProfileInputChange = (e) => {
     const { name, value } = e.target;
     setProfileForm((prev) => ({

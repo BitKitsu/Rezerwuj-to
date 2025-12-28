@@ -1,22 +1,22 @@
-import { useEffect, useState } from 'react';
-import { servicesAPI, companiesAPI } from '../services/api';
+import { useEffect, useState } from "react";
+import { servicesAPI, companiesAPI } from "../services/api";
 
 const demoServices = [
   {
-    id: 'demo-1',
-    serviceName: 'Strzyżenie damskie',
-    description: 'Strzyżenie i modelowanie',
+    id: "demo-1",
+    serviceName: "Strzyżenie damskie",
+    description: "Strzyżenie i modelowanie",
     durationMinutes: 60,
     price: 80,
-    companyName: 'Przykładowy Fryzjer',
+    companyName: "Przykładowy Fryzjer",
   },
   {
-    id: 'demo-2',
-    serviceName: 'Strzyżenie męskie',
-    description: 'Profesjonalne strzyżenie',
+    id: "demo-2",
+    serviceName: "Strzyżenie męskie",
+    description: "Profesjonalne strzyżenie",
     durationMinutes: 30,
     price: 50,
-    companyName: 'Przykładowy Fryzjer',
+    companyName: "Przykładowy Fryzjer",
   },
 ];
 
@@ -24,26 +24,26 @@ function ServicesPage() {
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const [usingDemoData, setUsingDemoData] = useState(false);
 
-  const [query, setQuery] = useState('');
-  const [city, setCity] = useState('');
+  const [query, setQuery] = useState("");
+  const [city, setCity] = useState("");
   const [citySuggestions, setCitySuggestions] = useState([]);
-  const [sortBy, setSortBy] = useState('recommended');
+  const [sortBy, setSortBy] = useState("recommended");
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      setError('');
+      setError("");
       try {
         const res = await servicesAPI.getAll({
           query: query.trim() || undefined,
           city: city.trim() || undefined,
-          sort: sortBy === 'recommended' ? undefined : sortBy,
+          sort: sortBy === "recommended" ? undefined : sortBy,
           page,
           pageSize,
         });
@@ -51,9 +51,7 @@ function ServicesPage() {
         const data = res.data || {};
         const items = data.items || [];
         const total =
-          typeof data.totalCount === 'number'
-            ? data.totalCount
-            : items.length;
+          typeof data.totalCount === "number" ? data.totalCount : items.length;
 
         // Fallback do danych demo, jeśli backend nie zwraca nic (np. w trybie offline)
         if (!items.length) {
@@ -66,8 +64,10 @@ function ServicesPage() {
           setUsingDemoData(false);
         }
       } catch (err) {
-        console.error('Error loading services', err);
-        setError('Nie udało się pobrać listy usług. Sprawdź, czy backend działa.');
+        console.error("Error loading services", err);
+        setError(
+          "Nie udało się pobrać listy usług. Sprawdź, czy backend działa.",
+        );
         // W trybie błędu zostaw ostatnie dane; jeśli ich nie ma, pokaż demo
         if (!services.length) {
           setServices(demoServices);
@@ -80,6 +80,7 @@ function ServicesPage() {
     };
 
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, city, sortBy, page, pageSize]);
 
   useEffect(() => {
@@ -97,7 +98,7 @@ function ServicesPage() {
           setCitySuggestions(res.data || []);
         }
       } catch (err) {
-        console.error('City suggestions load error (services):', err);
+        console.error("City suggestions load error (services):", err);
       }
     }, 300);
 
@@ -107,7 +108,10 @@ function ServicesPage() {
     };
   }, [city]);
 
-  const pageCount = Math.max(1, Math.ceil((totalCount || services.length) / pageSize));
+  const pageCount = Math.max(
+    1,
+    Math.ceil((totalCount || services.length) / pageSize),
+  );
   const currentPage = Math.min(page, pageCount);
   const visibleServices = services;
 
@@ -172,7 +176,11 @@ function ServicesPage() {
 
           <div className="list-filter-group">
             <label className="list-filter-label">Sortowanie</label>
-            <select className="list-filter-select" value={sortBy} onChange={handleSortChange}>
+            <select
+              className="list-filter-select"
+              value={sortBy}
+              onChange={handleSortChange}
+            >
               <option value="recommended">Polecane (placeholder)</option>
               <option value="price_asc">Cena: od najniższej</option>
               <option value="price_desc">Cena: od najwyższej</option>
@@ -192,7 +200,9 @@ function ServicesPage() {
       )}
 
       {!loading && !error && services.length === 0 && (
-        <div className="list-state">Brak dopasowanych usług. Zmień kryteria wyszukiwania.</div>
+        <div className="list-state">
+          Brak dopasowanych usług. Zmień kryteria wyszukiwania.
+        </div>
       )}
 
       {!loading && !error && services.length > 0 && (
@@ -217,7 +227,9 @@ function ServicesPage() {
                 <div className="service-card-header">
                   <h2>{service.serviceName}</h2>
                   {service.companyName && (
-                    <span className="service-company">{service.companyName}</span>
+                    <span className="service-company">
+                      {service.companyName}
+                    </span>
                   )}
                 </div>
 
@@ -227,7 +239,9 @@ function ServicesPage() {
 
                 <div className="service-meta">
                   <span className="service-price">{service.price} zł</span>
-                  <span className="service-duration">{service.durationMinutes} min</span>
+                  <span className="service-duration">
+                    {service.durationMinutes} min
+                  </span>
                 </div>
 
                 <div className="service-actions">

@@ -24,7 +24,7 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authAPI.login(formData);
+      await authAPI.login(formData);
       
       // JWT tokeny są automatycznie zapisywane w authAPI.login()
       // Przekieruj do dashboardu

@@ -1,44 +1,53 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { tokenManager, companiesAPI, servicesAPI, authAPI, companyUsersAPI } from '../services/api';
-import '../admin.css'; // Reusing admin panel styles for consistency
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  tokenManager,
+  companiesAPI,
+  servicesAPI,
+  authAPI,
+  companyUsersAPI,
+} from "../services/api";
+import "../admin.css"; // Reusing admin panel styles for consistency
 
 const CompanyPanel = () => {
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState("details");
   const [company, setCompany] = useState(null);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Company details form
   const [companyForm, setCompanyForm] = useState(null);
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
-  const [companyFormError, setCompanyFormError] = useState('');
-  const [companyFormSuccess, setCompanyFormSuccess] = useState('');
-  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [companyFormError, setCompanyFormError] = useState("");
+  const [companyFormSuccess, setCompanyFormSuccess] = useState("");
+  const [citySuggestions] = useState([]);
 
   // Services form (for create/edit)
   const [serviceFormVisible, setServiceFormVisible] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [serviceFormSubmitting, setServiceFormSubmitting] = useState(false);
-  const [serviceFormError, setServiceFormError] = useState('');
+  const [serviceFormError, setServiceFormError] = useState("");
 
   // Delete company state
-  const [deleteCompanyError, setDeleteCompanyError] = useState('');
+  const [deleteCompanyError, setDeleteCompanyError] = useState("");
   const [deleteCompanyLoading, setDeleteCompanyLoading] = useState(false);
 
   // Employees state
   const [employees, setEmployees] = useState([]);
   const [employeesLoading, setEmployeesLoading] = useState(false);
   const [addUserFormVisible, setAddUserFormVisible] = useState(false);
-  const [addUserForm, setAddUserForm] = useState({ email: '', role: 'Employee' });
-  const [addUserFormError, setAddUserFormError] = useState('');
+  const [addUserForm, setAddUserForm] = useState({
+    email: "",
+    role: "Employee",
+  });
+  const [addUserFormError, setAddUserFormError] = useState("");
   const [addUserFormSubmitting, setAddUserFormSubmitting] = useState(false);
 
   const companyId = tokenManager.getUser()?.companyId;
 
   const loadCompanyData = useCallback(async () => {
     if (!companyId) {
-      setError('Nie znaleziono przypisanej firmy.');
+      setError("Nie znaleziono przypisanej firmy.");
       setLoading(false);
       return;
     }
@@ -51,36 +60,41 @@ const CompanyPanel = () => {
       const formWithDefaults = {
         ...backendCompany,
         openingHour:
-          (companyForm && companyForm.openingHour) || backendCompany.openingHour || '08:00',
+          (companyForm && companyForm.openingHour) ||
+          backendCompany.openingHour ||
+          "08:00",
         closingHour:
-          (companyForm && companyForm.closingHour) || backendCompany.closingHour || '18:00',
+          (companyForm && companyForm.closingHour) ||
+          backendCompany.closingHour ||
+          "18:00",
       };
 
       setCompany(backendCompany);
       setCompanyForm(formWithDefaults);
     } catch (err) {
-      console.error('Failed to load company data', err);
+      console.error("Failed to load company data", err);
       if (err.response?.status === 404) {
         // Firma przypisana w Identity nie istnieje już w ReservationService
         setError(
-          'Nie znaleziono firmy przypisanej do Twojego konta. Firma mogła zostać usunięta. Zostaniesz przekierowany do ustawień konta, aby dodać nową firmę.',
+          "Nie znaleziono firmy przypisanej do Twojego konta. Firma mogła zostać usunięta. Zostaniesz przekierowany do ustawień konta, aby dodać nową firmę.",
         );
 
         try {
           await authAPI.unassignCompany();
         } catch (unassignErr) {
-          console.error('Failed to unassign company after 404', unassignErr);
+          console.error("Failed to unassign company after 404", unassignErr);
         }
 
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           setTimeout(() => {
-            window.location.href = '/account';
+            window.location.href = "/account";
           }, 2500);
         }
       } else {
-        setError('Nie udało się załadować danych firmy.');
+        setError("Nie udało się załadować danych firmy.");
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
   const loadEmployees = useCallback(async () => {
@@ -89,7 +103,7 @@ const CompanyPanel = () => {
       const response = await companyUsersAPI.getUsers();
       setEmployees(response.data);
     } catch (err) {
-      console.error('Failed to load employees', err);
+      console.error("Failed to load employees", err);
     } finally {
       setEmployeesLoading(false);
     }
@@ -101,7 +115,7 @@ const CompanyPanel = () => {
       const servicesResponse = await servicesAPI.getByCompany(companyId);
       setServices(servicesResponse.data || []);
     } catch (err) {
-      console.error('Failed to load services', err);
+      console.error("Failed to load services", err);
       // Don't block the UI for this, just log it.
     }
   }, [companyId]);
@@ -109,7 +123,7 @@ const CompanyPanel = () => {
   useEffect(() => {
     const loadAllData = async () => {
       setLoading(true);
-      setError('');
+      setError("");
       await Promise.all([loadCompanyData(), loadServices(), loadEmployees()]);
       setLoading(false);
     };
@@ -125,33 +139,35 @@ const CompanyPanel = () => {
   const handleCompanyFormSubmit = async (e) => {
     e.preventDefault();
     setCompanyFormSubmitting(true);
-    setCompanyFormError('');
-    setCompanyFormSuccess('');
+    setCompanyFormError("");
+    setCompanyFormSuccess("");
     if (
       companyForm.openingHour &&
       companyForm.closingHour &&
       companyForm.closingHour <= companyForm.openingHour
     ) {
       setCompanyFormSubmitting(false);
-      setCompanyFormError('Godzina zamknięcia musi być późniejsza niż godzina otwarcia.');
+      setCompanyFormError(
+        "Godzina zamknięcia musi być późniejsza niż godzina otwarcia.",
+      );
       return;
     }
     try {
       await companiesAPI.update(companyId, companyForm);
-      setCompanyFormSuccess('Dane firmy zostały zaktualizowane.');
+      setCompanyFormSuccess("Dane firmy zostały zaktualizowane.");
       // Nie przeładowuj danych z backendu, aby nie nadpisywać lokalnych pól front-endowych
       // (np. godzin otwarcia/zamknięcia, które backend na razie ignoruje).
     } catch (err) {
-      console.error('Failed to update company', err);
+      console.error("Failed to update company", err);
       if (err.response?.data?.errors) {
         const message = Array.isArray(err.response.data.errors)
-          ? err.response.data.errors.join(' ')
-          : Object.values(err.response.data.errors).flat().join(' ');
+          ? err.response.data.errors.join(" ")
+          : Object.values(err.response.data.errors).flat().join(" ");
         setCompanyFormError(message);
       } else if (err.response?.data?.message) {
         setCompanyFormError(err.response.data.message);
       } else {
-        setCompanyFormError('Nie udało się zaktualizować danych firmy.');
+        setCompanyFormError("Nie udało się zaktualizować danych firmy.");
       }
     } finally {
       setCompanyFormSubmitting(false);
@@ -161,12 +177,12 @@ const CompanyPanel = () => {
   // --- Handlers for Services ---
   const resetServiceForm = () => {
     setEditingService({
-      serviceName: '',
-      description: '',
+      serviceName: "",
+      description: "",
       durationMinutes: 30,
       price: 50,
     });
-    setServiceFormError('');
+    setServiceFormError("");
   };
 
   const handleOpenCreateService = () => {
@@ -176,22 +192,22 @@ const CompanyPanel = () => {
 
   const handleOpenEditService = (service) => {
     setEditingService(service);
-    setServiceFormError('');
+    setServiceFormError("");
     setServiceFormVisible(true);
   };
 
   const handleServiceFormChange = (e) => {
     const { name, value, type } = e.target;
-    setEditingService((prev) => ({ 
-      ...prev, 
-      [name]: type === 'number' ? parseFloat(value) : value 
+    setEditingService((prev) => ({
+      ...prev,
+      [name]: type === "number" ? parseFloat(value) : value,
     }));
   };
 
   const handleServiceFormSubmit = async (e) => {
     e.preventDefault();
     setServiceFormSubmitting(true);
-    setServiceFormError('');
+    setServiceFormError("");
     try {
       const serviceData = { ...editingService, companyId };
       if (editingService.id) {
@@ -202,16 +218,16 @@ const CompanyPanel = () => {
       setServiceFormVisible(false);
       await loadServices();
     } catch (err) {
-      console.error('Failed to save service', err);
+      console.error("Failed to save service", err);
       if (err.response?.data?.errors) {
         const message = Array.isArray(err.response.data.errors)
-          ? err.response.data.errors.join(' ')
-          : Object.values(err.response.data.errors).flat().join(' ');
+          ? err.response.data.errors.join(" ")
+          : Object.values(err.response.data.errors).flat().join(" ");
         setServiceFormError(message);
       } else if (err.response?.data?.message) {
         setServiceFormError(err.response.data.message);
       } else {
-        setServiceFormError('Nie udało się zapisać usługi.');
+        setServiceFormError("Nie udało się zapisać usługi.");
       }
     } finally {
       setServiceFormSubmitting(false);
@@ -221,23 +237,26 @@ const CompanyPanel = () => {
   const handleDeleteCompany = async () => {
     if (
       !window.confirm(
-        'Czy na pewno chcesz trwale usunąć swoją firmę? Spowoduje to usunięcie wszystkich jej danych i usług. Ta operacja jest nieodwracalna.'
+        "Czy na pewno chcesz trwale usunąć swoją firmę? Spowoduje to usunięcie wszystkich jej danych i usług. Ta operacja jest nieodwracalna.",
       )
     ) {
       return;
     }
 
     setDeleteCompanyLoading(true);
-    setDeleteCompanyError('');
+    setDeleteCompanyError("");
 
     try {
       // Step 1: Remove all non-owner employees from the company in IdentityService
-      const removableEmployees = employees.filter((e) => e.role !== 'Owner');
+      const removableEmployees = employees.filter((e) => e.role !== "Owner");
       for (const employee of removableEmployees) {
         try {
           await companyUsersAPI.removeUser(employee.id);
         } catch (innerErr) {
-          console.error('Failed to remove employee during company delete', innerErr);
+          console.error(
+            "Failed to remove employee during company delete",
+            innerErr,
+          );
           // Continue with other employees and overall flow
         }
       }
@@ -249,12 +268,14 @@ const CompanyPanel = () => {
       await authAPI.unassignCompany();
 
       // Step 4: Redirect to account page
-      if (typeof window !== 'undefined') {
-        window.location.href = '/account';
+      if (typeof window !== "undefined") {
+        window.location.href = "/account";
       }
     } catch (err) {
-      console.error('Failed to delete company', err);
-      setDeleteCompanyError('Nie udało się usunąć firmy. Skontaktuj się z administratorem.');
+      console.error("Failed to delete company", err);
+      setDeleteCompanyError(
+        "Nie udało się usunąć firmy. Skontaktuj się z administratorem.",
+      );
     } finally {
       setDeleteCompanyLoading(false);
     }
@@ -263,48 +284,60 @@ const CompanyPanel = () => {
   // --- Handlers for Employees ---
   const handleAddUserFormChange = (e) => {
     const { name, value } = e.target;
-    setAddUserForm(prev => ({ ...prev, [name]: value }));
+    setAddUserForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddUserFormSubmit = async (e) => {
     e.preventDefault();
     setAddUserFormSubmitting(true);
-    setAddUserFormError('');
+    setAddUserFormError("");
     try {
       await companyUsersAPI.addUser(addUserForm);
       setAddUserFormVisible(false);
-      setAddUserForm({ email: '', role: 'Employee' });
+      setAddUserForm({ email: "", role: "Employee" });
       await loadEmployees();
     } catch (err) {
-      console.error('Failed to add user', err);
-      setAddUserFormError(err.response?.data?.message || 'Nie udało się dodać użytkownika.');
+      console.error("Failed to add user", err);
+      setAddUserFormError(
+        err.response?.data?.message || "Nie udało się dodać użytkownika.",
+      );
     } finally {
       setAddUserFormSubmitting(false);
     }
   };
 
   const handleRemoveUser = async (userId) => {
-    if (window.confirm('Na pewno chcesz usunąć tego pracownika z firmy?')) {
+    if (window.confirm("Na pewno chcesz usunąć tego pracownika z firmy?")) {
       try {
         await companyUsersAPI.removeUser(userId);
         await loadEmployees();
       } catch (err) {
-        console.error('Failed to remove user', err);
-        alert(err.response?.data?.message || 'Nie udało się usunąć użytkownika.');
+        console.error("Failed to remove user", err);
+        alert(
+          err.response?.data?.message || "Nie udało się usunąć użytkownika.",
+        );
       }
     }
   };
 
   const handleTransferOwnership = async (newOwner) => {
-    if (window.confirm(`Czy na pewno chcesz przekazać własność firmy użytkownikowi ${newOwner.email}? Utracisz uprawnienia właściciela.`)) {
+    if (
+      window.confirm(
+        `Czy na pewno chcesz przekazać własność firmy użytkownikowi ${newOwner.email}? Utracisz uprawnienia właściciela.`,
+      )
+    ) {
       try {
         await companyUsersAPI.transferOwnership(newOwner.id);
-        alert('Własność została przekazana. Zostaniesz wylogowany, aby odświeżyć uprawnienia.');
+        alert(
+          "Własność została przekazana. Zostaniesz wylogowany, aby odświeżyć uprawnienia.",
+        );
         // Force logout to refresh roles on next login
-        authAPI.logout(); 
+        authAPI.logout();
       } catch (err) {
-        console.error('Failed to transfer ownership', err);
-        alert(err.response?.data?.message || 'Nie udało się przekazać własności.');
+        console.error("Failed to transfer ownership", err);
+        alert(
+          err.response?.data?.message || "Nie udało się przekazać własności.",
+        );
       }
     }
   };
@@ -314,19 +347,19 @@ const CompanyPanel = () => {
       await companyUsersAPI.updateUserRole(userId, newRole);
       await loadEmployees();
     } catch (err) {
-      console.error('Failed to update role', err);
-      alert(err.response?.data?.message || 'Nie udało się zaktualizować roli.');
+      console.error("Failed to update role", err);
+      alert(err.response?.data?.message || "Nie udało się zaktualizować roli.");
     }
   };
 
   const handleDeleteService = async (serviceId) => {
-    if (window.confirm('Na pewno chcesz usunąć tę usługę?')) {
+    if (window.confirm("Na pewno chcesz usunąć tę usługę?")) {
       try {
         await servicesAPI.delete(serviceId);
         await loadServices();
       } catch (err) {
-        console.error('Failed to delete service', err);
-        alert('Nie udało się usunąć usługi.');
+        console.error("Failed to delete service", err);
+        alert("Nie udało się usunąć usługi.");
       }
     }
   };
@@ -334,8 +367,14 @@ const CompanyPanel = () => {
   // --- Render Methods ---
   const renderCompanyDetailsTab = () => (
     <section className="admin-section">
-      {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
-      {companyFormSuccess && <div className="admin-alert admin-alert--success">{companyFormSuccess}</div>}
+      {companyFormError && (
+        <div className="admin-alert admin-alert--error">{companyFormError}</div>
+      )}
+      {companyFormSuccess && (
+        <div className="admin-alert admin-alert--success">
+          {companyFormSuccess}
+        </div>
+      )}
       {companyForm && (
         <form onSubmit={handleCompanyFormSubmit} className="admin-form">
           <div className="admin-form__grid">
@@ -354,7 +393,14 @@ const CompanyPanel = () => {
             {/* Add other company fields here, similar to AccountPage company form */}
             <div className="admin-form__field">
               <label>Email</label>
-              <input name="email" type="email" value={companyForm.email} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="email"
+                type="email"
+                value={companyForm.email}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label>Telefon</label>
@@ -368,7 +414,7 @@ const CompanyPanel = () => {
                 placeholder="+48 111 222 333"
               />
             </div>
-             <div className="admin-form__field">
+            <div className="admin-form__field">
               <label>Miasto</label>
               <input
                 name="city"
@@ -390,7 +436,7 @@ const CompanyPanel = () => {
               <input
                 name="streetName"
                 type="text"
-                value={companyForm.streetName || ''}
+                value={companyForm.streetName || ""}
                 onChange={handleCompanyFormChange}
                 required
                 className="admin-input"
@@ -401,7 +447,7 @@ const CompanyPanel = () => {
               <input
                 name="streetNumber"
                 type="text"
-                value={companyForm.streetNumber || ''}
+                value={companyForm.streetNumber || ""}
                 onChange={handleCompanyFormChange}
                 required
                 className="admin-input"
@@ -412,7 +458,7 @@ const CompanyPanel = () => {
               <input
                 name="apartmentNumber"
                 type="text"
-                value={companyForm.apartmentNumber || ''}
+                value={companyForm.apartmentNumber || ""}
                 onChange={handleCompanyFormChange}
                 className="admin-input"
               />
@@ -445,16 +491,34 @@ const CompanyPanel = () => {
             </div>
             <div className="admin-form__field">
               <label>Godzina otwarcia</label>
-              <input name="openingHour" type="time" value={companyForm.openingHour} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="openingHour"
+                type="time"
+                value={companyForm.openingHour}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field">
               <label>Godzina zamknięcia</label>
-              <input name="closingHour" type="time" value={companyForm.closingHour} onChange={handleCompanyFormChange} required className="admin-input" />
+              <input
+                name="closingHour"
+                type="time"
+                value={companyForm.closingHour}
+                onChange={handleCompanyFormChange}
+                required
+                className="admin-input"
+              />
             </div>
           </div>
           <div className="admin-form__actions">
-            <button type="submit" className="btn btn-primary" disabled={companyFormSubmitting}>
-              {companyFormSubmitting ? 'Zapisywanie...' : 'Zapisz zmiany'}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={companyFormSubmitting}
+            >
+              {companyFormSubmitting ? "Zapisywanie..." : "Zapisz zmiany"}
             </button>
           </div>
         </form>
@@ -467,7 +531,13 @@ const CompanyPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Usługi</h2>
         <div className="admin-section__actions">
-          <button type="button" className="btn btn-primary" onClick={handleOpenCreateService}>Dodaj usługę</button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenCreateService}
+          >
+            Dodaj usługę
+          </button>
         </div>
       </div>
       <div className="admin-card">
@@ -484,14 +554,26 @@ const CompanyPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {services.map(service => (
+              {services.map((service) => (
                 <tr key={service.id}>
                   <td>{service.serviceName}</td>
                   <td>{service.durationMinutes}</td>
                   <td>{service.price.toFixed(2)}</td>
                   <td>
-                    <button type="button" className="btn btn-outline btn-xs" onClick={() => handleOpenEditService(service)}>Edytuj</button>
-                    <button type="button" className="btn btn-outline btn-xs admin-table__delete-btn" onClick={() => handleDeleteService(service.id)}>Usuń</button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => handleOpenEditService(service)}
+                    >
+                      Edytuj
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs admin-table__delete-btn"
+                      onClick={() => handleDeleteService(service.id)}
+                    >
+                      Usuń
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -508,16 +590,23 @@ const CompanyPanel = () => {
       <div className="admin-card">
         <div className="admin-card__body">
           <h4>Trwałe usunięcie firmy</h4>
-          <p>Usunięcie firmy spowoduje skasowanie wszystkich jej danych, w tym listy usług i historii rezerwacji. Tej operacji nie można cofnąć.</p>
-          {deleteCompanyError && <div className="admin-alert admin-alert--error">{deleteCompanyError}</div>}
-          <button 
-            type="button" 
-            className="btn btn-outline" 
-            style={{ color: '#ef4444', borderColor: '#fca5a5' }}
+          <p>
+            Usunięcie firmy spowoduje skasowanie wszystkich jej danych, w tym
+            listy usług i historii rezerwacji. Tej operacji nie można cofnąć.
+          </p>
+          {deleteCompanyError && (
+            <div className="admin-alert admin-alert--error">
+              {deleteCompanyError}
+            </div>
+          )}
+          <button
+            type="button"
+            className="btn btn-outline"
+            style={{ color: "#ef4444", borderColor: "#fca5a5" }}
             onClick={handleDeleteCompany}
             disabled={deleteCompanyLoading}
           >
-            {deleteCompanyLoading ? 'Usuwanie firmy...' : 'Usuń firmę na stałe'}
+            {deleteCompanyLoading ? "Usuwanie firmy..." : "Usuń firmę na stałe"}
           </button>
         </div>
       </div>
@@ -529,11 +618,19 @@ const CompanyPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Pracownicy</h2>
         <div className="admin-section__actions">
-          <button type="button" className="btn btn-primary" onClick={() => setAddUserFormVisible(true)}>Dodaj pracownika</button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setAddUserFormVisible(true)}
+          >
+            Dodaj pracownika
+          </button>
         </div>
       </div>
       <div className="admin-card">
-        {employeesLoading ? <p>Ładowanie...</p> : (
+        {employeesLoading ? (
+          <p>Ładowanie...</p>
+        ) : (
           <table className="admin-table">
             <thead>
               <tr>
@@ -544,37 +641,43 @@ const CompanyPanel = () => {
               </tr>
             </thead>
             <tbody>
-              {employees.map(user => (
+              {employees.map((user) => (
                 <tr key={user.id}>
                   <td>{user.email}</td>
-                  <td>{user.firstName} {user.lastName}</td>
                   <td>
-                    <select 
+                    {user.firstName} {user.lastName}
+                  </td>
+                  <td>
+                    <select
                       value={user.role}
-                      onChange={(e) => handleUpdateUserRole(user.id, e.target.value)}
+                      onChange={(e) =>
+                        handleUpdateUserRole(user.id, e.target.value)
+                      }
                       className="admin-input admin-input--inline"
-                      disabled={user.role === 'Owner'}
+                      disabled={user.role === "Owner"}
                     >
-                      <option value="Owner" disabled>Właściciel</option>
+                      <option value="Owner" disabled>
+                        Właściciel
+                      </option>
                       <option value="Manager">Manager</option>
                       <option value="Employee">Pracownik</option>
                     </select>
                   </td>
                   <td>
                     <div className="admin-user-actions admin-user-actions--center">
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
                         onClick={() => handleRemoveUser(user.id)}
-                        disabled={user.role === 'Owner'}
+                        disabled={user.role === "Owner"}
                       >
                         Usuń
                       </button>
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="btn btn-outline btn-xs"
                         onClick={() => handleTransferOwnership(user)}
-                        disabled={user.role === 'Owner'}
+                        disabled={user.role === "Owner"}
                       >
                         Przekaż Własność
                       </button>
@@ -594,26 +697,59 @@ const CompanyPanel = () => {
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
           <h2>Dodaj pracownika do firmy</h2>
-          <button type="button" className="btn-close" onClick={() => setAddUserFormVisible(false)}></button>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setAddUserFormVisible(false)}
+          ></button>
         </div>
         <form onSubmit={handleAddUserFormSubmit} className="admin-form">
-          {addUserFormError && <div className="admin-alert admin-alert--error">{addUserFormError}</div>}
-          <p>Użytkownik musi już posiadać konto w systemie. Po dodaniu, zostanie przypisany do Twojej firmy.</p>
+          {addUserFormError && (
+            <div className="admin-alert admin-alert--error">
+              {addUserFormError}
+            </div>
+          )}
+          <p>
+            Użytkownik musi już posiadać konto w systemie. Po dodaniu, zostanie
+            przypisany do Twojej firmy.
+          </p>
           <div className="admin-form__field">
             <label>Email użytkownika</label>
-            <input name="email" type="email" value={addUserForm.email} onChange={handleAddUserFormChange} required className="admin-input" />
+            <input
+              name="email"
+              type="email"
+              value={addUserForm.email}
+              onChange={handleAddUserFormChange}
+              required
+              className="admin-input"
+            />
           </div>
           <div className="admin-form__field">
             <label>Rola</label>
-            <select name="role" value={addUserForm.role} onChange={handleAddUserFormChange} className="admin-input">
+            <select
+              name="role"
+              value={addUserForm.role}
+              onChange={handleAddUserFormChange}
+              className="admin-input"
+            >
               <option value="Employee">Pracownik</option>
               <option value="Manager">Manager</option>
             </select>
           </div>
           <div className="admin-form__actions">
-            <button type="button" className="btn btn-outline" onClick={() => setAddUserFormVisible(false)}>Anuluj</button>
-            <button type="submit" className="btn btn-primary" disabled={addUserFormSubmitting}>
-              {addUserFormSubmitting ? 'Dodawanie...' : 'Dodaj użytkownika'}
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setAddUserFormVisible(false)}
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={addUserFormSubmitting}
+            >
+              {addUserFormSubmitting ? "Dodawanie..." : "Dodaj użytkownika"}
             </button>
           </div>
         </form>
@@ -625,33 +761,81 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>{editingService?.id ? 'Edytuj usługę' : 'Dodaj nową usługę'}</h2>
-          <button type="button" className="btn-close" onClick={() => setServiceFormVisible(false)}></button>
+          <h2>{editingService?.id ? "Edytuj usługę" : "Dodaj nową usługę"}</h2>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setServiceFormVisible(false)}
+          ></button>
         </div>
         <form onSubmit={handleServiceFormSubmit} className="admin-form">
-          {serviceFormError && <div className="admin-alert admin-alert--error">{serviceFormError}</div>}
+          {serviceFormError && (
+            <div className="admin-alert admin-alert--error">
+              {serviceFormError}
+            </div>
+          )}
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
               <label>Nazwa usługi</label>
-              <input name="serviceName" type="text" value={editingService?.serviceName || ''} onChange={handleServiceFormChange} required className="admin-input" />
+              <input
+                name="serviceName"
+                type="text"
+                value={editingService?.serviceName || ""}
+                onChange={handleServiceFormChange}
+                required
+                className="admin-input"
+              />
             </div>
             <div className="admin-form__field admin-form__field--full">
               <label>Opis</label>
-              <textarea name="description" value={editingService?.description || ''} onChange={handleServiceFormChange} rows="3" className="admin-input"></textarea>
+              <textarea
+                name="description"
+                value={editingService?.description || ""}
+                onChange={handleServiceFormChange}
+                rows="3"
+                className="admin-input"
+              ></textarea>
             </div>
             <div className="admin-form__field">
               <label>Czas trwania (w minutach)</label>
-              <input name="durationMinutes" type="number" value={editingService?.durationMinutes || 0} onChange={handleServiceFormChange} required className="admin-input" min="1" />
+              <input
+                name="durationMinutes"
+                type="number"
+                value={editingService?.durationMinutes || 0}
+                onChange={handleServiceFormChange}
+                required
+                className="admin-input"
+                min="1"
+              />
             </div>
             <div className="admin-form__field">
               <label>Cena (PLN)</label>
-              <input name="price" type="number" value={editingService?.price || 0} onChange={handleServiceFormChange} required className="admin-input" min="0" step="0.01" />
+              <input
+                name="price"
+                type="number"
+                value={editingService?.price || 0}
+                onChange={handleServiceFormChange}
+                required
+                className="admin-input"
+                min="0"
+                step="0.01"
+              />
             </div>
           </div>
           <div className="admin-form__actions">
-            <button type="button" className="btn btn-outline" onClick={() => setServiceFormVisible(false)}>Anuluj</button>
-            <button type="submit" className="btn btn-primary" disabled={serviceFormSubmitting}>
-              {serviceFormSubmitting ? 'Zapisywanie...' : 'Zapisz'}
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setServiceFormVisible(false)}
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={serviceFormSubmitting}
+            >
+              {serviceFormSubmitting ? "Zapisywanie..." : "Zapisz"}
             </button>
           </div>
         </form>
@@ -660,8 +844,14 @@ const CompanyPanel = () => {
   );
 
   if (loading) return <p>Ładowanie panelu firmy...</p>;
-  if (error) return <div className="admin-alert admin-alert--error">{error}</div>;
-  if (!company) return <div className="admin-alert admin-alert--error">Nie udało się załadować danych firmy.</div>;
+  if (error)
+    return <div className="admin-alert admin-alert--error">{error}</div>;
+  if (!company)
+    return (
+      <div className="admin-alert admin-alert--error">
+        Nie udało się załadować danych firmy.
+      </div>
+    );
 
   return (
     <div className="admin-page">
@@ -670,34 +860,51 @@ const CompanyPanel = () => {
       <header className="admin-page__header">
         <div>
           <h1 className="admin-page__title">Panel Firmy</h1>
-          <p className="admin-page__subtitle">Zarządzaj danymi firmy {company.companyName} i jej usługami</p>
+          <p className="admin-page__subtitle">
+            Zarządzaj danymi firmy {company.companyName} i jej usługami
+          </p>
         </div>
       </header>
 
       <div className="admin-page__tabs">
-        <button type="button" className={`admin-tab ${activeTab === 'details' ? 'admin-tab--active' : ''}`} onClick={() => setActiveTab('details')}>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === "details" ? "admin-tab--active" : ""}`}
+          onClick={() => setActiveTab("details")}
+        >
           Dane Firmy
         </button>
-        <button type="button" className={`admin-tab ${activeTab === 'services' ? 'admin-tab--active' : ''}`} onClick={() => setActiveTab('services')}>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === "services" ? "admin-tab--active" : ""}`}
+          onClick={() => setActiveTab("services")}
+        >
           Usługi
         </button>
-        <button type="button" className={`admin-tab ${activeTab === 'settings' ? 'admin-tab--active' : ''}`} onClick={() => setActiveTab('settings')}>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === "settings" ? "admin-tab--active" : ""}`}
+          onClick={() => setActiveTab("settings")}
+        >
           Ustawienia
         </button>
-        <button type="button" className={`admin-tab ${activeTab === 'employees' ? 'admin-tab--active' : ''}`} onClick={() => setActiveTab('employees')}>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === "employees" ? "admin-tab--active" : ""}`}
+          onClick={() => setActiveTab("employees")}
+        >
           Pracownicy
         </button>
       </div>
 
       <div className="admin-page__content">
-        {activeTab === 'details' && renderCompanyDetailsTab()}
-        {activeTab === 'services' && renderServicesTab()}
-        {activeTab === 'employees' && renderEmployeesTab()}
-        {activeTab === 'settings' && renderSettingsTab()}
+        {activeTab === "details" && renderCompanyDetailsTab()}
+        {activeTab === "services" && renderServicesTab()}
+        {activeTab === "employees" && renderEmployeesTab()}
+        {activeTab === "settings" && renderSettingsTab()}
       </div>
     </div>
   );
 };
 
 export default CompanyPanel;
-

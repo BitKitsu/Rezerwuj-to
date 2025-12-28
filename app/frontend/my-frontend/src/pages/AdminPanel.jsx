@@ -1,24 +1,24 @@
-import React, { useEffect, useState } from 'react';
-import '../admin.css';
-import { adminAPI, companiesAPI, tokenManager } from '../services/api';
+import React, { useEffect, useState } from "react";
+import "../admin.css";
+import { adminAPI, companiesAPI, tokenManager } from "../services/api";
 
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState("users");
   const currentUser = tokenManager.getUser();
 
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [usersError, setUsersError] = useState('');
-  const [userQuery, setUserQuery] = useState('');
+  const [usersError, setUsersError] = useState("");
+  const [userQuery, setUserQuery] = useState("");
   const [usersPage, setUsersPage] = useState(1);
   const [usersTotalCount, setUsersTotalCount] = useState(0);
   const usersPageSize = 20;
 
   const [companies, setCompanies] = useState([]);
   const [companiesLoading, setCompaniesLoading] = useState(false);
-  const [companiesError, setCompaniesError] = useState('');
-  const [companyQuery, setCompanyQuery] = useState('');
-  const [companyCity, setCompanyCity] = useState('');
+  const [companiesError, setCompaniesError] = useState("");
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [companyCity, setCompanyCity] = useState("");
   const [companiesPage, setCompaniesPage] = useState(1);
   const [companiesTotalCount, setCompaniesTotalCount] = useState(0);
   const companiesPageSize = 10;
@@ -26,36 +26,44 @@ const AdminPanel = () => {
   const [companyFormVisible, setCompanyFormVisible] = useState(false);
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
-  const [companyFilterCitySuggestions, setCompanyFilterCitySuggestions] = useState([]);
-  const [companyFormCitySuggestions, setCompanyFormCitySuggestions] = useState([]);
+  const [companyFilterCitySuggestions, setCompanyFilterCitySuggestions] =
+    useState([]);
+  const [companyFormCitySuggestions, setCompanyFormCitySuggestions] = useState(
+    [],
+  );
 
   const resetCompanyForm = () => {
     setEditingCompany({
       id: null,
-      companyName: '',
-      email: '',
-      phone: '',
-      streetName: '',
-      streetNumber: '',
-      apartmentNumber: '',
-      city: '',
-      postalCode: '',
-      country: 'Polska',
-      description: '',
-      website: '',
+      companyName: "",
+      email: "",
+      phone: "",
+      streetName: "",
+      streetNumber: "",
+      apartmentNumber: "",
+      city: "",
+      postalCode: "",
+      country: "Polska",
+      description: "",
+      website: "",
     });
   };
 
   useEffect(() => {
     loadUsers(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    // Only trigger if we're on the companies tab
+    if (activeTab !== "companies") return;
+
     const debounceTimer = setTimeout(() => {
-      loadCompanies(1);
+      loadCompanies(companiesPage);
     }, 300);
     return () => clearTimeout(debounceTimer);
-  }, [companyQuery, companyCity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyQuery, companyCity, activeTab, companiesPage]);
 
   useEffect(() => {
     const q = companyCity.trim();
@@ -72,7 +80,7 @@ const AdminPanel = () => {
           setCompanyFilterCitySuggestions(res.data || []);
         }
       } catch (error) {
-        console.error('City suggestions load error (admin filter):', error);
+        console.error("City suggestions load error (admin filter):", error);
       }
     }, 300);
 
@@ -82,15 +90,9 @@ const AdminPanel = () => {
     };
   }, [companyCity]);
 
-  useEffect(() => {
-    if (activeTab === 'companies') {
-      loadCompanies(companiesPage);
-    }
-  }, [activeTab, companiesPage]);
-
   const loadUsers = async (page) => {
     setUsersLoading(true);
-    setUsersError('');
+    setUsersError("");
     try {
       const response = await adminAPI.getUsers({
         page,
@@ -102,8 +104,8 @@ const AdminPanel = () => {
       setUsersTotalCount(data.totalCount || 0);
       setUsersPage(data.page || page);
     } catch (error) {
-      console.error('Error loading users', error);
-      setUsersError('Nie udało się pobrać listy użytkowników.');
+      console.error("Error loading users", error);
+      setUsersError("Nie udało się pobrać listy użytkowników.");
     } finally {
       setUsersLoading(false);
     }
@@ -111,22 +113,22 @@ const AdminPanel = () => {
 
   const loadCompanies = async (page) => {
     setCompaniesLoading(true);
-    setCompaniesError('');
+    setCompaniesError("");
     try {
       const response = await companiesAPI.getAll({
         page,
         pageSize: companiesPageSize,
         query: companyQuery || undefined,
         city: companyCity || undefined,
-        sort: 'name_asc',
+        sort: "name_asc",
       });
       const data = response.data;
       setCompanies(data.items || data.Items || []);
       setCompaniesTotalCount(data.totalCount || data.TotalCount || 0);
       setCompaniesPage(data.page || data.Page || page);
     } catch (error) {
-      console.error('Error loading companies', error);
-      setCompaniesError('Nie udało się pobrać listy firm.');
+      console.error("Error loading companies", error);
+      setCompaniesError("Nie udało się pobrać listy firm.");
     } finally {
       setCompaniesLoading(false);
     }
@@ -137,6 +139,7 @@ const AdminPanel = () => {
       loadUsers(1);
     }, 300);
     return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userQuery]);
 
   const handleUsersPageChange = (newPage) => {
@@ -151,21 +154,25 @@ const AdminPanel = () => {
       await adminAPI.grantAdmin(userId);
       await loadUsers(usersPage);
     } catch (error) {
-      console.error('Grant admin error', error);
-      window.alert('Nie udało się nadać roli administratora.');
+      console.error("Grant admin error", error);
+      window.alert("Nie udało się nadać roli administratora.");
     }
   };
 
   const handleRevokeAdmin = async (userId) => {
-    if (!window.confirm('Na pewno chcesz odebrać rolę administratora temu użytkownikowi?')) {
+    if (
+      !window.confirm(
+        "Na pewno chcesz odebrać rolę administratora temu użytkownikowi?",
+      )
+    ) {
       return;
     }
     try {
       await adminAPI.revokeAdmin(userId);
       await loadUsers(usersPage);
     } catch (error) {
-      console.error('Revoke admin error', error);
-      window.alert('Nie udało się odebrać roli administratora.');
+      console.error("Revoke admin error", error);
+      window.alert("Nie udało się odebrać roli administratora.");
     }
   };
 
@@ -182,8 +189,8 @@ const AdminPanel = () => {
       await adminAPI.deleteUser(user.id);
       await loadUsers(usersPage);
     } catch (error) {
-      console.error('Delete user error', error);
-      window.alert('Nie udało się usunąć użytkownika.');
+      console.error("Delete user error", error);
+      window.alert("Nie udało się usunąć użytkownika.");
     }
   };
 
@@ -196,16 +203,16 @@ const AdminPanel = () => {
     setEditingCompany({
       id: company.id,
       companyName: company.companyName,
-      email: company.email || '',
-      phone: company.phone || '',
-      streetName: company.streetName || '',
-      streetNumber: company.streetNumber || '',
-      apartmentNumber: company.apartmentNumber || '',
-      city: company.city || '',
-      postalCode: company.postalCode || '',
-      country: company.country || 'Polska',
-      description: company.description || '',
-      website: company.website || '',
+      email: company.email || "",
+      phone: company.phone || "",
+      streetName: company.streetName || "",
+      streetNumber: company.streetNumber || "",
+      apartmentNumber: company.apartmentNumber || "",
+      city: company.city || "",
+      postalCode: company.postalCode || "",
+      country: company.country || "Polska",
+      description: company.description || "",
+      website: company.website || "",
     });
     setCompanyFormVisible(true);
   };
@@ -243,14 +250,17 @@ const AdminPanel = () => {
       if (editingCompany.id == null) {
         await companiesAPI.create(payload);
       } else {
-        await companiesAPI.update(editingCompany.id, { id: editingCompany.id, ...payload });
+        await companiesAPI.update(editingCompany.id, {
+          id: editingCompany.id,
+          ...payload,
+        });
       }
 
       setCompanyFormVisible(false);
       await loadCompanies(companiesPage);
     } catch (error) {
-      console.error('Save company error', error);
-      window.alert('Nie udało się zapisać danych firmy.');
+      console.error("Save company error", error);
+      window.alert("Nie udało się zapisać danych firmy.");
     } finally {
       setCompanyFormSubmitting(false);
     }
@@ -275,7 +285,7 @@ const AdminPanel = () => {
           setCompanyFormCitySuggestions(res.data || []);
         }
       } catch (error) {
-        console.error('City suggestions load error (admin form):', error);
+        console.error("City suggestions load error (admin form):", error);
       }
     }, 300);
 
@@ -283,7 +293,8 @@ const AdminPanel = () => {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [editingCompany && editingCompany.city]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingCompany?.city]);
 
   const handleDeleteCompany = async (company) => {
     if (
@@ -298,8 +309,8 @@ const AdminPanel = () => {
       await companiesAPI.delete(company.id);
       await loadCompanies(companiesPage);
     } catch (error) {
-      console.error('Delete company error', error);
-      window.alert('Nie udało się usunąć firmy.');
+      console.error("Delete company error", error);
+      window.alert("Nie udało się usunąć firmy.");
     }
   };
 
@@ -316,10 +327,12 @@ const AdminPanel = () => {
         />
       </div>
 
-      {usersError && <div className="admin-alert admin-alert--error">{usersError}</div>}
+      {usersError && (
+        <div className="admin-alert admin-alert--error">{usersError}</div>
+      )}
 
       <div className="admin-card">
-        {usersLoading ? (
+        {usersLoading && users.length === 0 ? (
           <p>Ładowanie użytkowników...</p>
         ) : users.length === 0 ? (
           <p>Brak użytkowników do wyświetlenia.</p>
@@ -339,20 +352,20 @@ const AdminPanel = () => {
               <tbody>
                 {users.map((user) => {
                   const roles = user.roles || [];
-                  const isAdmin = roles.includes('Admin');
+                  const isAdmin = roles.includes("Admin");
                   const isCurrentUser =
                     currentUser && currentUser.userId === user.id;
 
                   let accountType;
                   if (isAdmin) {
-                    accountType = 'Administrator';
+                    accountType = "Administrator";
                   } else if (
-                    roles.includes('Company') ||
-                    roles.includes('CompanyOwner')
+                    roles.includes("Company") ||
+                    roles.includes("CompanyOwner")
                   ) {
-                    accountType = 'Firma';
+                    accountType = "Firma";
                   } else {
-                    accountType = 'Użytkownik';
+                    accountType = "Użytkownik";
                   }
                   return (
                     <tr key={user.id}>
@@ -360,7 +373,7 @@ const AdminPanel = () => {
                       <td>
                         {user.firstName} {user.lastName}
                       </td>
-                      <td>{user.companyId ?? '-'}</td>
+                      <td>{user.companyId ?? "-"}</td>
                       <td>{accountType}</td>
                       <td>
                         {isAdmin ? (
@@ -371,7 +384,7 @@ const AdminPanel = () => {
                             disabled={isCurrentUser}
                             title={
                               isCurrentUser
-                                ? 'Nie możesz odebrać sobie uprawnień administratora'
+                                ? "Nie możesz odebrać sobie uprawnień administratora"
                                 : undefined
                             }
                           >
@@ -396,8 +409,8 @@ const AdminPanel = () => {
                             disabled={isCurrentUser}
                             title={
                               isCurrentUser
-                                ? 'Nie możesz usunąć własnego konta z poziomu panelu administratora'
-                                : 'Usuń użytkownika'
+                                ? "Nie możesz usunąć własnego konta z poziomu panelu administratora"
+                                : "Usuń użytkownika"
                             }
                           >
                             Usuń
@@ -420,7 +433,8 @@ const AdminPanel = () => {
                 Poprzednia
               </button>
               <span>
-                Strona {usersPage} z {Math.max(1, Math.ceil(usersTotalCount / usersPageSize))}
+                Strona {usersPage} z{" "}
+                {Math.max(1, Math.ceil(usersTotalCount / usersPageSize))}
               </span>
               <button
                 type="button"
@@ -464,16 +478,22 @@ const AdminPanel = () => {
               ))}
             </datalist>
           </div>
-          <button type="button" className="btn btn-primary" onClick={handleOpenCreateCompany}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenCreateCompany}
+          >
             Dodaj firmę
           </button>
         </div>
       </div>
 
-      {companiesError && <div className="admin-alert admin-alert--error">{companiesError}</div>}
+      {companiesError && (
+        <div className="admin-alert admin-alert--error">{companiesError}</div>
+      )}
 
       <div className="admin-card">
-        {companiesLoading ? (
+        {companiesLoading && companies.length === 0 ? (
           <p>Ładowanie firm...</p>
         ) : companies.length === 0 ? (
           <p>Brak firm do wyświetlenia.</p>
@@ -492,8 +512,8 @@ const AdminPanel = () => {
                 {companies.map((company) => (
                   <tr key={company.id}>
                     <td>{company.companyName}</td>
-                    <td>{company.city || '-'}</td>
-                    <td>{company.description || '-'}</td>
+                    <td>{company.city || "-"}</td>
+                    <td>{company.description || "-"}</td>
                     <td>
                       <div className="admin-user-actions">
                         <button
@@ -527,14 +547,19 @@ const AdminPanel = () => {
                 Poprzednia
               </button>
               <span>
-                Strona {companiesPage} z{' '}
-                {Math.max(1, Math.ceil(companiesTotalCount / companiesPageSize))}
+                Strona {companiesPage} z{" "}
+                {Math.max(
+                  1,
+                  Math.ceil(companiesTotalCount / companiesPageSize),
+                )}
               </span>
               <button
                 type="button"
                 className="btn btn-outline btn-xs"
                 onClick={() => loadCompanies(companiesPage + 1)}
-                disabled={companiesPage * companiesPageSize >= companiesTotalCount}
+                disabled={
+                  companiesPage * companiesPageSize >= companiesTotalCount
+                }
               >
                 Następna
               </button>
@@ -546,7 +571,7 @@ const AdminPanel = () => {
       {companyFormVisible && editingCompany && (
         <div className="admin-card admin-card--form">
           <h3 className="admin-card__title">
-            {editingCompany.id == null ? 'Dodaj firmę' : 'Edytuj firmę'}
+            {editingCompany.id == null ? "Dodaj firmę" : "Edytuj firmę"}
           </h3>
           <form className="admin-form" onSubmit={handleCompanyFormSubmit}>
             <div className="admin-form__grid">
@@ -556,7 +581,9 @@ const AdminPanel = () => {
                   type="text"
                   className="admin-input"
                   value={editingCompany.companyName}
-                  onChange={(e) => handleCompanyFormChange('companyName', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("companyName", e.target.value)
+                  }
                   required
                   maxLength={100}
                 />
@@ -567,7 +594,9 @@ const AdminPanel = () => {
                   type="email"
                   className="admin-input"
                   value={editingCompany.email}
-                  onChange={(e) => handleCompanyFormChange('email', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("email", e.target.value)
+                  }
                 />
               </label>
               <label className="admin-form__field">
@@ -576,7 +605,9 @@ const AdminPanel = () => {
                   type="tel"
                   className="admin-input"
                   value={editingCompany.phone}
-                  onChange={(e) => handleCompanyFormChange('phone', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("phone", e.target.value)
+                  }
                   placeholder="+48 111 222 333"
                 />
               </label>
@@ -585,8 +616,10 @@ const AdminPanel = () => {
                 <input
                   type="text"
                   className="admin-input"
-                  value={editingCompany.streetName || ''}
-                  onChange={(e) => handleCompanyFormChange('streetName', e.target.value)}
+                  value={editingCompany.streetName || ""}
+                  onChange={(e) =>
+                    handleCompanyFormChange("streetName", e.target.value)
+                  }
                   required
                 />
               </label>
@@ -595,8 +628,10 @@ const AdminPanel = () => {
                 <input
                   type="text"
                   className="admin-input"
-                  value={editingCompany.streetNumber || ''}
-                  onChange={(e) => handleCompanyFormChange('streetNumber', e.target.value)}
+                  value={editingCompany.streetNumber || ""}
+                  onChange={(e) =>
+                    handleCompanyFormChange("streetNumber", e.target.value)
+                  }
                   required
                 />
               </label>
@@ -605,8 +640,10 @@ const AdminPanel = () => {
                 <input
                   type="text"
                   className="admin-input"
-                  value={editingCompany.apartmentNumber || ''}
-                  onChange={(e) => handleCompanyFormChange('apartmentNumber', e.target.value)}
+                  value={editingCompany.apartmentNumber || ""}
+                  onChange={(e) =>
+                    handleCompanyFormChange("apartmentNumber", e.target.value)
+                  }
                 />
               </label>
               <label className="admin-form__field">
@@ -615,7 +652,9 @@ const AdminPanel = () => {
                   type="text"
                   className="admin-input"
                   value={editingCompany.city}
-                  onChange={(e) => handleCompanyFormChange('city', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("city", e.target.value)
+                  }
                   list="admin-company-form-city-options"
                 />
                 <datalist id="admin-company-form-city-options">
@@ -630,7 +669,9 @@ const AdminPanel = () => {
                   type="text"
                   className="admin-input"
                   value={editingCompany.postalCode}
-                  onChange={(e) => handleCompanyFormChange('postalCode', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("postalCode", e.target.value)
+                  }
                   placeholder="00-000"
                   pattern="^[0-9]{2}-[0-9]{3}$"
                   maxLength={6}
@@ -643,7 +684,9 @@ const AdminPanel = () => {
                   type="text"
                   className="admin-input"
                   value={editingCompany.country}
-                  onChange={(e) => handleCompanyFormChange('country', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("country", e.target.value)
+                  }
                 />
               </label>
               <label className="admin-form__field admin-form__field--full">
@@ -652,7 +695,9 @@ const AdminPanel = () => {
                   type="text"
                   className="admin-input"
                   value={editingCompany.website}
-                  onChange={(e) => handleCompanyFormChange('website', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("website", e.target.value)
+                  }
                 />
               </label>
               <label className="admin-form__field admin-form__field--full">
@@ -661,7 +706,9 @@ const AdminPanel = () => {
                   className="admin-input"
                   rows={3}
                   value={editingCompany.description}
-                  onChange={(e) => handleCompanyFormChange('description', e.target.value)}
+                  onChange={(e) =>
+                    handleCompanyFormChange("description", e.target.value)
+                  }
                   maxLength={1000}
                 />
               </label>
@@ -680,7 +727,7 @@ const AdminPanel = () => {
                 className="btn btn-primary"
                 disabled={companyFormSubmitting}
               >
-                {companyFormSubmitting ? 'Zapisywanie...' : 'Zapisz'}
+                {companyFormSubmitting ? "Zapisywanie..." : "Zapisz"}
               </button>
             </div>
           </form>
@@ -702,29 +749,27 @@ const AdminPanel = () => {
         <button
           type="button"
           className={
-            activeTab === 'users'
-              ? 'admin-tab admin-tab--active'
-              : 'admin-tab'
+            activeTab === "users" ? "admin-tab admin-tab--active" : "admin-tab"
           }
-          onClick={() => setActiveTab('users')}
+          onClick={() => setActiveTab("users")}
         >
           Użytkownicy
         </button>
         <button
           type="button"
           className={
-            activeTab === 'companies'
-              ? 'admin-tab admin-tab--active'
-              : 'admin-tab'
+            activeTab === "companies"
+              ? "admin-tab admin-tab--active"
+              : "admin-tab"
           }
-          onClick={() => setActiveTab('companies')}
+          onClick={() => setActiveTab("companies")}
         >
           Firmy
         </button>
       </div>
 
       <section className="admin-page__content">
-        {activeTab === 'users' ? renderUsersTab() : renderCompaniesTab()}
+        {activeTab === "users" ? renderUsersTab() : renderCompaniesTab()}
       </section>
     </div>
   );

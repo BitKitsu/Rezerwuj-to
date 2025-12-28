@@ -21,13 +21,14 @@ Oba oferują te same funkcjonalności i pozwalają na łatwe zarządzanie całym
 
 ### Podstawowe operacje
 
-| Komenda      | Opis                             | Przykład                |
-| ------------ | -------------------------------- | ------------------------ |
-| `start`    | Uruchom backend (Docker Compose) | `./manage.sh start`    |
-| `stop`     | Zatrzymaj backend                | `./manage.sh stop`     |
-| `restart`  | Restart z czyszczeniem baz       | `./manage.sh restart`  |
-| `frontend` | Uruchom tylko frontend           | `./manage.sh frontend` |
-| `all`      | Uruchom backend + frontend       | `./manage.sh all`      |
+| Komenda      | Opis                                                          | Przykład                |
+| ------------ | ------------------------------------------------------------- | ------------------------ |
+| `start`    | Uruchom backend (Docker Compose)                              | `./manage.sh start`    |
+| `stop`     | Zatrzymaj backend                                             | `./manage.sh stop`     |
+| `restart`  | Restart backend (bez kasowania danych)                        | `./manage.sh restart`  |
+| `reset`    | Reset backend (USUNIE DANE: kontenery + wolumeny; bez startu) | `./manage.sh reset`    |
+| `frontend` | Uruchom tylko frontend                                        | `./manage.sh frontend` |
+| `all`      | Uruchom backend + frontend                                    | `./manage.sh all`      |
 
 ### Testowanie i monitoring
 
@@ -66,13 +67,16 @@ chmod +x manage.sh
 # 2. Test przed commitowaniem
 ./manage.sh ci-test
 
-# 3. Restart z czyszczeniem
+# 3. Restart backend (bez kasowania danych)
 ./manage.sh restart
 
-# 4. Sprawdź logi API Gateway
+# 4. Reset backend (usuwa dane!)
+./manage.sh reset
+
+# 5. Sprawdź logi API Gateway
 ./manage.sh logs api_gateway
 
-# 5. Test endpointów
+# 6. Test endpointów
 ./manage.sh test
 ```
 
@@ -85,10 +89,12 @@ Skrypt **manage.sh** zawiera wbudowane funkcje:
 ```bash
 # Sprawdza:
 - Format commita (Conventional Commits)
-- console.log w kodzie
-- Build backend (.NET)
+- console.log w kodzie (PR Validation)
+- Build backend (.NET) - restore + build wszystkich serwisów
+- Lint frontend (npm run lint)
+- Build frontend (npm run build)
 - Walidację docker-compose.yml
-- Wrażliwe dane (hasła, klucze API)
+- Wrażliwe dane (hasła, klucze API, tokeny)
 - Aktualny branch Git
 ```
 
@@ -105,10 +111,13 @@ Wywołanie:
 ```bash
 # Testuje:
 - Porty (5000-5003, 15672, 5433)
-- Routing przez API Gateway
-- JWT Authentication
-- Rejestrację użytkowników
-- Pobieranie danych
+- Routing przez API Gateway (identity, reservation)
+- JWT Authentication przez Gateway
+- Login JWT (test@example.com)
+- Autoryzację z Bearer token
+- Rejestrację użytkowników przez Gateway
+- Automatyczne czyszczenie testowych użytkowników
+- Pobieranie danych (API Services)
 ```
 
 Wywołanie:
@@ -127,14 +136,16 @@ print_header()
 print_success()
 print_error()
 print_info()
+check_port()        # Sprawdzenie czy port jest otwarty
 
 # Funkcje główne
 start_backend()      # Docker Compose up
 stop_backend()       # Docker Compose down
-restart_clean()      # Down + clean + up
+restart_backend()    # Restart bez kasowania danych
+reset_backend()      # RESET z usunięciem wolumenów (KASUJE DANE!)
 start_frontend()     # npm run dev
 run_all()           # Backend + Frontend
-test_system()       # Testy integracyjne
+test_system()       # Testy integracyjne (porty, routing, JWT, rejestracja)
 ci_test()           # Test CI/CD (wbudowane!)
 show_logs()         # Docker logs
 show_status()       # Status kontenerów
@@ -152,26 +163,30 @@ manage.bat all
 REM 2. Test przed commitowaniem
 manage.bat ci-test
 
-REM 3. Restart z czyszczeniem
+REM 3. Restart backend (bez kasowania danych)
 manage.bat restart
 
-REM 4. Sprawdź logi
-manage.bat logs-id
+REM 4. Reset backend (usuwa dane!)
+manage.bat reset
 
-REM 5. Test endpointów
+REM 5. Sprawdź logi
+manage.bat logs identity_api
+
+REM 6. Test endpointów
 manage.bat test
 ```
 
 ### Dodatkowe komendy Windows
 
-| Komenda                 | Opis                     |
-| ----------------------- | ------------------------ |
-| `manage.bat build`    | Przebuduj obrazy Docker  |
-| `manage.bat clean`    | Usuń obrazy i wolumeny  |
-| `manage.bat ps`       | Lista kontenerów        |
-| `manage.bat logs-id`  | Logi IdentityService     |
-| `manage.bat logs-res` | Logi ReservationService  |
-| `manage.bat logs-not` | Logi NotificationService |
+| Komenda                              | Opis                                             |
+| ------------------------------------ | ------------------------------------------------ |
+| `manage.bat build`                 | Przebuduj obrazy Docker                          |
+| `manage.bat clean`                 | Usuń obrazy i wolumeny                          |
+| `manage.bat ps`                    | Lista kontenerów                                |
+| `manage.bat logs [service]`        | Logi konkretnego serwisu (np. identity_api)      |
+| `manage.bat logs-id` (deprecated)  | Logi IdentityService (użyj `logs identity_api`) |
+| `manage.bat logs-res` (deprecated) | Logi ReservationService                          |
+| `manage.bat logs-not` (deprecated) | Logi NotificationService                         |
 
 ### Struktura manage.bat
 
@@ -184,12 +199,16 @@ setlocal enabledelayedexpansion
 :start
 :stop
 :restart
+:reset          # Nowe! Reset z usunięciem danych
 :status
 :test
-:ci-test
+:ci-test        # Test CI/CD lokalnie
 :frontend
 :all
-:logs
+:logs           # Teraz z parametrem [service]
+:logs-id        # Deprecated
+:logs-res       # Deprecated
+:logs-not       # Deprecated
 :build
 :clean
 :ps
@@ -203,23 +222,29 @@ goto %COMMAND% 2>nul || goto invalid
 ### Co sprawdza `ci-test`?
 
 ```
-  Format ostatniego commita
-     Conventional Commits (feat, fix, docs, etc.)
+  1. Format ostatniego commita
+     └─ Conventional Commits (feat, fix, docs, etc.)
   
-  Console.log w kodzie
-      Wykrywa console.log w plikach produkcyjnych
+  2. Console.log w kodzie (PR Validation)
+     └─ Wykrywa console.log w plikach produkcyjnych (.js, .jsx, .ts, .tsx)
   
-  Build backend
-     dotnet restore + build dla każdego serwisu
+  3. Build backend (symulacja GitHub Actions)
+     ├─ dotnet restore dla wszystkich serwisów
+     └─ dotnet build dla wszystkich serwisów
   
-  Walidacja docker-compose.yml
-     docker-compose config
+  4. Build frontend (symulacja GitHub Actions)
+     ├─ npm ci (jeśli brak node_modules)
+     ├─ npm run lint (ESLint)
+     └─ npm run build
   
-  Wrażliwe dane
-     Wykrywa hasła, klucze API, tokeny
+  5. Walidacja docker-compose.yml
+     └─ docker-compose config
   
-  Branch Git
-      Ostrzeżenie jeśli jesteś na main/master
+  6. Wrażliwe dane
+     └─ Wykrywa hasła, klucze API, tokeny w stagowanych plikach
+  
+  7. Branch Git
+     └─ Ostrzeżenie jeśli jesteś na main/master
 ```
 
 ### Kiedy używać?
@@ -238,45 +263,60 @@ git push
 
 ```
 ========================================
-TEST CI/CD LOKALNIE
+TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)
 ========================================
 
-  Sprawdzanie formatu ostatniego commita...
- Format commita poprawny: feat: Add CI/CD pipeline
+1. Sprawdzanie formatu ostatniego commita...
+Format commita poprawny: feat: Add CI/CD pipeline
 
-  Sprawdzanie console.log w kodzie...
- Brak console.log w kodzie produkcyjnym
+2. Sprawdzanie console.log w kodzie (PR Validation)...
+Brak console.log w kodzie produkcyjnym
 
-  Testowanie budowania backend...
-   Building IdentityService...
- IdentityService - build OK
-   Building ReservationService...
- ReservationService - build OK
-   Building NotificationService...
- NotificationService - build OK
-   Building ApiGateway...
- ApiGateway - build OK
+3. TEST BACKEND (symulacja GitHub Actions)...
+   Restoring dependencies...
+   ✓ IdentityService - restore OK
+   ✓ ReservationService - restore OK
+   ✓ NotificationService - restore OK
+   ✓ ApiGateway - restore OK
+   Building services...
+   ✓ IdentityService - build OK
+   ✓ ReservationService - build OK
+   ✓ NotificationService - build OK
+   ✓ ApiGateway - build OK
 
-  Walidacja docker-compose.yml...
- docker-compose.yml - poprawny
+4. TEST FRONTEND (symulacja GitHub Actions)...
+   Running linter...
+   ✓ Linting passed
+   Building frontend...
+   ✓ Frontend build successful
 
-  Sprawdzanie wrażliwych danych...
- Brak wrażliwych danych w stagowanych plikach
+5. Walidacja docker-compose.yml...
+docker-compose.yml - poprawny
 
-  Sprawdzanie brancha...
- Branch: feature/my-feature
+6. Sprawdzanie wrażliwych danych...
+Brak wrażliwych danych w stagowanych plikach
+
+7. Sprawdzanie brancha...
+Branch: feature/my-feature
 
 ========================================
- PODSUMOWANIE
+PODSUMOWANIE
 ========================================
- CI/CD workflow znaleziony
+CI/CD workflow znaleziony
 
 Aby uruchomić CI/CD:
 1. git add .
 2. git commit -m 'feat: your message'
 3. git push origin feature/my-feature
 
- Test lokalny zakończony!
+
+Wskazówki:
+- Użyj './scripts/quick-commit.sh' dla interaktywnego commita
+- Sprawdź Actions tab na GitHub po pushu
+- Użyj 'git push --dry-run' aby sprawdzić co zostanie wypchnięte
+- Dokumentacja: docs/CI-CD-SETUP.md
+
+Test lokalny zakończony!
 ```
 
 ## Workflow rekomendowany
@@ -308,8 +348,12 @@ git push
 # Pull zmian
 git pull
 
-# Restart z czyszczeniem (nowe migracje, zmiany w Docker)
+# Restart backend (nowe zmiany, ale bez kasowania danych)
 ./manage.sh restart
+
+# Jeśli są nowe migracje lub chcesz czystą bazę
+./manage.sh reset
+./manage.sh start
 
 # Test czy wszystko działa
 ./manage.sh test
@@ -367,10 +411,13 @@ kill -9 <PID>
 ### Problem: "Build failed"
 
 ```bash
-# Restart z czyszczeniem cache
+# Restart bez kasowania danych
 ./manage.sh restart
 
-# Lub manualnie
+# Jeśli dalej nie działa - reset z czyszczeniem danych
+./manage.sh reset
+
+# Rebuild z czyszczeniem cache
 cd app/backend
 docker-compose down -v
 docker-compose build --no-cache
@@ -437,13 +484,15 @@ echo   manage.bat custom    - My custom command
 - Używaj `ci-test` przed każdym commitowaniem
 - Regularnie uruchamiaj `test` aby sprawdzić system
 - Sprawdzaj `logs` gdy coś nie działa
-- Używaj `restart` po większych zmianach
+- Używaj `restart` po zmianach w kodzie (zachowuje dane)
+- Używaj `reset` tylko gdy potrzebujesz czystej bazy danych
 
 **DON'T:**
 
 - Nie commituj bez `ci-test`
 - Nie ignoruj warnings z `ci-test`
 - Nie modyfikuj skryptów bez testowania
-- Nie używaj `clean` na produkcji (kasuje dane!)
+- Nie używaj `reset` lub `clean` bez potwierdzenia (KASUJE DANE!)
+- Nie używaj `reset` na produkcji
 
 ---

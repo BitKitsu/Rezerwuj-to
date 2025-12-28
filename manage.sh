@@ -76,6 +76,28 @@ start_backend() {
     cd ../..
 }
 
+reset_backend() {
+    print_header "RESET SYSTEMU (USUNIE DANE!)"
+
+    print_error "UWAGA: Ta komenda usunie kontenery i wolumeny Docker (baza danych) oraz wszystkie dane."
+    print_info "Aby kontynuowac, wpisz RESET i nacisnij Enter."
+
+    read -r confirm
+    if [ "$confirm" != "RESET" ]; then
+        print_info "Anulowano."
+        return 0
+    fi
+
+    cd app/backend
+
+    print_info "Zatrzymywanie kontenerow i usuwanie wolumenow..."
+    docker-compose down -v
+
+    cd ../..
+
+    print_success "Reset zakonczony. Backend jest zatrzymany."
+}
+
 stop_backend() {
     print_header "ZATRZYMYWANIE BACKEND"
     
@@ -85,16 +107,13 @@ stop_backend() {
     cd ../..
 }
 
-restart_clean() {
-    print_header "RESTART Z CZYSZCZENIEM"
+restart_backend() {
+    print_header "RESTART BACKEND"
     
     cd app/backend
     
     print_info "Zatrzymywanie kontenerów..."
-    docker-compose down -v
-    
-    print_info "Usuwanie starych obrazów..."
-    docker rmi backend-identity_api backend-reservation_api 2>/dev/null
+    docker-compose down
     
     print_info "Budowanie i uruchamianie..."
     docker-compose up --build -d
@@ -230,10 +249,10 @@ test_system() {
     echo ""
     print_info "3. Test JWT Authentication przez Gateway..."
     
-    # Login i pobierz token
+    # Login i pobierz token (admin seedingowy test@example.com)
     login_response=$(curl -s -X POST http://localhost:5000/identity/account/login \
         -H "Content-Type: application/json" \
-        -d '{"email": "test@example.com", "password": "Test123!"}')
+        -d '{"loginIdentifier": "test@example.com", "password": "Test123!"}')
     
     if echo "$login_response" | grep -q "accessToken"; then
         echo -e "Login JWT: ${GREEN}Działa${NC}"
@@ -256,15 +275,45 @@ test_system() {
     # Test rejestracji przez Gateway
     echo ""
     print_info "4. Test rejestracji przez API Gateway..."
+
+    # Dane tymczasowego użytkownika testowego (z timestampem, żeby uniknąć kolizji)
+    timestamp=$(date +%s)
+    test_email="test${timestamp}@example.com"
+    test_username="testuser${timestamp}"
+    test_phone="+48${timestamp:1}"  # +48 + 9 cyfr
+
     response=$(curl -s -X POST http://localhost:5000/identity/account/register \
         -H "Content-Type: application/json" \
-        -d '{"email": "test'$(date +%s)'@example.com", "password": "Test123!", "firstName": "Test", "lastName": "User"}' \
+        -d "{\"email\": \"$test_email\", \"username\": \"$test_username\", \"password\": \"Test123!\", \"firstName\": \"Test\", \"lastName\": \"User\", \"phone\": \"$test_phone\"}" \
         -w "\nHTTP_CODE:%{http_code}")
-    
+
     http_code=$(echo "$response" | grep "HTTP_CODE:" | cut -d: -f2)
-    
+
     if [ "$http_code" = "200" ]; then
         print_success "Rejestracja działa!"
+
+        # Po udanym teście rejestracji wyczyść testowego użytkownika,
+        # żeby nie zaśmiecać bazy danymi z automatycznych testów.
+        login_response=$(curl -s -X POST http://localhost:5000/identity/account/login \
+            -H "Content-Type: application/json" \
+            -d "{\"loginIdentifier\": \"$test_email\", \"password\": \"Test123!\"}")
+
+        test_access_token=$(echo "$login_response" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+
+        if [ -n "$test_access_token" ]; then
+            delete_status=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X DELETE \
+                -H "Authorization: Bearer $test_access_token" \
+                http://localhost:5000/identity/account/delete)
+
+            if [ "$delete_status" = "200" ]; then
+                print_info "Testowy użytkownik rejestracji został usunięty."
+            else
+                print_error "Nie udało się usunąć testowego użytkownika rejestracji (HTTP $delete_status)"
+            fi
+        else
+            print_error "Nie udało się zalogować testowego użytkownika do usunięcia."
+        fi
     else
         print_error "Problem z rejestracją (HTTP $http_code)"
     fi
@@ -305,10 +354,10 @@ show_status() {
     
     echo ""
     print_info "Porty:"
-    echo "5001: $(check_port 5001 && echo 'IdentityService ${GREEN}${NC}' || echo 'IdentityService ${RED}${NC}')"
-    echo "5002: $(check_port 5002 && echo 'ReservationService ${GREEN}${NC}' || echo 'ReservationService ${RED}${NC}')"
-    echo "5173: $(check_port 5173 && echo 'Frontend React ${GREEN}${NC}' || echo 'Frontend React ${RED}${NC}')"
-    echo "5432: $(check_port 5432 && echo 'PostgreSQL ${GREEN}${NC}' || echo 'PostgreSQL ${RED}${NC}')"
+    check_port 5001 && echo -e "5001: IdentityService ${GREEN}${NC}" || echo -e "5001: IdentityService ${RED}${NC}"
+    check_port 5002 && echo -e "5002: ReservationService ${GREEN}${NC}" || echo -e "5002: ReservationService ${RED}${NC}"
+    check_port 5173 && echo -e "5173: Frontend React ${GREEN}${NC}" || echo -e "5173: Frontend React ${RED}${NC}"
+    check_port 5433 && echo -e "5433: PostgreSQL ${GREEN}${NC}" || echo -e "5433: PostgreSQL ${RED}${NC}"
 }
 
 ci_test() {
@@ -392,10 +441,13 @@ ci_test() {
         
         # Run linter
         print_info "   Running linter..."
-        if npm run lint > /dev/null 2>&1; then
+        lint_output=$(npm run lint 2>&1)
+        lint_exit=$?
+        if [ $lint_exit -eq 0 ]; then
             echo -e "   ${GREEN}✓${NC} Linting passed"
         else
             echo -e "   ${YELLOW}⚠${NC} Linting warnings (non-blocking)"
+            echo "$lint_output"
         fi
         
         # Build frontend
@@ -425,16 +477,14 @@ ci_test() {
     # 6. Sprawdzanie wrażliwych danych
     echo ""
     print_info "6. Sprawdzanie wrażliwych danych..."
-    sensitive_patterns="password.*=.*[a-zA-Z0-9]|secret.*=.*[a-zA-Z0-9]|token.*=.*[a-zA-Z0-9]|api[_-]?key.*=.*[a-zA-Z0-9]"
-    
-    found_sensitive=false
-    if git diff --staged --name-only 2>/dev/null | xargs grep -iE "$sensitive_patterns" 2>/dev/null | grep -v ".example" | grep -v "test" | head -1; then
-        found_sensitive=true
-    fi
-    
-    if [ "$found_sensitive" = true ]; then
-        print_error "Znaleziono potencjalne wrażliwe dane w commitach!"
+    sensitive_patterns="password[[:space:]]*[=:][[:space:]]*[^[:space:]]+|secret[[:space:]]*[=:][[:space:]]*[^[:space:]]+|token[[:space:]]*[=:][[:space:]]*[^[:space:]]+|api[_-]?key[[:space:]]*[=:][[:space:]]*[^[:space:]]+"
+
+    sensitive_match=$(git diff --staged --name-only -z 2>/dev/null | xargs -0 -r grep -nHiE "$sensitive_patterns" 2>/dev/null | grep -v ".example" | grep -v "test" | head -n 1)
+
+    if [ -n "$sensitive_match" ]; then
+        print_error "Znaleziono potencjalne wrażliwe dane w stagowanych plikach!"
         echo -e "${YELLOW}Sprawdź czy nie committujesz haseł lub kluczy API${NC}"
+        echo "$(echo "$sensitive_match" | cut -d: -f1-2)"
     else
         print_success "Brak wrażliwych danych w stagowanych plikach"
     fi
@@ -486,7 +536,8 @@ show_help() {
     echo "KOMENDY:"
     echo "  start         - Uruchom backend"
     echo "  stop          - Zatrzymaj backend"
-    echo "  restart       - Restart backend z czyszczeniem"
+    echo "  restart       - Restart backend (bez kasowania danych)"
+    echo "  reset         - Reset backend (USUNIE DANE: kontenery + wolumeny; bez startu)"
     echo "  frontend      - Uruchom tylko frontend"
     echo "  all           - Uruchom wszystko (backend + frontend)"
     echo "  test          - Testuj cały system (porty, Gateway, JWT, routing)"
@@ -497,7 +548,8 @@ show_help() {
     echo ""
     echo "PRZYKŁADY:"
     echo "  ./manage.sh all           # Uruchom cały system"
-    echo "  ./manage.sh restart       # Restart z czyszczeniem"
+    echo "  ./manage.sh restart       # Restart backend"
+    echo "  ./manage.sh reset         # Reset danych (usuwa kontenery i wolumeny)"
     echo "  ./manage.sh logs identity_api  # Logi IdentityService"
     echo "  ./manage.sh test          # Testuj endpointy"
     echo ""
@@ -505,6 +557,8 @@ show_help() {
     echo "  postgres_db    - Baza danych PostgreSQL"
     echo "  identity_api   - Serwis autoryzacji"
     echo "  reservation_api - Serwis rezerwacji"
+    echo "  notification_api - Serwis powiadomień"
+    echo "  api_gateway    - API Gateway"
 }
 
 # Główna logika
@@ -516,7 +570,10 @@ case "$1" in
         stop_backend
         ;;
     restart)
-        restart_clean
+        restart_backend
+        ;;
+    reset)
+        reset_backend
         ;;
     frontend)
         start_frontend

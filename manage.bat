@@ -5,10 +5,17 @@ setlocal enabledelayedexpansion
 :: Użycie: manage.bat [komenda]
 
 set "COMMAND=%1"
+set "ARG2=%2"
 
 if "%COMMAND%"=="" (
     set COMMAND=help
 )
+
+if /i "%COMMAND%"=="log" set COMMAND=logs
+if /i "%COMMAND%"=="run" set COMMAND=all
+if /i "%COMMAND%"=="ci" set COMMAND=ci-test
+if /i "%COMMAND%"=="--help" set COMMAND=help
+if /i "%COMMAND%"=="-h" set COMMAND=help
 
 :: Kolory (opcjonalne - działa w Windows 10+)
 set "GREEN=[92m"
@@ -17,7 +24,9 @@ set "YELLOW=[93m"
 set "BLUE=[94m"
 set "NC=[0m"
 
-goto %COMMAND% 2>nul || goto invalid
+call :%COMMAND% %ARG2% 2>nul
+if errorlevel 1 goto invalid
+goto end
 
 :help
 echo.
@@ -25,30 +34,36 @@ echo ========================================
 echo SYSTEM ZARZADZANIA - KOMENDY
 echo ========================================
 echo.
-echo Podstawowe:
-echo   manage.bat start      - Uruchom backend (Docker)
-echo   manage.bat stop       - Zatrzymaj backend
-echo   manage.bat restart    - Restart z czyszczeniem
-echo   manage.bat status     - Sprawdz status
-echo   manage.bat test       - Testuj caly system (porty, Gateway, JWT)
-echo   manage.bat ci-test    - Test CI/CD lokalnie przed commitowaniem
+echo Uzycie: manage.bat [KOMENDA] [OPCJE]
 echo.
-echo Frontend:
-echo   manage.bat frontend   - Uruchom frontend React
-echo   manage.bat all        - Uruchom backend + frontend
+echo KOMENDY:
+echo   start         - Uruchom backend
+echo   stop          - Zatrzymaj backend
+echo   restart       - Restart backend (bez kasowania danych)
+echo   reset         - Reset backend (USUNIE DANE: kontenery + wolumeny; bez startu)
+echo   frontend      - Uruchom tylko frontend
+echo   all           - Uruchom wszystko (backend + frontend)
+echo   test          - Testuj caly system (porty, Gateway, JWT, routing)
+echo   ci-test       - Test CI/CD lokalnie przed commitowaniem
+echo   logs          - Pokaz logi (opcjonalnie: logs [nazwa_serwisu])
+echo   status        - Pokaz status systemu
+echo   help          - Pokaz te pomoc
 echo.
-echo Logi i debugowanie:
-echo   manage.bat logs       - Pokaz logi (wszystkie)
-echo   manage.bat logs-id    - Logi IdentityService
-echo   manage.bat logs-res   - Logi ReservationService
-echo   manage.bat logs-not   - Logi NotificationService
+echo PRZYKLADY:
+echo   manage.bat all
+echo   manage.bat restart
+echo   manage.bat reset
+echo   manage.bat logs identity_api
+echo   manage.bat test
 echo.
-echo Docker:
-echo   manage.bat build      - Przebuduj obrazy
-echo   manage.bat clean      - Usun obrazy i wolumeny
-echo   manage.bat ps         - Lista kontenerow
+echo SERWISY (dla logs):
+echo   postgres_db      - Baza danych PostgreSQL
+echo   identity_api     - Serwis autoryzacji
+echo   reservation_api  - Serwis rezerwacji
+echo   notification_api - Serwis powiadomien
+echo   api_gateway      - API Gateway
 echo.
-goto end
+exit /b 0
 
 :start
 echo.
@@ -61,15 +76,40 @@ echo.
 echo Czekanie na inicjalizacje (20 sekund)...
 timeout /t 20 /nobreak >nul
 echo.
-echo %GREEN%Backend uruchomiony!%NC%
+
+curl -s -f http://localhost:5000/health >nul 2>&1 && (
+    echo %GREEN%API Gateway dziala na http://localhost:5000%NC%
+) || (
+    echo %RED%API Gateway nie odpowiada!%NC%
+    echo Sprawdz logi: docker-compose logs api_gateway
+)
+
+curl -s -f http://localhost:5001/health >nul 2>&1 && (
+    echo %GREEN%IdentityService dziala na http://localhost:5001/swagger%NC%
+) || (
+    echo %RED%IdentityService nie odpowiada!%NC%
+    echo Sprawdz logi: docker-compose logs identity_api
+)
+
+curl -s -f http://localhost:5002/health >nul 2>&1 && (
+    echo %GREEN%ReservationService dziala na http://localhost:5002/swagger%NC%
+) || (
+    echo %RED%ReservationService nie odpowiada!%NC%
+    echo Sprawdz logi: docker-compose logs reservation_api
+)
+
+curl -s -f http://localhost:5003/health >nul 2>&1 && (
+    echo %GREEN%NotificationService dziala na http://localhost:5003/swagger%NC%
+) || (
+    echo %RED%NotificationService nie odpowiada!%NC%
+    echo Sprawdz logi: docker-compose logs notification_api
+)
+
 echo.
-echo API Gateway:     http://localhost:5000 (glowny punkt wejscia)
-echo Identity API:    http://localhost:5001/swagger
-echo Reservation API: http://localhost:5002/swagger
-echo Notification API: http://localhost:5003/swagger
-echo RabbitMQ:        http://localhost:15672 (guest/guest)
+echo RabbitMQ UI:     http://localhost:15672 (guest/guest)
+echo PostgreSQL:      localhost:5433
 cd ..\..
-goto end
+exit /b 0
 
 :stop
 echo.
@@ -80,52 +120,73 @@ cd app\backend
 docker-compose down
 cd ..\..
 echo %GREEN%Backend zatrzymany%NC%
-goto end
+exit /b 0
 
 :restart
 echo.
 echo ========================================
-echo RESTART Z CZYSZCZENIEM
+echo RESTART BACKEND
 echo ========================================
 cd app\backend
 echo Zatrzymywanie kontenerow...
-docker-compose down -v
+docker-compose down
 echo Budowanie i uruchamianie...
-docker-compose build --no-cache
-docker-compose up -d
+docker-compose up --build -d
 echo.
 echo Czekanie na inicjalizacje (25 sekund)...
 timeout /t 25 /nobreak >nul
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+docker-compose ps
+
+echo.
+echo Testowanie API...
+curl -s http://localhost:5002/api/services >nul 2>&1 && (
+    echo Services endpoint: %GREEN%Dziala!%NC%
+) || (
+    echo Services endpoint: %RED%Nie dziala!%NC%
+)
 cd ..\..
 echo %GREEN%System zrestartowany!%NC%
-goto end
+exit /b 0
+
+:reset
+echo.
+echo ========================================
+echo RESET SYSTEMU (USUNIE DANE!)
+echo ========================================
+echo.
+echo %RED%UWAGA: Ta komenda usunie kontenery i wolumeny Docker (baza danych) i wszystkie dane.%NC%
+echo Aby kontynuowac, wpisz RESET i nacisnij Enter.
+set /p CONFIRM=
+if /i not "!CONFIRM!"=="RESET" (
+    echo Anulowano.
+    exit /b 0
+)
+cd app\backend
+echo Zatrzymywanie kontenerow i usuwanie wolumenow...
+docker-compose down -v
+cd ..\..
+echo %GREEN%Reset zakonczony. Backend jest zatrzymany.%NC%
+exit /b 0
 
 :status
 echo.
 echo ========================================
 echo STATUS SYSTEMU
 echo ========================================
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | findstr /i "backend-"
+cd app\backend
+docker-compose ps
+cd ..\..
+
 echo.
-:: Test połączeń
-echo Testowanie połaczen...
-curl -s http://localhost:5001/health >nul 2>&1 && (
-    echo %GREEN%[OK]%NC% IdentityService
-) || (
-    echo %RED%[FAIL]%NC% IdentityService
-)
-curl -s http://localhost:5002/health >nul 2>&1 && (
-    echo %GREEN%[OK]%NC% ReservationService
-) || (
-    echo %RED%[FAIL]%NC% ReservationService
-)
-curl -s http://localhost:5003/health >nul 2>&1 && (
-    echo %GREEN%[OK]%NC% NotificationService
-) || (
-    echo %RED%[FAIL]%NC% NotificationService
-)
-goto end
+echo Porty:
+curl -s -f http://localhost:5001/health >nul 2>&1 && (echo 5001: IdentityService %GREEN%%NC%) || (echo 5001: IdentityService %RED%%NC%)
+curl -s -f http://localhost:5002/health >nul 2>&1 && (echo 5002: ReservationService %GREEN%%NC%) || (echo 5002: ReservationService %RED%%NC%)
+curl -s -f http://localhost:5173 >nul 2>&1 && (echo 5173: Frontend React %GREEN%%NC%) || (echo 5173: Frontend React %RED%%NC%)
+
+for /f "delims=" %%i in ('powershell -NoProfile -Command "[bool](Test-NetConnection localhost -Port 5433 -InformationLevel Quiet)"') do set "PG_OK=%%i"
+if /i "!PG_OK!"=="True" (echo 5433: PostgreSQL %GREEN%%NC%) else (echo 5433: PostgreSQL %RED%%NC%)
+exit /b 0
 
 :test
 echo.
@@ -133,54 +194,105 @@ echo ========================================
 echo TESTOWANIE SYSTEMU
 echo ========================================
 echo.
-echo 1. Test portow:
-curl -s http://localhost:5000/health >nul 2>&1 && (
-    echo API Gateway: [OK]
+echo 1. Testowanie portow...
+
+curl -s -f http://localhost:5000/health >nul 2>&1 && (
+    echo API Gateway: %GREEN%Port otwarty%NC%
 ) || (
-    echo API Gateway: [FAIL]
+    echo API Gateway: %RED%Port zamkniety%NC%
 )
-curl -s http://localhost:5001/health >nul 2>&1 && (
-    echo IdentityService: [OK]
+
+curl -s -f http://localhost:5001/health >nul 2>&1 && (
+    echo IdentityService: %GREEN%Port otwarty%NC%
 ) || (
-    echo IdentityService: [FAIL]
+    echo IdentityService: %RED%Port zamkniety%NC%
 )
-curl -s http://localhost:5002/health >nul 2>&1 && (
-    echo ReservationService: [OK]
+
+curl -s -f http://localhost:5002/health >nul 2>&1 && (
+    echo ReservationService: %GREEN%Port otwarty%NC%
 ) || (
-    echo ReservationService: [FAIL]
+    echo ReservationService: %RED%Port zamkniety%NC%
 )
-curl -s http://localhost:5003/health >nul 2>&1 && (
-    echo NotificationService: [OK]
+
+curl -s -f http://localhost:5003/health >nul 2>&1 && (
+    echo NotificationService: %GREEN%Port otwarty%NC%
 ) || (
-    echo NotificationService: [FAIL]
+    echo NotificationService: %RED%Port zamkniety%NC%
+)
+
+curl -s -f http://guest:guest@localhost:15672/api/overview >nul 2>&1 && (
+    echo RabbitMQ: %GREEN%Management UI dziala%NC%
+) || (
+    echo RabbitMQ: %RED%Management UI niedostepne%NC%
 )
 echo.
 echo 2. Test routingu przez API Gateway:
-curl -s http://localhost:5000/identity/health >nul 2>&1 && (
-    echo Gateway -^> Identity: [OK]
+curl -s -f http://localhost:5000/identity/health >nul 2>&1 && (
+    echo Gateway -^> Identity: %GREEN%Routing dziala%NC%
 ) || (
-    echo Gateway -^> Identity: [FAIL]
+    echo Gateway -^> Identity: %RED%Routing nie dziala%NC%
 )
-curl -s http://localhost:5000/reservation/health >nul 2>&1 && (
-    echo Gateway -^> Reservation: [OK]
+curl -s -f http://localhost:5000/reservation/health >nul 2>&1 && (
+    echo Gateway -^> Reservation: %GREEN%Routing dziala%NC%
 ) || (
-    echo Gateway -^> Reservation: [FAIL]
-)
-echo.
-echo 3. Test JWT przez Gateway:
-for /f "delims=" %%i in ('curl -s -X POST http://localhost:5000/identity/account/login -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"Test123!\"}"') do set LOGIN_RESPONSE=%%i
-echo %LOGIN_RESPONSE% | findstr "accessToken" >nul && (
-    echo Login JWT: [OK]
-) || (
-    echo Login JWT: [FAIL]
+    echo Gateway -^> Reservation: %RED%Routing nie dziala%NC%
 )
 echo.
-echo 4. Test rejestracji przez Gateway:
-curl -X POST http://localhost:5000/identity/account/register ^
-  -H "Content-Type: application/json" ^
-  -d "{\"email\":\"test%RANDOM%@example.com\",\"password\":\"Test123!\",\"firstName\":\"Test\",\"lastName\":\"User\"}"
+echo 3. Test JWT Authentication przez Gateway...
+set "ACCESS_TOKEN="
+for /f "delims=" %%i in ('curl -s -X POST http://localhost:5000/identity/account/login -H "Content-Type: application/json" -d "{\"loginIdentifier\":\"test@example.com\",\"password\":\"Test123!\"}" ^| powershell -NoProfile -Command "$json=[Console]::In.ReadToEnd(); try { ($json ^| ConvertFrom-Json).accessToken } catch { '' }"') do set "ACCESS_TOKEN=%%i"
+
+if not "!ACCESS_TOKEN!"=="" (
+    echo Login JWT: %GREEN%Dziala%NC%
+
+    for /f "delims=" %%i in ('curl -s -o nul -w "%%{http_code}" -H "Authorization: Bearer !ACCESS_TOKEN!" http://localhost:5000/identity/audit/my') do set "AUTH_STATUS=%%i"
+    if "!AUTH_STATUS!"=="200" (
+        echo Autoryzacja JWT: %GREEN%Dziala%NC%
+    ) else (
+        echo Autoryzacja JWT: %RED%Problem (HTTP !AUTH_STATUS!)%NC%
+    )
+) else (
+    echo Login JWT: %RED%Nie dziala%NC%
+)
+
 echo.
-goto end
+echo 4. Test rejestracji przez API Gateway...
+for /f "delims=" %%i in ('powershell -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()"') do set "TEST_TS=%%i"
+set "TEST_EMAIL=test!TEST_TS!@example.com"
+set "TEST_USERNAME=testuser!TEST_TS!"
+set "TEST_PHONE=+48!TEST_TS:~1!"
+
+for /f "delims=" %%i in ('curl -s -o nul -w "%%{http_code}" -X POST http://localhost:5000/identity/account/register -H "Content-Type: application/json" -d "{\"email\":\"!TEST_EMAIL!\",\"username\":\"!TEST_USERNAME!\",\"password\":\"Test123!\",\"firstName\":\"Test\",\"lastName\":\"User\",\"phone\":\"!TEST_PHONE!\"}"') do set "REG_STATUS=%%i"
+
+if "!REG_STATUS!"=="200" (
+    echo %GREEN%Rejestracja dziala!%NC%
+
+    set "TEST_ACCESS_TOKEN="
+    for /f "delims=" %%i in ('curl -s -X POST http://localhost:5000/identity/account/login -H "Content-Type: application/json" -d "{\"loginIdentifier\":\"!TEST_EMAIL!\",\"password\":\"Test123!\"}" ^| powershell -NoProfile -Command "$json=[Console]::In.ReadToEnd(); try { ($json ^| ConvertFrom-Json).accessToken } catch { '' }"') do set "TEST_ACCESS_TOKEN=%%i"
+
+    if not "!TEST_ACCESS_TOKEN!"=="" (
+        for /f "delims=" %%i in ('curl -s -o nul -w "%%{http_code}" -X DELETE -H "Authorization: Bearer !TEST_ACCESS_TOKEN!" http://localhost:5000/identity/account/delete') do set "DELETE_STATUS=%%i"
+        if "!DELETE_STATUS!"=="200" (
+            echo Testowy uzytkownik rejestracji zostal usuniety.
+        ) else (
+            echo %RED%Nie udalo sie usunac testowego uzytkownika rejestracji (HTTP !DELETE_STATUS!)%NC%
+        )
+    ) else (
+        echo %RED%Nie udalo sie zalogowac testowego uzytkownika do usuniecia.%NC%
+    )
+) else (
+    echo %RED%Problem z rejestracja (HTTP !REG_STATUS!)%NC%
+)
+
+echo.
+echo 5. Test pobierania danych przez Gateway...
+curl -s http://localhost:5000/reservation/services | findstr /i "serviceName" >nul && (
+    echo %GREEN%API zwraca dane o uslugach%NC%
+) || (
+    echo %RED%API nie zwraca poprawnych danych%NC%
+)
+
+exit /b 0
 
 :frontend
 echo.
@@ -188,10 +300,14 @@ echo ========================================
 echo URUCHAMIANIE FRONTEND
 echo ========================================
 cd app\frontend\my-frontend
+if not exist node_modules (
+    echo Instalowanie pakietow npm...
+    npm install
+)
 echo Uruchamianie React...
 npm run dev
 cd ..\..\..
-goto end
+exit /b 0
 
 :all
 echo.
@@ -202,36 +318,49 @@ call :start
 echo.
 echo Za 3 sekundy uruchomi sie frontend...
 timeout /t 3 /nobreak >nul
-start cmd /k "cd app\frontend\my-frontend && npm run dev"
 echo.
 echo %GREEN%System gotowy!%NC%
 echo.
-echo Aplikacja:       http://localhost:5173
-echo Identity API:    http://localhost:5001/swagger
-echo Reservation API: http://localhost:5002/swagger
+echo Dostepne adresy:
+echo -------------------
+echo Aplikacja:          http://localhost:5173
+echo %GREEN%API Gateway:        http://localhost:5000%NC% (glowny punkt wejscia)
+echo Identity API:       http://localhost:5001/swagger
+echo Reservation API:    http://localhost:5002/swagger
+echo Notification API:   http://localhost:5003/swagger
+echo RabbitMQ UI:        http://localhost:15672 (guest/guest)
+echo PostgreSQL:         localhost:5433
 echo.
 echo Dane testowe:
 echo   Email: test@example.com
 echo   Haslo: Test123!
-goto end
+echo.
+echo Aby zatrzymac: Ctrl+C, potem: manage.bat stop
+echo.
+call :frontend
+exit /b 0
 
 :logs
 cd app\backend
-docker-compose logs -f
+if "%~1"=="" (
+    docker-compose logs --tail=50
+) else (
+    docker-compose logs --tail=50 %~1
+)
 cd ..\..
-goto end
+exit /b 0
 
 :logs-id
 docker logs -f backend-identity_api-1
-goto end
+exit /b 0
 
 :logs-res
 docker logs -f backend-reservation_api-1
-goto end
+exit /b 0
 
 :logs-not
 docker logs -f backend-notification_api-1
-goto end
+exit /b 0
 
 :build
 echo.
@@ -242,7 +371,7 @@ cd app\backend
 docker-compose build --no-cache
 cd ..\..
 echo %GREEN%Obrazy zbudowane!%NC%
-goto end
+exit /b 0
 
 :clean
 echo.
@@ -254,11 +383,11 @@ docker-compose down -v
 docker system prune -af
 cd ..\..
 echo %GREEN%Wyczyszczono!%NC%
-goto end
+exit /b 0
 
 :ps
 docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
-goto end
+exit /b 0
 
 :ci-test
 echo.
@@ -268,9 +397,10 @@ echo ========================================
 echo.
 echo 1. Sprawdzanie formatu ostatniego commita...
 for /f "delims=" %%i in ('git log -1 --pretty^=%%B') do set LAST_COMMIT=%%i
-echo !LAST_COMMIT! | findstr /r "^feat\|^fix\|^docs\|^style\|^refactor\|^test\|^chore\|^ci\|^perf\|^build" >nul && (
+echo !LAST_COMMIT! | powershell -NoProfile -Command "$line=[Console]::In.ReadLine(); if($line -match '^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .+') { exit 0 } else { exit 1 }" >nul
+if not errorlevel 1 (
     echo %GREEN%[OK]%NC% Format commita poprawny: !LAST_COMMIT!
-) || (
+) else (
     echo %RED%[FAIL]%NC% Niepoprawny format commita
     echo Przyklad: 'feat: Add new feature' lub 'fix(api): Resolve issue'
 )
@@ -347,7 +477,19 @@ docker-compose config >nul 2>&1 && (
 )
 cd ..\..
 echo.
-echo 6. Sprawdzanie brancha...
+echo 6. Sprawdzanie wrazliwych danych...
+set "FOUND_SENSITIVE="
+for /f "delims=" %%i in ('powershell -NoProfile -Command "$patterns='password\s*[:=]\s*[^\s\"\''`]+|secret\s*[:=]\s*[^\s\"\''`]+|token\s*[:=]\s*[^\s\"\''`]+|api[_-]?key\s*[:=]\s*[^\s\"\''`]+'; $files=(git diff --staged --name-only 2^>$null); foreach($f in $files){ if($f -match '\\.example$' -or $f -match 'test'){ continue }; if(Test-Path $f){ $m=Select-String -Path $f -Pattern $patterns -CaseSensitive:$false -ErrorAction SilentlyContinue ^| Select-Object -First 1; if($m){ Write-Output (\"$f:$($m.LineNumber):$($m.Line)\"); break } } }"') do set "FOUND_SENSITIVE=%%i"
+if defined FOUND_SENSITIVE (
+    echo %RED%[FAIL]%NC% Znaleziono potencjalne wrazliwe dane w commitach!
+    echo Sprawdz czy nie committujesz hasel lub kluczy API
+    for /f "tokens=1,2 delims=:" %%a in ("!FOUND_SENSITIVE!") do echo %%a:%%b
+) else (
+    echo %GREEN%[OK]%NC% Brak wrazliwych danych w stagowanych plikach
+)
+
+echo.
+echo 7. Sprawdzanie brancha...
 for /f "delims=" %%i in ('git branch --show-current') do set CURRENT_BRANCH=%%i
 echo Branch: !CURRENT_BRANCH!
 if "!CURRENT_BRANCH!"=="main" (
@@ -375,9 +517,11 @@ echo.
 echo Wskazowki:
 echo - Uzyj 'scripts\quick-commit.sh' dla interaktywnego commita
 echo - Sprawdz Actions tab na GitHub po pushu
+echo - Uzyj 'git push --dry-run' aby sprawdzic co zostanie wypchniete
+echo - Dokumentacja: docs\CI-CD-SETUP.md
 echo.
 echo %GREEN%Test lokalny zakonczony!%NC%
-goto end
+exit /b 0
 
 :invalid
 echo %RED%Nieznana komenda: %COMMAND%%NC%
@@ -386,3 +530,4 @@ goto end
 
 :end
 endlocal
+

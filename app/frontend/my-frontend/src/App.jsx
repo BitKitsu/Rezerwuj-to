@@ -6,6 +6,7 @@ import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import ServicesPage from './pages/ServicesPage'
 import SalonsPage from './pages/SalonsPage'
+import ServiceDetailsPage from './pages/ServiceDetailsPage'
 import AccountPage from './pages/AccountPage'
 import AdminPanel from './pages/AdminPanel'
 import CompanyPanel from './pages/CompanyPanel'
@@ -43,6 +44,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/services" element={<ServicesPage />} />
+          <Route path="/services/:id" element={<ServiceDetailsPage />} />
           <Route path="/salons" element={<SalonsPage />} />
           <Route
             path="/dashboard"

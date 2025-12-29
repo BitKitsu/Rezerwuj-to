@@ -475,6 +475,10 @@ h2 {
   text-decoration: none;
 }
 
+.btn:hover {
+  text-decoration: none;
+}
+
 .btn-primary {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
@@ -484,6 +488,13 @@ h2 {
 .btn-primary:hover {
   background-color: var(--color-primary-strong);
   border-color: var(--color-primary-strong);
+  color: white;
+  text-decoration: none;
+}
+
+.btn-primary:focus-visible {
+  color: white;
+  text-decoration: none;
 }
 
 .btn-ghost {

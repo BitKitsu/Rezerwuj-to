@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { servicesAPI, companiesAPI } from "../services/api";
 
 const demoServices = [
@@ -21,6 +22,7 @@ const demoServices = [
 ];
 
 function ServicesPage() {
+  const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -221,7 +223,17 @@ function ServicesPage() {
                 role="button"
                 tabIndex={0}
                 onClick={() => {
-                  // TODO: nawigacja do szczegółów usługi / ścieżki rezerwacji
+                  navigate(`/services/${service.id}`, {
+                    state: { service },
+                  });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigate(`/services/${service.id}`, {
+                      state: { service },
+                    });
+                  }
                 }}
               >
                 <div className="service-card-header">
@@ -250,7 +262,7 @@ function ServicesPage() {
 
                 <div className="service-actions">
                   <span className="service-note">
-                    Rezerwacji dokonasz po zalogowaniu w panelu.
+                    Kliknij usługę, aby zobaczyć szczegóły i zarezerwować termin.
                   </span>
                 </div>
               </article>

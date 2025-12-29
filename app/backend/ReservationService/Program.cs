@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Services;
 using ReservationService.Models;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,10 @@ builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -55,24 +59,54 @@ using (var scope = app.Services.CreateScope())
             if (!dbContext.Services.Any())
             {
                 logger.LogInformation("Seeding test data...");
-                
-                var testCompany = new Company
+
+                Company testCompany;
+                if (!dbContext.Companies.Any())
                 {
-                    Id = 1,
-                    CompanyName = "Przykładowy Fryzjer",
-                    Description = "Najlepszy fryzjer w mieście",
-                    StreetName = "ul. Testowa",
-                    StreetNumber = "123",
-                    ApartmentNumber = null,
-                    City = "Warszawa",
-                    PostalCode = "00-001",
-                    Country = "Polska",
-                    Phone = "+48 111 222 333",
-                    Email = "fryzjer@example.com"
-                };
-                
-                dbContext.Companies.Add(testCompany);
-                
+                    testCompany = new Company
+                    {
+                        CompanyName = "Przykładowy Fryzjer",
+                        Description = "Najlepszy fryzjer w mieście",
+                        StreetName = "ul. Testowa",
+                        StreetNumber = "123",
+                        ApartmentNumber = null,
+                        City = "Warszawa",
+                        PostalCode = "00-001",
+                        Country = "Polska",
+                        Phone = "+48 111 222 333",
+                        Email = "fryzjer@example.com"
+                    };
+
+                    dbContext.Companies.Add(testCompany);
+                    dbContext.SaveChanges();
+                }
+                else
+                {
+                    testCompany = dbContext.Companies.OrderBy(c => c.Id).First();
+                }
+
+                var testBranch = dbContext.Branches
+                    .OrderBy(b => b.Id)
+                    .FirstOrDefault(b => b.CompanyId == testCompany.Id)
+                    ?? new Branch
+                    {
+                        CompanyId = testCompany.Id,
+                        BranchName = "Oddział główny",
+                        StreetName = testCompany.StreetName,
+                        StreetNumber = testCompany.StreetNumber,
+                        ApartmentNumber = testCompany.ApartmentNumber,
+                        City = testCompany.City,
+                        PostalCode = testCompany.PostalCode,
+                        Country = testCompany.Country,
+                        CreatedAt = DateTime.UtcNow
+                    };
+
+                if (testBranch.Id == 0)
+                {
+                    dbContext.Branches.Add(testBranch);
+                    dbContext.SaveChanges();
+                }
+
                 var services = new[]
                 {
                     new Service
@@ -81,7 +115,8 @@ using (var scope = app.Services.CreateScope())
                         Description = "Klasyczne strzyżenie męskie",
                         DurationMinutes = 30,
                         Price = 50.00M,
-                        CompanyId = 1
+                        CompanyId = testCompany.Id,
+                        BranchId = testBranch.Id
                     },
                     new Service
                     {
@@ -89,7 +124,8 @@ using (var scope = app.Services.CreateScope())
                         Description = "Strzyżenie i modelowanie",
                         DurationMinutes = 60,
                         Price = 80.00M,
-                        CompanyId = 1
+                        CompanyId = testCompany.Id,
+                        BranchId = testBranch.Id
                     },
                     new Service
                     {
@@ -97,7 +133,8 @@ using (var scope = app.Services.CreateScope())
                         Description = "Farbowanie włosów",
                         DurationMinutes = 120,
                         Price = 200.00M,
-                        CompanyId = 1
+                        CompanyId = testCompany.Id,
+                        BranchId = testBranch.Id
                     }
                 };
                 

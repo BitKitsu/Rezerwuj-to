@@ -9,6 +9,9 @@ public class Service
     public int DurationMinutes { get; set; } = 60;
     
     // Foreign keys
+    public int BranchId { get; set; }
+    public Branch? Branch { get; set; }
+
     public int CompanyId { get; set; }
     public Company? Company { get; set; }
     

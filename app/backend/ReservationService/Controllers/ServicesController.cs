@@ -23,6 +23,7 @@ public class ServicesController : ControllerBase
     public async Task<ActionResult<PagedResult<ServiceListItemDto>>> GetServices(
         [FromQuery] string? query,
         [FromQuery] string? city,
+        [FromQuery] int? branchId,
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
@@ -35,6 +36,7 @@ public class ServicesController : ControllerBase
 
         var servicesQuery = _context.Services
             .Include(s => s.Company)
+            .Include(s => s.Branch)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query))
@@ -50,8 +52,15 @@ public class ServicesController : ControllerBase
         {
             var normalizedCity = city.Trim().ToLower();
             servicesQuery = servicesQuery.Where(s =>
-                s.Company != null && s.Company.City != null &&
-                s.Company.City.ToLower().Contains(normalizedCity));
+                (s.Branch != null && s.Branch.City != null &&
+                 s.Branch.City.ToLower().Contains(normalizedCity)) ||
+                (s.Branch == null && s.Company != null && s.Company.City != null &&
+                 s.Company.City.ToLower().Contains(normalizedCity)));
+        }
+
+        if (branchId.HasValue)
+        {
+            servicesQuery = servicesQuery.Where(s => s.BranchId == branchId.Value);
         }
 
         servicesQuery = sort switch
@@ -75,8 +84,10 @@ public class ServicesController : ControllerBase
                 s.DurationMinutes,
                 s.Price,
                 s.CompanyId,
+                s.BranchId,
                 s.Company != null ? s.Company.CompanyName : string.Empty,
-                s.Company != null ? s.Company.City : null
+                s.Branch != null ? s.Branch.BranchName : string.Empty,
+                s.Branch != null ? s.Branch.City : (s.Company != null ? s.Company.City : null)
             ))
             .ToListAsync();
 
@@ -90,6 +101,7 @@ public class ServicesController : ControllerBase
     {
         var service = await _context.Services
             .Include(s => s.Company)
+            .Include(s => s.Branch)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (service == null)
@@ -103,10 +115,12 @@ public class ServicesController : ControllerBase
 
     // GET: api/services/company/1
     [HttpGet("company/{companyId}")]
-    public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCompany(int companyId)
+    public async Task<ActionResult<IEnumerable<Service>>> GetServicesByCompany(
+        int companyId,
+        [FromQuery] int? branchId)
     {
         return await _context.Services
-            .Where(s => s.CompanyId == companyId)
+            .Where(s => s.CompanyId == companyId && (!branchId.HasValue || s.BranchId == branchId.Value))
             .ToListAsync();
     }
 
@@ -116,10 +130,18 @@ public class ServicesController : ControllerBase
     {
         _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", dto.ServiceName);
 
-        var companyExists = await _context.Companies.AnyAsync(c => c.Id == dto.CompanyId);
-        if (!companyExists)
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == dto.BranchId);
+
+        if (branch == null)
         {
-            return BadRequest(new { message = "Firma o podanym ID nie istnieje." });
+            return BadRequest(new { message = "Oddział o podanym ID nie istnieje." });
+        }
+
+        if (branch.CompanyId != dto.CompanyId)
+        {
+            return BadRequest(new { message = "Oddział nie należy do podanej firmy." });
         }
 
         var service = new Service
@@ -128,7 +150,8 @@ public class ServicesController : ControllerBase
             Description = dto.Description ?? string.Empty,
             Price = dto.Price,
             DurationMinutes = dto.DurationMinutes,
-            CompanyId = dto.CompanyId
+            CompanyId = dto.CompanyId,
+            BranchId = dto.BranchId
         };
 
         _context.Services.Add(service);
@@ -147,13 +170,18 @@ public class ServicesController : ControllerBase
             return NotFound();
         }
 
-        if (service.CompanyId != dto.CompanyId)
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == dto.BranchId);
+
+        if (branch == null)
         {
-            var companyExists = await _context.Companies.AnyAsync(c => c.Id == dto.CompanyId);
-            if (!companyExists)
-            {
-                return BadRequest(new { message = "Firma o podanym ID nie istnieje." });
-            }
+            return BadRequest(new { message = "Oddział o podanym ID nie istnieje." });
+        }
+
+        if (branch.CompanyId != dto.CompanyId)
+        {
+            return BadRequest(new { message = "Oddział nie należy do podanej firmy." });
         }
 
         service.ServiceName = dto.ServiceName;
@@ -161,6 +189,7 @@ public class ServicesController : ControllerBase
         service.Price = dto.Price;
         service.DurationMinutes = dto.DurationMinutes;
         service.CompanyId = dto.CompanyId;
+        service.BranchId = dto.BranchId;
 
         try
         {

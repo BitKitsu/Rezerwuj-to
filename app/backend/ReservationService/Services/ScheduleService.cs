@@ -6,8 +6,8 @@ namespace ReservationService.Services;
 
 public interface IScheduleService
 {
-    Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int serviceId, DateTime date);
-    Task<List<AvailableSlot>> GetAvailableSlotsAsync(int companyId, int serviceId, DateTime date);
+    Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int branchId, int serviceId, DateTime date);
+    Task<List<AvailableSlot>> GetAvailableSlotsAsync(int companyId, int branchId, int serviceId, DateTime date);
     Task<bool> BookTimeSlotAsync(int slotId, int appointmentId);
     Task<Schedule> CreateScheduleAsync(Schedule schedule);
     Task UpdateScheduleAsync(Schedule schedule);
@@ -24,14 +24,15 @@ public class ScheduleService : IScheduleService
         _logger = logger;
     }
     
-    public async Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int serviceId, DateTime date)
+    public async Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int branchId, int serviceId, DateTime date)
     {
         // Pobierz harmonogram dla dnia tygodnia
         var dayOfWeek = date.DayOfWeek;
         var schedules = await _context.Schedules
-            .Where(s => s.CompanyId == companyId 
-                     && s.ServiceId == serviceId 
-                     && s.DayOfWeek == dayOfWeek 
+            .Where(s => s.CompanyId == companyId
+                     && s.BranchId == branchId
+                     && s.ServiceId == serviceId
+                     && s.DayOfWeek == dayOfWeek
                      && s.IsActive)
             .ToListAsync();
             
@@ -41,8 +42,19 @@ public class ScheduleService : IScheduleService
             return new List<TimeSlot>();
         }
         
-        var service = await _context.Services.FindAsync(serviceId);
-        if (service == null) return new List<TimeSlot>();
+        var service = await _context.Services
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == serviceId && s.CompanyId == companyId && s.BranchId == branchId);
+
+        if (service == null)
+        {
+            _logger.LogWarning(
+                "Service not found or does not belong to company {CompanyId} and branch {BranchId}. ServiceId={ServiceId}",
+                companyId,
+                branchId,
+                serviceId);
+            return new List<TimeSlot>();
+        }
         
         var slots = new List<TimeSlot>();
         
@@ -55,7 +67,8 @@ public class ScheduleService : IScheduleService
             {
                 // Sprawdź czy slot nie istnieje już w bazie
                 var existingSlot = await _context.TimeSlots
-                    .FirstOrDefaultAsync(ts => ts.CompanyId == companyId 
+                    .FirstOrDefaultAsync(ts => ts.CompanyId == companyId
+                                             && ts.BranchId == branchId
                                              && ts.ServiceId == serviceId
                                              && ts.SlotStart == currentTime);
                                              
@@ -64,6 +77,7 @@ public class ScheduleService : IScheduleService
                     var slot = new TimeSlot
                     {
                         CompanyId = companyId,
+                        BranchId = branchId,
                         ServiceId = serviceId,
                         StaffId = schedule.StaffId,
                         SlotStart = currentTime,
@@ -87,14 +101,15 @@ public class ScheduleService : IScheduleService
         return slots;
     }
     
-    public async Task<List<AvailableSlot>> GetAvailableSlotsAsync(int companyId, int serviceId, DateTime date)
+    public async Task<List<AvailableSlot>> GetAvailableSlotsAsync(int companyId, int branchId, int serviceId, DateTime date)
     {
         // Najpierw wygeneruj sloty jeśli nie istnieją
-        await GenerateTimeSlotsAsync(companyId, serviceId, date);
+        await GenerateTimeSlotsAsync(companyId, branchId, serviceId, date);
         
         // Pobierz dostępne sloty
         var slots = await _context.TimeSlots
-            .Where(ts => ts.CompanyId == companyId 
+            .Where(ts => ts.CompanyId == companyId
+                      && ts.BranchId == branchId
                       && ts.ServiceId == serviceId
                       && ts.SlotStart.Date == date.Date
                       && ts.IsAvailable 

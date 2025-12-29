@@ -26,11 +26,14 @@ public class SchedulesController : ControllerBase
     
     // GET: api/schedules/company/1
     [HttpGet("company/{companyId}")]
-    public async Task<ActionResult<List<Schedule>>> GetCompanySchedules(int companyId)
+    public async Task<ActionResult<List<Schedule>>> GetCompanySchedules(
+        int companyId,
+        [FromQuery] int? branchId)
     {
         var schedules = await _context.Schedules
-            .Where(s => s.CompanyId == companyId)
+            .Where(s => s.CompanyId == companyId && (!branchId.HasValue || s.BranchId == branchId.Value))
             .Include(s => s.Service)
+            .Include(s => s.Branch)
             .OrderBy(s => s.DayOfWeek)
             .ThenBy(s => s.StartTime)
             .ToListAsync();
@@ -42,10 +45,11 @@ public class SchedulesController : ControllerBase
     [HttpGet("available-slots")]
     public async Task<ActionResult<List<AvailableSlot>>> GetAvailableSlots(
         [FromQuery] int companyId,
+        [FromQuery] int branchId,
         [FromQuery] int serviceId,
         [FromQuery] DateTime date)
     {
-        var slots = await _scheduleService.GetAvailableSlotsAsync(companyId, serviceId, date);
+        var slots = await _scheduleService.GetAvailableSlotsAsync(companyId, branchId, serviceId, date);
         return Ok(slots);
     }
     
@@ -53,9 +57,33 @@ public class SchedulesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Schedule>> CreateSchedule([FromBody] CreateScheduleDto dto)
     {
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == dto.BranchId);
+
+        if (branch == null)
+        {
+            return BadRequest("Invalid branch ID");
+        }
+
+        if (branch.CompanyId != dto.CompanyId)
+        {
+            return BadRequest("Branch does not belong to company");
+        }
+
+        var serviceExistsInBranch = await _context.Services
+            .AsNoTracking()
+            .AnyAsync(s => s.Id == dto.ServiceId && s.CompanyId == dto.CompanyId && s.BranchId == dto.BranchId);
+
+        if (!serviceExistsInBranch)
+        {
+            return BadRequest("Invalid service ID for specified company/branch");
+        }
+
         var schedule = new Schedule
         {
             CompanyId = dto.CompanyId,
+            BranchId = dto.BranchId,
             ServiceId = dto.ServiceId,
             StaffId = dto.StaffId,
             DayOfWeek = dto.DayOfWeek,
@@ -66,8 +94,11 @@ public class SchedulesController : ControllerBase
         
         var created = await _scheduleService.CreateScheduleAsync(schedule);
         
-        _logger.LogInformation("Schedule created for company {CompanyId}, service {ServiceId}", 
-                               dto.CompanyId, dto.ServiceId);
+        _logger.LogInformation(
+            "Schedule created for company {CompanyId}, branch {BranchId}, service {ServiceId}",
+            dto.CompanyId,
+            dto.BranchId,
+            dto.ServiceId);
                                
         return CreatedAtAction(nameof(GetCompanySchedules), 
                               new { companyId = created.CompanyId }, 
@@ -138,6 +169,7 @@ public class SchedulesController : ControllerBase
 public class CreateScheduleDto
 {
     public int CompanyId { get; set; }
+    public int BranchId { get; set; }
     public int ServiceId { get; set; }
     public string? StaffId { get; set; }
     public DayOfWeek DayOfWeek { get; set; }

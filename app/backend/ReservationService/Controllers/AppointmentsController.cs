@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
+using ReservationService.Services;
 
 namespace ReservationService.Controllers;
 
@@ -10,11 +11,16 @@ namespace ReservationService.Controllers;
 public class AppointmentsController : ControllerBase
 {
     private readonly ReservationDbContext _context;
+    private readonly IScheduleService _scheduleService;
     private readonly ILogger<AppointmentsController> _logger;
 
-    public AppointmentsController(ReservationDbContext context, ILogger<AppointmentsController> logger)
+    public AppointmentsController(
+        ReservationDbContext context,
+        IScheduleService scheduleService,
+        ILogger<AppointmentsController> logger)
     {
         _context = context;
+        _scheduleService = scheduleService;
         _logger = logger;
     }
 
@@ -24,6 +30,7 @@ public class AppointmentsController : ControllerBase
     {
         return await _context.Appointments
             .Include(a => a.Company)
+            .Include(a => a.Branch)
             .Include(a => a.Service)
             .OrderBy(a => a.DateStart)
             .ToListAsync();
@@ -35,6 +42,7 @@ public class AppointmentsController : ControllerBase
     {
         var appointment = await _context.Appointments
             .Include(a => a.Company)
+            .Include(a => a.Branch)
             .Include(a => a.Service)
             .FirstOrDefaultAsync(a => a.Id == id);
 
@@ -48,7 +56,7 @@ public class AppointmentsController : ControllerBase
 
     // GET: api/appointments/available-slots?serviceId=1&date=2025-11-10
     [HttpGet("available-slots")]
-    public async Task<ActionResult<IEnumerable<TimeSlot>>> GetAvailableSlots(
+    public async Task<ActionResult<List<AvailableSlot>>> GetAvailableSlots(
         [FromQuery] int serviceId, 
         [FromQuery] DateTime date)
     {
@@ -58,43 +66,13 @@ public class AppointmentsController : ControllerBase
             return NotFound("Service not found");
         }
 
-        // Pobierz istniejące rezerwacje dla danego dnia
-        var existingAppointments = await _context.Appointments
-            .Where(a => a.ServiceId == serviceId 
-                && a.DateStart.Date == date.Date
-                && a.Status != "cancelled")
-            .OrderBy(a => a.DateStart)
-            .ToListAsync();
+        var slots = await _scheduleService.GetAvailableSlotsAsync(
+            service.CompanyId,
+            service.BranchId,
+            service.Id,
+            date);
 
-        // Generuj dostępne sloty (przykładowe godziny pracy 9:00-17:00)
-        var availableSlots = new List<TimeSlot>();
-        var startTime = date.Date.AddHours(9);
-        var endTime = date.Date.AddHours(17);
-        var slotDuration = TimeSpan.FromMinutes(service.DurationMinutes);
-
-        var currentSlot = startTime;
-        while (currentSlot.Add(slotDuration) <= endTime)
-        {
-            var slotEnd = currentSlot.Add(slotDuration);
-            
-            // Sprawdź czy slot nie koliduje z istniejącymi rezerwacjami
-            bool isAvailable = !existingAppointments.Any(a => 
-                (currentSlot >= a.DateStart && currentSlot < a.DateEnd) ||
-                (slotEnd > a.DateStart && slotEnd <= a.DateEnd));
-
-            if (isAvailable)
-            {
-                availableSlots.Add(new TimeSlot 
-                { 
-                    Start = currentSlot, 
-                    End = slotEnd 
-                });
-            }
-
-            currentSlot = currentSlot.AddMinutes(30); // Co 30 minut
-        }
-
-        return availableSlots;
+        return Ok(slots);
     }
 
     // POST: api/appointments
@@ -110,7 +88,9 @@ public class AppointmentsController : ControllerBase
 
         // Sprawdź czy termin jest wolny
         var conflictingAppointment = await _context.Appointments
-            .AnyAsync(a => a.ServiceId == dto.ServiceId 
+            .AnyAsync(a => a.CompanyId == service.CompanyId
+                && a.BranchId == service.BranchId
+                && a.ServiceId == dto.ServiceId
                 && a.StaffId == dto.StaffId
                 && a.Status != "cancelled"
                 && ((dto.DateStart >= a.DateStart && dto.DateStart < a.DateEnd) ||
@@ -124,6 +104,7 @@ public class AppointmentsController : ControllerBase
         var appointment = new Appointment
         {
             CompanyId = service.CompanyId,
+            BranchId = service.BranchId,
             ServiceId = dto.ServiceId,
             CustomerId = dto.CustomerId,
             StaffId = dto.StaffId,
@@ -201,10 +182,4 @@ public class AppointmentCreateDto
     public string StaffId { get; set; } = string.Empty;
     public DateTime DateStart { get; set; }
     public DateTime DateEnd { get; set; }
-}
-
-public class TimeSlot
-{
-    public DateTime Start { get; set; }
-    public DateTime End { get; set; }
 }

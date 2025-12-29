@@ -97,7 +97,6 @@ public class CompaniesController : ControllerBase
     public async Task<ActionResult<Company>> GetCompany(int id)
     {
         var company = await _context.Companies
-            .Include(c => c.Services)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (company == null)
@@ -157,6 +156,46 @@ public class CompaniesController : ControllerBase
         if (company == null)
         {
             return NotFound();
+        }
+
+        var timeSlots = await _context.TimeSlots
+            .Where(ts => ts.CompanyId == id)
+            .ToListAsync();
+        if (timeSlots.Count > 0)
+        {
+            _context.TimeSlots.RemoveRange(timeSlots);
+        }
+
+        var schedules = await _context.Schedules
+            .Where(s => s.CompanyId == id)
+            .ToListAsync();
+        if (schedules.Count > 0)
+        {
+            _context.Schedules.RemoveRange(schedules);
+        }
+
+        var appointments = await _context.Appointments
+            .Where(a => a.CompanyId == id)
+            .ToListAsync();
+        if (appointments.Count > 0)
+        {
+            _context.Appointments.RemoveRange(appointments);
+        }
+
+        var services = await _context.Services
+            .Where(s => s.CompanyId == id)
+            .ToListAsync();
+        if (services.Count > 0)
+        {
+            _context.Services.RemoveRange(services);
+        }
+
+        var branches = await _context.Branches
+            .Where(b => b.CompanyId == id)
+            .ToListAsync();
+        if (branches.Count > 0)
+        {
+            _context.Branches.RemoveRange(branches);
         }
 
         _context.Companies.Remove(company);

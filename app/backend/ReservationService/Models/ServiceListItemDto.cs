@@ -7,6 +7,8 @@ public record ServiceListItemDto(
     int DurationMinutes,
     decimal Price,
     int CompanyId,
+    int BranchId,
     string CompanyName,
+    string BranchName,
     string? City
 );

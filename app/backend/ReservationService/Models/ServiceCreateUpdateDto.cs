@@ -17,4 +17,7 @@ public class ServiceCreateUpdateDto
 
     [Required]
     public int CompanyId { get; set; }
+
+    [Required]
+    public int BranchId { get; set; }
 }

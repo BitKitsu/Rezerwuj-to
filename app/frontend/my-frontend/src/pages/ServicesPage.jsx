@@ -233,6 +233,10 @@ function ServicesPage() {
                   )}
                 </div>
 
+                {service.city && (
+                  <div className="service-location">{service.city}</div>
+                )}
+
                 {service.description && (
                   <p className="service-description">{service.description}</p>
                 )}

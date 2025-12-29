@@ -210,6 +210,15 @@ export const servicesAPI = {
   delete: (id) => reservationAPI.delete(`/services/${id}`),
 };
 
+export const branchesAPI = {
+  getAll: () => reservationAPI.get('/branches'),
+  getById: (id) => reservationAPI.get(`/branches/${id}`),
+  getByCompany: (companyId) => reservationAPI.get(`/branches/company/${companyId}`),
+  create: (data) => reservationAPI.post('/branches', data),
+  update: (id, data) => reservationAPI.put(`/branches/${id}`, data),
+  delete: (id) => reservationAPI.delete(`/branches/${id}`),
+};
+
 // ===== Company Users API (Identity) =====
 export const companyUsersAPI = {
   getUsers: () => identityAPI.get('/company/users'),

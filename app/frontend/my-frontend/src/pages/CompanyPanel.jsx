@@ -3,6 +3,7 @@ import {
   tokenManager,
   companiesAPI,
   servicesAPI,
+  branchesAPI,
   authAPI,
   companyUsersAPI,
 } from "../services/api";
@@ -12,6 +13,7 @@ const CompanyPanel = () => {
   const [activeTab, setActiveTab] = useState("details");
   const [company, setCompany] = useState(null);
   const [services, setServices] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -20,13 +22,18 @@ const CompanyPanel = () => {
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
   const [companyFormError, setCompanyFormError] = useState("");
   const [companyFormSuccess, setCompanyFormSuccess] = useState("");
-  const [citySuggestions] = useState([]);
+  const [citySuggestions, setCitySuggestions] = useState([]);
 
   // Services form (for create/edit)
   const [serviceFormVisible, setServiceFormVisible] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [serviceFormSubmitting, setServiceFormSubmitting] = useState(false);
   const [serviceFormError, setServiceFormError] = useState("");
+
+  const [branchFormVisible, setBranchFormVisible] = useState(false);
+  const [editingBranch, setEditingBranch] = useState(null);
+  const [branchFormSubmitting, setBranchFormSubmitting] = useState(false);
+  const [branchFormError, setBranchFormError] = useState("");
 
   // Delete company state
   const [deleteCompanyError, setDeleteCompanyError] = useState("");
@@ -120,15 +127,54 @@ const CompanyPanel = () => {
     }
   }, [companyId]);
 
+  const loadBranches = useCallback(async () => {
+    if (!companyId) return;
+    try {
+      const response = await branchesAPI.getByCompany(companyId);
+      setBranches(response.data || []);
+    } catch (err) {
+      console.error("Failed to load branches", err);
+    }
+  }, [companyId]);
+
   useEffect(() => {
     const loadAllData = async () => {
       setLoading(true);
       setError("");
-      await Promise.all([loadCompanyData(), loadServices(), loadEmployees()]);
+      await Promise.all([loadCompanyData(), loadServices(), loadBranches(), loadEmployees()]);
       setLoading(false);
     };
     loadAllData();
-  }, [loadCompanyData, loadServices, loadEmployees]);
+  }, [loadCompanyData, loadServices, loadBranches, loadEmployees]);
+
+  useEffect(() => {
+    const rawQuery = branchFormVisible
+      ? editingBranch?.city
+      : companyForm?.city;
+    const query = rawQuery?.trim();
+
+    if (!query || query.length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+
+    let cancelled = false;
+    const handle = setTimeout(async () => {
+      try {
+        const res = await companiesAPI.getCities(query);
+        if (!cancelled) {
+          setCitySuggestions(res.data || []);
+        }
+      } catch (err) {
+        console.error("City suggestions load error (company panel):", err);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [branchFormVisible, editingBranch, companyForm]);
 
   // --- Handlers for Company Details ---
   const handleCompanyFormChange = (e) => {
@@ -174,13 +220,102 @@ const CompanyPanel = () => {
     }
   };
 
+  const resetBranchForm = () => {
+    setEditingBranch({
+      branchName: "",
+      streetName: companyForm?.streetName || "",
+      streetNumber: companyForm?.streetNumber || "",
+      apartmentNumber: companyForm?.apartmentNumber || "",
+      city: companyForm?.city || "",
+      postalCode: companyForm?.postalCode || "",
+      country: companyForm?.country || "Polska",
+      openingHour: companyForm?.openingHour || "",
+      closingHour: companyForm?.closingHour || "",
+    });
+    setBranchFormError("");
+  };
+
+  const handleOpenCreateBranch = () => {
+    resetBranchForm();
+    setBranchFormVisible(true);
+  };
+
+  const handleOpenEditBranch = (branch) => {
+    setEditingBranch({
+      ...branch,
+      openingHour: branch.openingHour || "",
+      closingHour: branch.closingHour || "",
+    });
+    setBranchFormError("");
+    setBranchFormVisible(true);
+  };
+
+  const handleBranchFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditingBranch((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleBranchFormSubmit = async (e) => {
+    e.preventDefault();
+    setBranchFormSubmitting(true);
+    setBranchFormError("");
+    try {
+      const payload = {
+        ...editingBranch,
+        companyId,
+      };
+
+      if (editingBranch.id) {
+        await branchesAPI.update(editingBranch.id, payload);
+      } else {
+        await branchesAPI.create(payload);
+      }
+
+      setBranchFormVisible(false);
+      await loadBranches();
+      await loadServices();
+    } catch (err) {
+      console.error("Failed to save branch", err);
+      if (err.response?.data?.errors) {
+        const message = Array.isArray(err.response.data.errors)
+          ? err.response.data.errors.join(" ")
+          : Object.values(err.response.data.errors).flat().join(" ");
+        setBranchFormError(message);
+      } else if (err.response?.data?.message) {
+        setBranchFormError(err.response.data.message);
+      } else {
+        setBranchFormError("Nie udało się zapisać oddziału.");
+      }
+    } finally {
+      setBranchFormSubmitting(false);
+    }
+  };
+
+  const handleDeleteBranch = async (branchId) => {
+    if (window.confirm("Na pewno chcesz usunąć ten oddział?")) {
+      try {
+        await branchesAPI.delete(branchId);
+        await loadBranches();
+        await loadServices();
+      } catch (err) {
+        console.error("Failed to delete branch", err);
+        alert(err.response?.data?.message || "Nie udało się usunąć oddziału.");
+      }
+    }
+  };
+
   // --- Handlers for Services ---
   const resetServiceForm = () => {
+    const defaultBranchId = branches.length > 0 ? branches[0].id : "";
     setEditingService({
       serviceName: "",
       description: "",
       durationMinutes: 30,
       price: 50,
+      branchId: defaultBranchId,
     });
     setServiceFormError("");
   };
@@ -200,7 +335,12 @@ const CompanyPanel = () => {
     const { name, value, type } = e.target;
     setEditingService((prev) => ({
       ...prev,
-      [name]: type === "number" ? parseFloat(value) : value,
+      [name]:
+        type === "number"
+          ? parseFloat(value)
+          : name === "branchId"
+            ? parseInt(value, 10)
+            : value,
     }));
   };
 
@@ -541,13 +681,16 @@ const CompanyPanel = () => {
         </div>
       </div>
       <div className="admin-card">
-        {services.length === 0 ? (
+        {branches.length === 0 ? (
+          <p>Brak oddziałów. Najpierw dodaj oddział.</p>
+        ) : services.length === 0 ? (
           <p>Brak zdefiniowanych usług.</p>
         ) : (
           <table className="admin-table">
             <thead>
               <tr>
                 <th>Nazwa usługi</th>
+                <th>Oddział</th>
                 <th>Czas trwania (min)</th>
                 <th>Cena (PLN)</th>
                 <th>Akcje</th>
@@ -557,6 +700,13 @@ const CompanyPanel = () => {
               {services.map((service) => (
                 <tr key={service.id}>
                   <td>{service.serviceName}</td>
+                  <td>
+                    {(() => {
+                      const branch = branches.find((b) => b.id === service.branchId);
+                      const name = branch?.branchName || service.branchId;
+                      return branch?.city ? `${name} (${branch.city})` : name;
+                    })()}
+                  </td>
                   <td>{service.durationMinutes}</td>
                   <td>{service.price.toFixed(2)}</td>
                   <td>
@@ -571,6 +721,67 @@ const CompanyPanel = () => {
                       type="button"
                       className="btn btn-outline btn-xs admin-table__delete-btn"
                       onClick={() => handleDeleteService(service.id)}
+                    >
+                      Usuń
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
+  );
+
+  const renderBranchesTab = () => (
+    <section className="admin-section">
+      <div className="admin-section__header">
+        <h2 className="admin-section__title">Oddziały</h2>
+        <div className="admin-section__actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenCreateBranch}
+          >
+            Dodaj oddział
+          </button>
+        </div>
+      </div>
+      <div className="admin-card">
+        {branches.length === 0 ? (
+          <p>Brak zdefiniowanych oddziałów.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Nazwa</th>
+                <th>Miasto</th>
+                <th>Adres</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody>
+              {branches.map((branch) => (
+                <tr key={branch.id}>
+                  <td>{branch.branchName}</td>
+                  <td>{branch.city || ""}</td>
+                  <td>
+                    {(branch.streetName || "") +
+                      (branch.streetNumber ? ` ${branch.streetNumber}` : "")}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => handleOpenEditBranch(branch)}
+                    >
+                      Edytuj
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs admin-table__delete-btn"
+                      onClick={() => handleDeleteBranch(branch.id)}
                     >
                       Usuń
                     </button>
@@ -757,6 +968,146 @@ const CompanyPanel = () => {
     </div>
   );
 
+  const renderBranchForm = () => (
+    <div className="admin-card--form-container">
+      <div className="admin-card admin-card--form">
+        <div className="admin-form__header">
+          <h2>{editingBranch?.id ? "Edytuj oddział" : "Dodaj nowy oddział"}</h2>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setBranchFormVisible(false)}
+          ></button>
+        </div>
+        <form onSubmit={handleBranchFormSubmit} className="admin-form">
+          {branchFormError && (
+            <div className="admin-alert admin-alert--error">{branchFormError}</div>
+          )}
+          <div className="admin-form__grid">
+            <div className="admin-form__field admin-form__field--full">
+              <label>Nazwa oddziału</label>
+              <input
+                name="branchName"
+                type="text"
+                value={editingBranch?.branchName || ""}
+                onChange={handleBranchFormChange}
+                required
+                className="admin-input"
+                maxLength={100}
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Miasto</label>
+              <input
+                name="city"
+                type="text"
+                value={editingBranch?.city || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+                list="company-panel-branch-city-options"
+              />
+              <datalist id="company-panel-branch-city-options">
+                {citySuggestions.map((cityOption) => (
+                  <option key={cityOption} value={cityOption} />
+                ))}
+              </datalist>
+            </div>
+            <div className="admin-form__field">
+              <label>Ulica</label>
+              <input
+                name="streetName"
+                type="text"
+                value={editingBranch?.streetName || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Numer budynku</label>
+              <input
+                name="streetNumber"
+                type="text"
+                value={editingBranch?.streetNumber || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Nr lokalu (opcjonalnie)</label>
+              <input
+                name="apartmentNumber"
+                type="text"
+                value={editingBranch?.apartmentNumber || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Kod pocztowy</label>
+              <input
+                name="postalCode"
+                type="text"
+                value={editingBranch?.postalCode || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+                placeholder="00-000"
+                pattern="^[0-9]{2}-[0-9]{3}$"
+                maxLength={6}
+                title="Kod pocztowy w formacie 00-000"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Kraj</label>
+              <input
+                name="country"
+                type="text"
+                value={editingBranch?.country || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Godzina otwarcia</label>
+              <input
+                name="openingHour"
+                type="time"
+                value={editingBranch?.openingHour || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Godzina zamknięcia</label>
+              <input
+                name="closingHour"
+                type="time"
+                value={editingBranch?.closingHour || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+              />
+            </div>
+          </div>
+          <div className="admin-form__actions">
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setBranchFormVisible(false)}
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={branchFormSubmitting}
+            >
+              {branchFormSubmitting ? "Zapisywanie..." : "Zapisz"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   const renderServiceForm = () => (
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
@@ -775,6 +1126,26 @@ const CompanyPanel = () => {
             </div>
           )}
           <div className="admin-form__grid">
+            <div className="admin-form__field admin-form__field--full">
+              <label>Oddział</label>
+              <select
+                name="branchId"
+                value={editingService?.branchId || ""}
+                onChange={handleServiceFormChange}
+                required
+                className="admin-input"
+                disabled={branches.length === 0}
+              >
+                <option value="" disabled>
+                  Wybierz oddział
+                </option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.branchName}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="admin-form__field admin-form__field--full">
               <label>Nazwa usługi</label>
               <input
@@ -856,6 +1227,7 @@ const CompanyPanel = () => {
   return (
     <div className="admin-page">
       {serviceFormVisible && renderServiceForm()}
+      {branchFormVisible && renderBranchForm()}
       {addUserFormVisible && renderAddUserForm()}
       <header className="admin-page__header">
         <div>
@@ -873,6 +1245,13 @@ const CompanyPanel = () => {
           onClick={() => setActiveTab("details")}
         >
           Dane Firmy
+        </button>
+        <button
+          type="button"
+          className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
+          onClick={() => setActiveTab("branches")}
+        >
+          Oddziały
         </button>
         <button
           type="button"
@@ -899,6 +1278,7 @@ const CompanyPanel = () => {
 
       <div className="admin-page__content">
         {activeTab === "details" && renderCompanyDetailsTab()}
+        {activeTab === "branches" && renderBranchesTab()}
         {activeTab === "services" && renderServicesTab()}
         {activeTab === "employees" && renderEmployeesTab()}
         {activeTab === "settings" && renderSettingsTab()}

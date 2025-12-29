@@ -220,6 +220,30 @@
       "UpstreamHttpMethod": [ "GET", "POST" ]
     },
     {
+      "DownstreamPathTemplate": "/api/branches/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/branches/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/branches",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/branches",
+      "UpstreamHttpMethod": [ "GET", "POST" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/services/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

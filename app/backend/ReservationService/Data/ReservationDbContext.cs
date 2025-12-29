@@ -9,6 +9,7 @@ public class ReservationDbContext : DbContext
         : base(options) { }
 
     public DbSet<Company> Companies { get; set; }
+    public DbSet<Branch> Branches { get; set; }
     public DbSet<Service> Services { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<Schedule> Schedules { get; set; }
@@ -17,6 +18,16 @@ public class ReservationDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Branch>()
+            .HasOne(b => b.Company)
+            .WithMany()
+            .HasForeignKey(b => b.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Branch>()
+            .HasIndex(b => new { b.CompanyId, b.BranchName })
+            .IsUnique();
+
         // Konfiguracja relacji Company -> Services
         modelBuilder.Entity<Service>()
             .HasOne(s => s.Company)
@@ -24,11 +35,23 @@ public class ReservationDbContext : DbContext
             .HasForeignKey(s => s.CompanyId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Service>()
+            .HasOne(s => s.Branch)
+            .WithMany()
+            .HasForeignKey(s => s.BranchId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Konfiguracja relacji Company -> Appointments
         modelBuilder.Entity<Appointment>()
             .HasOne(a => a.Company)
             .WithMany(c => c.Appointments)
             .HasForeignKey(a => a.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Appointment>()
+            .HasOne(a => a.Branch)
+            .WithMany()
+            .HasForeignKey(a => a.BranchId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Konfiguracja relacji Service -> Appointments
@@ -44,6 +67,12 @@ public class ReservationDbContext : DbContext
             .WithMany()
             .HasForeignKey(s => s.CompanyId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Schedule>()
+            .HasOne(s => s.Branch)
+            .WithMany()
+            .HasForeignKey(s => s.BranchId)
+            .OnDelete(DeleteBehavior.Cascade);
             
         modelBuilder.Entity<Schedule>()
             .HasOne(s => s.Service)
@@ -56,6 +85,12 @@ public class ReservationDbContext : DbContext
             .HasOne(ts => ts.Company)
             .WithMany()
             .HasForeignKey(ts => ts.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TimeSlot>()
+            .HasOne(ts => ts.Branch)
+            .WithMany()
+            .HasForeignKey(ts => ts.BranchId)
             .OnDelete(DeleteBehavior.Cascade);
             
         modelBuilder.Entity<TimeSlot>()
@@ -72,11 +107,11 @@ public class ReservationDbContext : DbContext
             
         // Indeksy
         modelBuilder.Entity<Schedule>()
-            .HasIndex(s => new { s.CompanyId, s.ServiceId, s.DayOfWeek })
+            .HasIndex(s => new { s.CompanyId, s.BranchId, s.ServiceId, s.DayOfWeek })
             .IsUnique();
             
         modelBuilder.Entity<TimeSlot>()
-            .HasIndex(ts => new { ts.CompanyId, ts.SlotStart, ts.SlotEnd });
+            .HasIndex(ts => new { ts.CompanyId, ts.BranchId, ts.SlotStart, ts.SlotEnd });
             
         // Konfiguracja EventStore
         modelBuilder.Entity<EventStore>()
@@ -247,12 +282,137 @@ public class ReservationDbContext : DbContext
             }
         );
 
+        modelBuilder.Entity<Branch>().HasData(
+            new Branch
+            {
+                Id = 1,
+                CompanyId = 1,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Główna 15",
+                City = "Warszawa",
+                PostalCode = "00-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 2,
+                CompanyId = 2,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Męska 10",
+                City = "Warszawa",
+                PostalCode = "00-120",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 3,
+                CompanyId = 3,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Piękna 5",
+                City = "Kraków",
+                PostalCode = "30-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 4,
+                CompanyId = 4,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Leśna 8",
+                City = "Kraków",
+                PostalCode = "30-045",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 5,
+                CompanyId = 5,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Dłonie 2",
+                City = "Wrocław",
+                PostalCode = "50-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 6,
+                CompanyId = 6,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Relaksu 21",
+                City = "Poznań",
+                PostalCode = "60-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 7,
+                CompanyId = 7,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Kawowa 7",
+                City = "Wrocław",
+                PostalCode = "50-120",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 8,
+                CompanyId = 8,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Luksusowa 1",
+                City = "Gdańsk",
+                PostalCode = "80-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 9,
+                CompanyId = 9,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Miejska 11",
+                City = "Łódź",
+                PostalCode = "90-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 11,
+                CompanyId = 11,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Rzeszowska 14",
+                City = "Rzeszów",
+                PostalCode = "35-001",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            },
+            new Branch
+            {
+                Id = 12,
+                CompanyId = 12,
+                BranchName = "Oddział główny",
+                StreetName = "ul. Piłsudskiego 22",
+                City = "Rzeszów",
+                PostalCode = "35-010",
+                Country = "Polska",
+                CreatedAt = DateTime.UtcNow
+            }
+        );
+
         modelBuilder.Entity<Service>().HasData(
             // Company 1 – Przykładowy Fryzjer
             new Service
             {
                 Id = 1,
                 CompanyId = 1,
+                BranchId = 1,
                 ServiceName = "Strzyżenie męskie",
                 Description = "Klasyczne strzyżenie męskie",
                 Price = 50,
@@ -262,6 +422,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 2,
                 CompanyId = 1,
+                BranchId = 1,
                 ServiceName = "Strzyżenie damskie",
                 Description = "Strzyżenie i modelowanie",
                 Price = 80,
@@ -271,6 +432,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 3,
                 CompanyId = 1,
+                BranchId = 1,
                 ServiceName = "Modelowanie włosów",
                 Description = "Stylizacja włosów na specjalne okazje",
                 Price = 70,
@@ -280,6 +442,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 4,
                 CompanyId = 1,
+                BranchId = 1,
                 ServiceName = "Koloryzacja",
                 Description = "Farbowanie włosów z konsultacją",
                 Price = 200,
@@ -289,6 +452,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 5,
                 CompanyId = 1,
+                BranchId = 1,
                 ServiceName = "Regeneracja włosów",
                 Description = "Zabieg odbudowujący strukturę włosa",
                 Price = 150,
@@ -300,6 +464,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 6,
                 CompanyId = 2,
+                BranchId = 2,
                 ServiceName = "Strzyżenie brody",
                 Description = "Modelowanie i pielęgnacja brody",
                 Price = 60,
@@ -309,6 +474,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 7,
                 CompanyId = 2,
+                BranchId = 2,
                 ServiceName = "Strzyżenie męskie premium",
                 Description = "Strzyżenie z myciem i stylizacją",
                 Price = 90,
@@ -318,6 +484,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 8,
                 CompanyId = 2,
+                BranchId = 2,
                 ServiceName = "Pakiet broda + włosy",
                 Description = "Kompleksowa pielęgnacja brody i włosów",
                 Price = 120,
@@ -327,6 +494,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 9,
                 CompanyId = 2,
+                BranchId = 2,
                 ServiceName = "Golenie brzytwą",
                 Description = "Tradycyjne golenie brzytwą",
                 Price = 70,
@@ -336,6 +504,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 10,
                 CompanyId = 2,
+                BranchId = 2,
                 ServiceName = "Strzyżenie dla chłopców",
                 Description = "Strzyżenie dziecięce",
                 Price = 45,
@@ -347,6 +516,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 11,
                 CompanyId = 3,
+                BranchId = 3,
                 ServiceName = "Manicure klasyczny",
                 Description = "Manicure z malowaniem paznokci",
                 Price = 80,
@@ -356,6 +526,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 12,
                 CompanyId = 3,
+                BranchId = 3,
                 ServiceName = "Pedicure spa",
                 Description = "Pedicure z masażem stóp",
                 Price = 120,
@@ -365,6 +536,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 13,
                 CompanyId = 3,
+                BranchId = 3,
                 ServiceName = "Makijaż okolicznościowy",
                 Description = "Makijaż na specjalne okazje",
                 Price = 150,
@@ -374,6 +546,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 14,
                 CompanyId = 3,
+                BranchId = 3,
                 ServiceName = "Zabieg na twarz",
                 Description = "Indywidualnie dobrany zabieg pielęgnacyjny",
                 Price = 200,
@@ -383,6 +556,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 15,
                 CompanyId = 3,
+                BranchId = 3,
                 ServiceName = "Henna brwi i rzęs",
                 Description = "Podkreślenie oprawy oczu",
                 Price = 60,
@@ -394,6 +568,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 16,
                 CompanyId = 4,
+                BranchId = 4,
                 ServiceName = "Masaż relaksacyjny",
                 Description = "Całościowy masaż relaksacyjny",
                 Price = 180,
@@ -403,6 +578,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 17,
                 CompanyId = 4,
+                BranchId = 4,
                 ServiceName = "Masaż gorącymi kamieniami",
                 Description = "Masaż z użyciem gorących kamieni",
                 Price = 220,
@@ -412,6 +588,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 18,
                 CompanyId = 4,
+                BranchId = 4,
                 ServiceName = "Sauna + masaż",
                 Description = "Pakiet sauna i masaż",
                 Price = 250,
@@ -421,6 +598,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 19,
                 CompanyId = 4,
+                BranchId = 4,
                 ServiceName = "Rytuał spa dla dwojga",
                 Description = "Pakiet spa dla dwóch osób",
                 Price = 400,
@@ -430,6 +608,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 20,
                 CompanyId = 4,
+                BranchId = 4,
                 ServiceName = "Masaż pleców",
                 Description = "Masaż pleców i karku",
                 Price = 120,
@@ -441,6 +620,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 21,
                 CompanyId = 5,
+                BranchId = 5,
                 ServiceName = "Manicure hybrydowy",
                 Description = "Manicure z lakierem hybrydowym",
                 Price = 100,
@@ -450,6 +630,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 22,
                 CompanyId = 5,
+                BranchId = 5,
                 ServiceName = "Uzupełnianie żelu",
                 Description = "Uzupełnianie paznokci żelowych",
                 Price = 130,
@@ -459,6 +640,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 23,
                 CompanyId = 5,
+                BranchId = 5,
                 ServiceName = "Pedicure klasyczny",
                 Description = "Podstawowa pielęgnacja stóp",
                 Price = 90,
@@ -468,6 +650,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 24,
                 CompanyId = 5,
+                BranchId = 5,
                 ServiceName = "Manicure japoński",
                 Description = "Pielęgnacja paznokci japońską metodą",
                 Price = 110,
@@ -477,6 +660,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 25,
                 CompanyId = 5,
+                BranchId = 5,
                 ServiceName = "Zdobienie paznokci",
                 Description = "Artystyczne zdobienia paznokci",
                 Price = 60,
@@ -488,6 +672,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 26,
                 CompanyId = 6,
+                BranchId = 6,
                 ServiceName = "Masaż klasyczny",
                 Description = "Masaż klasyczny całego ciała",
                 Price = 160,
@@ -497,6 +682,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 27,
                 CompanyId = 6,
+                BranchId = 6,
                 ServiceName = "Masaż sportowy",
                 Description = "Intensywny masaż dla osób aktywnych",
                 Price = 190,
@@ -506,6 +692,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 28,
                 CompanyId = 6,
+                BranchId = 6,
                 ServiceName = "Masaż leczniczy kręgosłupa",
                 Description = "Skoncentrowany masaż na odcinku lędźwiowym i szyjnym",
                 Price = 210,
@@ -515,6 +702,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 29,
                 CompanyId = 6,
+                BranchId = 6,
                 ServiceName = "Drenaż limfatyczny",
                 Description = "Zabieg wspierający układ limfatyczny",
                 Price = 200,
@@ -524,6 +712,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 30,
                 CompanyId = 6,
+                BranchId = 6,
                 ServiceName = "Masaż świecą",
                 Description = "Relaksacyjny masaż z użyciem świecy",
                 Price = 220,
@@ -535,6 +724,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 31,
                 CompanyId = 7,
+                BranchId = 7,
                 ServiceName = "Strzyżenie z kawą",
                 Description = "Strzyżenie męskie z dowolną kawą w cenie",
                 Price = 85,
@@ -544,6 +734,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 32,
                 CompanyId = 7,
+                BranchId = 7,
                 ServiceName = "Stylizacja brody",
                 Description = "Modelowanie brody z pielęgnacją",
                 Price = 70,
@@ -553,6 +744,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 33,
                 CompanyId = 7,
+                BranchId = 7,
                 ServiceName = "Pakiet premium",
                 Description = "Strzyżenie, broda oraz kawa speciality",
                 Price = 140,
@@ -562,6 +754,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 34,
                 CompanyId = 7,
+                BranchId = 7,
                 ServiceName = "Strzyżenie ekspres",
                 Description = "Szybkie strzyżenie dla zabieganych",
                 Price = 60,
@@ -571,6 +764,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 35,
                 CompanyId = 7,
+                BranchId = 7,
                 ServiceName = "Pielęgnacja włosów",
                 Description = "Mycie i odżywka do włosów",
                 Price = 40,
@@ -582,6 +776,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 36,
                 CompanyId = 8,
+                BranchId = 8,
                 ServiceName = "Mezoterapia igłowa",
                 Description = "Zabieg mezoterapii skóry twarzy",
                 Price = 450,
@@ -591,6 +786,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 37,
                 CompanyId = 8,
+                BranchId = 8,
                 ServiceName = "Peeling chemiczny",
                 Description = "Zabieg złuszczający dobrany do typu skóry",
                 Price = 280,
@@ -600,6 +796,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 38,
                 CompanyId = 8,
+                BranchId = 8,
                 ServiceName = "Zabieg anti-aging",
                 Description = "Zaawansowany zabieg przeciwstarzeniowy",
                 Price = 400,
@@ -609,6 +806,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 39,
                 CompanyId = 8,
+                BranchId = 8,
                 ServiceName = "Konsultacja kosmetologiczna",
                 Description = "Analiza skóry i plan pielęgnacji",
                 Price = 150,
@@ -618,6 +816,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 40,
                 CompanyId = 8,
+                BranchId = 8,
                 ServiceName = "Oczyszczanie wodorowe",
                 Description = "Nowoczesne oczyszczanie skóry",
                 Price = 320,
@@ -629,6 +828,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 41,
                 CompanyId = 9,
+                BranchId = 9,
                 ServiceName = "Strzyżenie miejskie",
                 Description = "Nowoczesne cięcie dopasowane do stylu",
                 Price = 75,
@@ -638,6 +838,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 42,
                 CompanyId = 9,
+                BranchId = 9,
                 ServiceName = "Balayage",
                 Description = "Rozjaśnianie i koloryzacja techniką balayage",
                 Price = 260,
@@ -647,6 +848,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 43,
                 CompanyId = 9,
+                BranchId = 9,
                 ServiceName = "Prostowanie keratynowe",
                 Description = "Wygładzanie włosów keratyną",
                 Price = 350,
@@ -656,6 +858,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 44,
                 CompanyId = 9,
+                BranchId = 9,
                 ServiceName = "Strzyżenie dziecięce",
                 Description = "Strzyżenie dla dzieci",
                 Price = 55,
@@ -665,6 +868,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 45,
                 CompanyId = 9,
+                BranchId = 9,
                 ServiceName = "Upięcie okolicznościowe",
                 Description = "Fryzura na wesele lub imprezę",
                 Price = 190,
@@ -676,6 +880,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 51,
                 CompanyId = 11,
+                BranchId = 11,
                 ServiceName = "Strzyżenie męskie klasyczne",
                 Description = "Tradycyjne strzyżenie męskie z precyzją",
                 Price = 55,
@@ -685,6 +890,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 52,
                 CompanyId = 11,
+                BranchId = 11,
                 ServiceName = "Strzyżenie brody",
                 Description = "Modelowanie i stylizacja brody",
                 Price = 65,
@@ -694,6 +900,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 53,
                 CompanyId = 11,
+                BranchId = 11,
                 ServiceName = "Golenie brzytwą tradycyjne",
                 Description = "Klasyczne golenie z gorącym ręcznikiem",
                 Price = 75,
@@ -703,6 +910,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 54,
                 CompanyId = 11,
+                BranchId = 11,
                 ServiceName = "Pakiet premium broda",
                 Description = "Kompleksowa pielęgnacja brody",
                 Price = 120,
@@ -712,6 +920,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 55,
                 CompanyId = 11,
+                BranchId = 11,
                 ServiceName = "Strzyżenie młodzieżowe",
                 Description = "Nowoczesne strzyżenie dla młodych mężczyzn",
                 Price = 45,
@@ -723,6 +932,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 56,
                 CompanyId = 12,
+                BranchId = 12,
                 ServiceName = "Strzyżenie damskie",
                 Description = "Profesjonalne strzyżenie z modelowaniem",
                 Price = 85,
@@ -732,6 +942,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 57,
                 CompanyId = 12,
+                BranchId = 12,
                 ServiceName = "Koloryzacja włosów",
                 Description = "Farbowanie z konsultacją kolorystyczną",
                 Price = 220,
@@ -741,6 +952,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 58,
                 CompanyId = 12,
+                BranchId = 12,
                 ServiceName = "Masaż głowy",
                 Description = "Relaksacyjny masaż skóry głowy",
                 Price = 60,
@@ -750,6 +962,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 59,
                 CompanyId = 12,
+                BranchId = 12,
                 ServiceName = "Zabieg regenerujący",
                 Description = "Intensywna regeneracja włosów",
                 Price = 160,
@@ -759,6 +972,7 @@ public class ReservationDbContext : DbContext
             {
                 Id = 60,
                 CompanyId = 12,
+                BranchId = 12,
                 ServiceName = "Upięcie ślubne",
                 Description = "Elegancka fryzura ślubna",
                 Price = 280,

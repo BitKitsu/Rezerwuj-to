@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   tokenManager,
   companiesAPI,
+  companyAuditAPI,
   servicesAPI,
   branchesAPI,
   branchReviewsAPI,
@@ -20,6 +21,10 @@ const CompanyPanel = () => {
   const [error, setError] = useState("");
 
   const [panelSuccess, setPanelSuccess] = useState("");
+
+  const [companyAuditLogs, setCompanyAuditLogs] = useState([]);
+  const [companyAuditLoading, setCompanyAuditLoading] = useState(false);
+  const [companyAuditError, setCompanyAuditError] = useState("");
 
   // Company details form
   const [companyForm, setCompanyForm] = useState(null);
@@ -55,6 +60,15 @@ const CompanyPanel = () => {
   const [addUserFormSubmitting, setAddUserFormSubmitting] = useState(false);
 
   const companyId = tokenManager.getUser()?.companyId;
+  const companyRole = tokenManager.getUser()?.companyRole;
+  const userRoles = tokenManager.getUser()?.roles || [];
+  const isAdmin = userRoles.includes("Admin");
+  const isOwner = companyRole === "Owner";
+  const isManager = companyRole === "Manager";
+  const isEmployee = companyRole === "Employee";
+  const canManageEmployees = isAdmin || isOwner || isManager;
+  const canEditCompany = isAdmin || isOwner;
+  const canManageEmployeesActions = isAdmin || isOwner;
 
   useEffect(() => {
     if (!panelSuccess) return undefined;
@@ -67,6 +81,53 @@ const CompanyPanel = () => {
       clearTimeout(handle);
     };
   }, [panelSuccess]);
+
+  useEffect(() => {
+    const allowedTabs = [];
+    if (canEditCompany) {
+      allowedTabs.push("details", "branches", "services", "employees", "audit", "settings");
+    } else if (canManageEmployees) {
+      allowedTabs.push("branches", "services", "employees");
+    } else if (isEmployee) {
+      allowedTabs.push("reservations");
+    }
+
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
+    }
+  }, [activeTab, canEditCompany, canManageEmployees, isEmployee]);
+
+  const renderReservationsTab = () => (
+    <section className="admin-section">
+      <div className="admin-section__header">
+        <h2 className="admin-section__title">Rezerwacje</h2>
+      </div>
+      <div className="admin-card">
+        <p>Wkrótce: lista rezerwacji do potwierdzenia/odrzucenia.</p>
+      </div>
+    </section>
+  );
+
+  const loadCompanyAudit = useCallback(async () => {
+    if (!companyId) return;
+    setCompanyAuditLoading(true);
+    setCompanyAuditError("");
+    try {
+      const res = await companyAuditAPI.getByCompany(companyId, 200);
+      setCompanyAuditLogs(res.data || []);
+    } catch (err) {
+      console.error("Failed to load company audit", err);
+      setCompanyAuditError("Nie udało się załadować audytu firmy.");
+    } finally {
+      setCompanyAuditLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    if (activeTab === "audit" && canEditCompany) {
+      loadCompanyAudit();
+    }
+  }, [activeTab, canEditCompany, loadCompanyAudit]);
 
   const loadCompanyData = useCallback(async () => {
     if (!companyId) {
@@ -101,7 +162,6 @@ const CompanyPanel = () => {
         setError(
           "Nie znaleziono firmy przypisanej do Twojego konta. Firma mogła zostać usunięta. Zostaniesz przekierowany do ustawień konta, aby dodać nową firmę.",
         );
-
         try {
           await authAPI.unassignCompany();
         } catch (unassignErr) {
@@ -744,13 +804,15 @@ const CompanyPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Usługi</h2>
         <div className="admin-section__actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleOpenCreateService}
-          >
-            Dodaj usługę
-          </button>
+          {canEditCompany && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOpenCreateService}
+            >
+              Dodaj usługę
+            </button>
+          )}
         </div>
       </div>
       <div className="admin-card">
@@ -783,20 +845,26 @@ const CompanyPanel = () => {
                   <td>{service.durationMinutes}</td>
                   <td>{service.price.toFixed(2)}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-xs"
-                      onClick={() => handleOpenEditService(service)}
-                    >
-                      Edytuj
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-xs admin-table__delete-btn"
-                      onClick={() => handleDeleteService(service.id)}
-                    >
-                      Usuń
-                    </button>
+                    {canEditCompany ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs"
+                          onClick={() => handleOpenEditService(service)}
+                        >
+                          Edytuj
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs admin-table__delete-btn"
+                          onClick={() => handleDeleteService(service.id)}
+                        >
+                          Usuń
+                        </button>
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}
@@ -812,13 +880,15 @@ const CompanyPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Oddziały</h2>
         <div className="admin-section__actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleOpenCreateBranch}
-          >
-            Dodaj oddział
-          </button>
+          {canEditCompany && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOpenCreateBranch}
+            >
+              Dodaj oddział
+            </button>
+          )}
         </div>
       </div>
       <div className="admin-card">
@@ -850,20 +920,26 @@ const CompanyPanel = () => {
                     {formatBranchReviewSummary(branchReviewSummaries[branch.id])}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-xs"
-                      onClick={() => handleOpenEditBranch(branch)}
-                    >
-                      Edytuj
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-xs admin-table__delete-btn"
-                      onClick={() => handleDeleteBranch(branch.id)}
-                    >
-                      Usuń
-                    </button>
+                    {canEditCompany ? (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs"
+                          onClick={() => handleOpenEditBranch(branch)}
+                        >
+                          Edytuj
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs admin-table__delete-btn"
+                          onClick={() => handleDeleteBranch(branch.id)}
+                        >
+                          Usuń
+                        </button>
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 </tr>
               ))}
@@ -908,13 +984,15 @@ const CompanyPanel = () => {
       <div className="admin-section__header">
         <h2 className="admin-section__title">Pracownicy</h2>
         <div className="admin-section__actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => setAddUserFormVisible(true)}
-          >
-            Dodaj pracownika
-          </button>
+          {canManageEmployeesActions && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setAddUserFormVisible(true)}
+            >
+              Dodaj pracownika
+            </button>
+          )}
         </div>
       </div>
       <div className="admin-card">
@@ -944,7 +1022,7 @@ const CompanyPanel = () => {
                         handleUpdateUserRole(user.id, e.target.value)
                       }
                       className="admin-input admin-input--inline"
-                      disabled={user.role === "Owner"}
+                      disabled={!canManageEmployeesActions || user.role === "Owner"}
                     >
                       <option value="Owner" disabled>
                         Właściciel
@@ -959,7 +1037,7 @@ const CompanyPanel = () => {
                         type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
                         onClick={() => handleRemoveUser(user.id)}
-                        disabled={user.role === "Owner"}
+                        disabled={!canManageEmployeesActions || user.role === "Owner"}
                       >
                         Usuń
                       </button>
@@ -967,12 +1045,86 @@ const CompanyPanel = () => {
                         type="button"
                         className="btn btn-outline btn-xs"
                         onClick={() => handleTransferOwnership(user)}
-                        disabled={user.role === "Owner"}
+                        disabled={!canManageEmployeesActions || user.role === "Owner"}
                       >
                         Przekaż Własność
                       </button>
                     </div>
                   </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
+  );
+
+  const renderAuditTab = () => (
+    <section className="admin-section">
+      <div className="admin-section__header">
+        <h2 className="admin-section__title">Audyt firmy</h2>
+        <div className="admin-section__actions">
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={loadCompanyAudit}
+            disabled={companyAuditLoading}
+          >
+            Odśwież
+          </button>
+        </div>
+      </div>
+
+      {companyAuditError && (
+        <div className="admin-alert admin-alert--error">{companyAuditError}</div>
+      )}
+
+      <div className="admin-card">
+        {companyAuditLoading ? (
+          <p>Ładowanie...</p>
+        ) : companyAuditLogs.length === 0 ? (
+          <p>Brak wpisów.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Akcja</th>
+                <th>Obiekt</th>
+                <th>Użytkownik</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {companyAuditLogs.map((log) => (
+                <tr
+                  key={
+                    log.eventId ||
+                    `${log.occurredAt}-${log.entityName}-${log.entityId}`
+                  }
+                >
+                  <td>
+                    {log.occurredAt
+                      ? new Date(log.occurredAt).toLocaleString()
+                      : "—"}
+                  </td>
+                  <td>{log.action || "—"}</td>
+                  <td>
+                    {log.entityName || "—"}
+                    {log.entityId ? ` #${log.entityId}` : ""}
+                  </td>
+                  <td
+                    style={{
+                      maxWidth: 220,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {log.userId || "—"}
+                  </td>
+                  <td>{log.ipAddress || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -1335,49 +1487,88 @@ const CompanyPanel = () => {
       )}
 
       <div className="admin-page__tabs">
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === "details" ? "admin-tab--active" : ""}`}
-          onClick={() => setActiveTab("details")}
-        >
-          Dane Firmy
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
-          onClick={() => setActiveTab("branches")}
-        >
-          Oddziały
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === "services" ? "admin-tab--active" : ""}`}
-          onClick={() => setActiveTab("services")}
-        >
-          Usługi
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === "settings" ? "admin-tab--active" : ""}`}
-          onClick={() => setActiveTab("settings")}
-        >
-          Ustawienia
-        </button>
-        <button
-          type="button"
-          className={`admin-tab ${activeTab === "employees" ? "admin-tab--active" : ""}`}
-          onClick={() => setActiveTab("employees")}
-        >
-          Pracownicy
-        </button>
+        {isEmployee && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "reservations" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("reservations")}
+          >
+            Rezerwacje
+          </button>
+        )}
+        {canEditCompany && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "details" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("details")}
+          >
+            Dane Firmy
+          </button>
+        )}
+        {canEditCompany && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("branches")}
+          >
+            Oddziały
+          </button>
+        )}
+        {(isManager && !canEditCompany) && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("branches")}
+          >
+            Oddziały
+          </button>
+        )}
+        {(canEditCompany || isManager) && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "services" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("services")}
+          >
+            Usługi
+          </button>
+        )}
+        {canEditCompany && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "settings" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("settings")}
+          >
+            Ustawienia
+          </button>
+        )}
+        {canManageEmployees && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "employees" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("employees")}
+          >
+            Pracownicy
+          </button>
+        )}
+        {canEditCompany && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "audit" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("audit")}
+          >
+            Audyt
+          </button>
+        )}
       </div>
 
       <div className="admin-page__content">
-        {activeTab === "details" && renderCompanyDetailsTab()}
-        {activeTab === "branches" && renderBranchesTab()}
-        {activeTab === "services" && renderServicesTab()}
-        {activeTab === "employees" && renderEmployeesTab()}
-        {activeTab === "settings" && renderSettingsTab()}
+        {activeTab === "reservations" && isEmployee && renderReservationsTab()}
+        {activeTab === "details" && canEditCompany && renderCompanyDetailsTab()}
+        {activeTab === "branches" && (canEditCompany || isManager) && renderBranchesTab()}
+        {activeTab === "services" && (canEditCompany || isManager) && renderServicesTab()}
+        {activeTab === "employees" && canManageEmployees && renderEmployeesTab()}
+        {activeTab === "audit" && canEditCompany && renderAuditTab()}
+        {activeTab === "settings" && canEditCompany && renderSettingsTab()}
       </div>
     </div>
   );

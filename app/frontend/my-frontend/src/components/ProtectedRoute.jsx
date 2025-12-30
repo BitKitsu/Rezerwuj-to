@@ -1,7 +1,7 @@
 import { Navigate } from 'react-router-dom';
 import { tokenManager } from '../services/api';
 
-function ProtectedRoute({ children, requiredRole }) {
+function ProtectedRoute({ children, requiredRole, requireCompany }) {
   const isAuthenticated = tokenManager.isAuthenticated();
   const user = tokenManager.getUser();
 
@@ -17,6 +17,12 @@ function ProtectedRoute({ children, requiredRole }) {
 
     if (!hasAnyRequiredRole) {
       return <Navigate to="/" replace />;
+    }
+  }
+
+  if (requireCompany) {
+    if (!user?.companyId) {
+      return <Navigate to="/account" replace />;
     }
   }
 

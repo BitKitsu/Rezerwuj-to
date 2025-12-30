@@ -83,6 +83,16 @@ const handleTokenRefresh = async (error, apiInstance) => {
         const { accessToken, refreshToken: newRefreshToken } = response.data;
         tokenManager.setTokens(accessToken, newRefreshToken);
 
+        const currentUser = tokenManager.getUser();
+        if (currentUser) {
+          tokenManager.setUser({
+            ...currentUser,
+            roles: response.data.roles ?? currentUser.roles,
+            companyId: response.data.companyId ?? currentUser.companyId,
+            companyRole: response.data.companyRole ?? currentUser.companyRole,
+          });
+        }
+
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         return apiInstance(originalRequest);
       }
@@ -120,6 +130,7 @@ export const authAPI = {
         lastName: response.data.lastName,
         roles: response.data.roles || [],
         companyId: response.data.companyId ?? null,
+        companyRole: response.data.companyRole ?? null,
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('authChanged'));
@@ -154,6 +165,7 @@ export const authAPI = {
         lastName: response.data.lastName,
         roles: response.data.roles || [],
         companyId: response.data.companyId ?? null,
+        companyRole: response.data.companyRole ?? null,
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('authChanged'));
@@ -172,6 +184,7 @@ export const authAPI = {
         lastName: response.data.lastName,
         roles: response.data.roles || [],
         companyId: response.data.companyId ?? null,
+        companyRole: response.data.companyRole ?? null,
       });
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('authChanged'));
@@ -195,6 +208,11 @@ export const companiesAPI = {
     reservationAPI.get('/companies/cities', {
       params: query ? { query } : undefined,
     }),
+};
+
+export const companyAuditAPI = {
+  getByCompany: (companyId, take = 200) =>
+    reservationAPI.get(`/company-audit/company/${companyId}`, { params: { take } }),
 };
 
 // ===== Services API =====
@@ -226,6 +244,10 @@ export const branchReviewsAPI = {
     reservationAPI.get(`/branchreviews/branch/${branchId}`),
   getCompanySummary: (companyId) =>
     reservationAPI.get(`/branchreviews/company/${companyId}/summary`),
+};
+
+export const auditAPI = {
+  getMy: (take = 100) => identityAPI.get('/audit/my', { params: { take } }),
 };
 
 export const geocodeAPI = {

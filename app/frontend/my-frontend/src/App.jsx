@@ -75,7 +75,7 @@ function App() {
           <Route
             path="/company-panel"
             element={
-              <ProtectedRoute requiredRole={['Admin', 'CompanyOwner']}>
+              <ProtectedRoute requireCompany>
                 <CompanyPanel />
               </ProtectedRoute>
             }

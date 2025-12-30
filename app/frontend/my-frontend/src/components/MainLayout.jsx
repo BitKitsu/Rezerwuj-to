@@ -88,7 +88,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                 Panel administratora
               </Link>
             )}
-            {(isAuthenticated && (user?.roles?.includes('Admin') || user?.roles?.includes('CompanyOwner')) && user?.companyId) && (
+            {(isAuthenticated && user?.companyId) && (
               <Link to="/company-panel" className={navLinkClass('/company-panel')}>
                 Panel Firmy
               </Link>

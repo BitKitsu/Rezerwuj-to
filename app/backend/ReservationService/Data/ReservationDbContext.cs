@@ -12,6 +12,7 @@ public class ReservationDbContext : DbContext
     public DbSet<Branch> Branches { get; set; }
     public DbSet<Service> Services { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
+    public DbSet<BranchReview> BranchReviews { get; set; }
     public DbSet<Schedule> Schedules { get; set; }
     public DbSet<TimeSlot> TimeSlots { get; set; }
     public DbSet<EventStore> EventStores { get; set; }
@@ -60,6 +61,31 @@ public class ReservationDbContext : DbContext
             .WithMany(s => s.Appointments)
             .HasForeignKey(a => a.ServiceId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<BranchReview>()
+            .HasOne(r => r.Company)
+            .WithMany()
+            .HasForeignKey(r => r.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<BranchReview>()
+            .HasOne(r => r.Branch)
+            .WithMany()
+            .HasForeignKey(r => r.BranchId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<BranchReview>()
+            .HasOne(r => r.Appointment)
+            .WithMany()
+            .HasForeignKey(r => r.AppointmentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<BranchReview>()
+            .HasIndex(r => r.AppointmentId)
+            .IsUnique();
+
+        modelBuilder.Entity<BranchReview>()
+            .HasIndex(r => new { r.CompanyId, r.BranchId, r.CreatedAt });
             
         // Konfiguracja Schedule
         modelBuilder.Entity<Schedule>()

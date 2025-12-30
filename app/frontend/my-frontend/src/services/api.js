@@ -219,6 +219,22 @@ export const branchesAPI = {
   delete: (id) => reservationAPI.delete(`/branches/${id}`),
 };
 
+export const branchReviewsAPI = {
+  getBranchSummary: (branchId) =>
+    reservationAPI.get(`/branchreviews/branch/${branchId}/summary`),
+  getBranchReviews: (branchId) =>
+    reservationAPI.get(`/branchreviews/branch/${branchId}`),
+  getCompanySummary: (companyId) =>
+    reservationAPI.get(`/branchreviews/company/${companyId}/summary`),
+};
+
+export const geocodeAPI = {
+  geocode: (query) =>
+    reservationAPI.get('/geocode', {
+      params: { query },
+    }),
+};
+
 // ===== Company Users API (Identity) =====
 export const companyUsersAPI = {
   getUsers: () => identityAPI.get('/company/users'),

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { companiesAPI } from '../services/api';
 
 function SalonsPage() {
+  const navigate = useNavigate();
   const [salons, setSalons] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -167,7 +169,17 @@ function SalonsPage() {
                   role="button"
                   tabIndex={0}
                   onClick={() => {
-                    // TODO: nawigacja do szczegółów salonu / ścieżki rezerwacji
+                    navigate(`/salons/${salon.id}`, {
+                      state: { salon },
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigate(`/salons/${salon.id}`, {
+                        state: { salon },
+                      });
+                    }
                   }}
                 >
                   <div className="salon-card-header">
@@ -181,7 +193,7 @@ function SalonsPage() {
                   <p className="salon-description">{description}</p>
 
                   <div className="salon-footer">
-                    <span>Rezerwacja dostępna po zalogowaniu.</span>
+                    <span>Kliknij firmę, aby zobaczyć oddziały i szczegóły.</span>
                   </div>
                 </article>
               );

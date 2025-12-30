@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { servicesAPI, companiesAPI } from "../services/api";
 
 const demoServices = [
@@ -23,6 +23,7 @@ const demoServices = [
 
 function ServicesPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,14 @@ function ServicesPage() {
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
 
+  const branchIdFromQuery = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("branchId");
+    if (!raw) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [location.search]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -45,6 +54,7 @@ function ServicesPage() {
         const res = await servicesAPI.getAll({
           query: query.trim() || undefined,
           city: city.trim() || undefined,
+          branchId: branchIdFromQuery ?? undefined,
           sort: sortBy === "recommended" ? undefined : sortBy,
           page,
           pageSize,
@@ -55,8 +65,10 @@ function ServicesPage() {
         const total =
           typeof data.totalCount === "number" ? data.totalCount : items.length;
 
+        const hasBranchFilter = !!branchIdFromQuery;
+
         // Fallback do danych demo, jeśli backend nie zwraca nic (np. w trybie offline)
-        if (!items.length) {
+        if (!items.length && !hasBranchFilter) {
           setServices(demoServices);
           setTotalCount(demoServices.length);
           setUsingDemoData(true);
@@ -83,7 +95,11 @@ function ServicesPage() {
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, city, sortBy, page, pageSize]);
+  }, [query, city, sortBy, page, pageSize, branchIdFromQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [branchIdFromQuery]);
 
   useEffect(() => {
     const q = city.trim();

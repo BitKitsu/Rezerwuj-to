@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { authAPI, companiesAPI, tokenManager } from '../services/api';
+import { authAPI, auditAPI, companiesAPI, tokenManager } from '../services/api';
 import '../admin.css'; // Reuse some admin styles for the form
 
 function AccountPage() {
@@ -48,6 +48,26 @@ function AccountPage() {
   const [companyFormLoading, setCompanyFormLoading] = useState(false);
   const [citySuggestions, setCitySuggestions] = useState([]);
 
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState('');
+
+  const loadAuditLogs = async () => {
+    setAuditLoading(true);
+    setAuditError('');
+    try {
+      const res = await auditAPI.getMy(100);
+      const items = Array.isArray(res.data) ? res.data : [];
+      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setAuditLogs(items);
+    } catch (err) {
+      console.error('Audit logs load error:', err);
+      setAuditError('Nie udało się załadować historii aktywności.');
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   useEffect(() => {
     const loadProfile = async () => {
       setProfileLoading(true);
@@ -73,6 +93,7 @@ function AccountPage() {
     };
 
     loadProfile();
+    loadAuditLogs();
   }, []);
 
   const handleProfileInputChange = (e) => {
@@ -113,6 +134,7 @@ function AccountPage() {
       }
 
       setProfileSuccess('Zapisano zmiany profilu.');
+      loadAuditLogs();
     } catch (err) {
       console.error('Profile update error:', err);
 
@@ -163,8 +185,10 @@ function AccountPage() {
         newPassword: '',
         confirmPassword: '',
       });
+
+      loadAuditLogs();
     } catch (err) {
-      console.error('Change password error:', err);
+      console.error('Password change error:', err);
 
       if (err.response?.data?.errors) {
         const message = err.response.data.errors
@@ -297,6 +321,96 @@ function AccountPage() {
 
   const currentUser = tokenManager.getUser();
   const hasCompany = currentUser && currentUser.companyId;
+
+  const formatAuditDate = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString();
+  };
+
+  const formatAuditAction = (log) => {
+    if (!log) return '';
+    if (log.action === 'Login') return 'Logowanie';
+    if (log.action === 'Logout') return 'Wylogowanie';
+    if (log.action === 'Update' && log.entityName === 'Password') return 'Zmiana hasła';
+    if (log.action === 'Update' && log.entityName === 'ApplicationUser') {
+      try {
+        const raw = log.changes;
+        const changes = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(changes) && changes.length > 0) {
+          const labels = {
+            UserName: 'nazwy użytkownika',
+            Username: 'nazwy użytkownika',
+            FirstName: 'imienia',
+            LastName: 'nazwiska',
+            PhoneNumber: 'numeru telefonu',
+            Phone: 'numeru telefonu',
+          };
+
+          const fields = changes
+            .map((c) => c?.Field)
+            .filter(Boolean)
+            .map((f) => labels[f] || f);
+
+          const unique = Array.from(new Set(fields));
+          if (unique.length === 1) return `Zmiana ${unique[0]}`;
+          if (unique.length > 1) return `Zmiana profilu (${unique.join(', ')})`;
+        }
+      } catch {
+      }
+
+      return 'Zmiana profilu';
+    }
+    if (log.action === 'Create' && log.entityName === 'RefreshToken') return 'Token odświeżania';
+    return `${log.action || ''}`;
+  };
+
+  const renderAuditLogs = () => (
+    <section className="dashboard-card">
+      <div className="admin-section" style={{ gap: '0.75rem' }}>
+        <div className="admin-section__header">
+          <h2 className="admin-section__title">Historia aktywności</h2>
+          <div className="admin-section__actions">
+            <button type="button" className="btn btn-outline" onClick={loadAuditLogs} disabled={auditLoading}>
+              Odśwież
+            </button>
+          </div>
+        </div>
+
+        {auditError && <div className="admin-alert admin-alert--error">{auditError}</div>}
+
+        {auditLoading ? (
+          <p>Ładowanie...</p>
+        ) : auditLogs.length === 0 ? (
+          <p>Brak wpisów.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Akcja</th>
+                <th>IP</th>
+                <th>Przeglądarka</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLogs.map((log) => (
+                <tr key={log.id}>
+                  <td>{formatAuditDate(log.createdAt)}</td>
+                  <td>{formatAuditAction(log)}</td>
+                  <td>{log.ipAddress || '—'}</td>
+                  <td style={{ maxWidth: 420, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {log.userAgent || '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </section>
+  );
 
   const renderCreateCompanyForm = () => (
     <div className="admin-card--form-container">
@@ -573,6 +687,8 @@ function AccountPage() {
           </>
         )}
       </section>
+
+      {renderAuditLogs()}
 
       <section className="dashboard-card">
         <h2>Zmiana hasła</h2>

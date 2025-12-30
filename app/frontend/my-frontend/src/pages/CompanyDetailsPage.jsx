@@ -61,6 +61,15 @@ function CompanyDetailsPage() {
     return lines.length ? lines.join(", ") : null;
   }, [company]);
 
+  const hoursText = useMemo(() => {
+    const open = company?.openingHour;
+    const close = company?.closingHour;
+    if (open && close) return `${open}–${close}`;
+    if (open) return open;
+    if (close) return close;
+    return null;
+  }, [company?.openingHour, company?.closingHour]);
+
   if (loading) {
     return <div className="list-page">Ładowanie szczegółów firmy...</div>;
   }
@@ -106,6 +115,12 @@ function CompanyDetailsPage() {
         {company.phone && (
           <div style={{ marginBottom: "8px" }}>
             <strong>Telefon:</strong> {company.phone}
+          </div>
+        )}
+
+        {hoursText && (
+          <div style={{ marginBottom: "8px" }}>
+            <strong>Godziny otwarcia:</strong> {hoursText}
           </div>
         )}
 

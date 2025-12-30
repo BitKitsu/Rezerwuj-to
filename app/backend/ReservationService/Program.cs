@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using ReservationService.Data;
 using ReservationService.Services;
+using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +18,7 @@ builder.Services.AddDbContext<ReservationDbContext>(options =>
 // Add custom services
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
+builder.Services.AddScoped<ICompanyAuditService, CompanyAuditService>();
 
 // Add services to the container.
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -26,6 +30,44 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient();
+
+// JWT Authentication
+var jwtSection = builder.Configuration.GetSection("JwtSettings");
+var secretKey = jwtSection["SecretKey"]
+               ?? builder.Configuration["Jwt:SecretKey"]
+               ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
+
+var issuer = jwtSection["Issuer"]
+             ?? builder.Configuration["Jwt:Issuer"]
+             ?? "MikroSaaS-IdentityService";
+
+var audience = jwtSection["Audience"]
+               ?? builder.Configuration["Jwt:Audience"]
+               ?? "MikroSaaS-Apps";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("CompanyOwnerOrAdmin", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole("Admin") || ctx.User.HasClaim("CompanyRole", "Owner")));
+});
 
 // CORS dla frontendu
 builder.Services.AddCors(options =>
@@ -98,6 +140,7 @@ app.UseHttpsRedirection();
 
 app.UseCors("AllowFrontend");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

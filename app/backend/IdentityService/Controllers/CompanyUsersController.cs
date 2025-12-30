@@ -11,7 +11,7 @@ namespace IdentityService.Controllers
 {
     [ApiController]
     [Route("api/company/users")]
-    [Authorize(Roles = "CompanyOwner,Admin")]
+    [Authorize(Roles = "CompanyOwner,CompanyManager,Admin")]
     public class CompanyUsersController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
@@ -26,16 +26,16 @@ namespace IdentityService.Controllers
         [HttpGet]
         public async Task<IActionResult> GetCompanyUsers()
         {
-            var owner = await GetCurrentUserWithCompany();
-            if (owner == null || !owner.CompanyId.HasValue) return Forbid();
+            var currentUser = await GetCurrentUserWithCompany();
+            if (currentUser == null || !currentUser.CompanyId.HasValue) return Forbid();
 
             var users = await _userManager.Users
-                .Where(u => u.CompanyId == owner.CompanyId.Value)
+                .Where(u => u.CompanyId == currentUser.CompanyId.Value)
                 .ToListAsync();
 
             var userIds = users.Select(u => u.Id).ToList();
             var roles = await _context.UserCompanyRoles
-                .Where(r => r.CompanyId == owner.CompanyId.Value && userIds.Contains(r.UserId) && r.IsActive)
+                .Where(r => r.CompanyId == currentUser.CompanyId.Value && userIds.Contains(r.UserId) && r.IsActive)
                 .ToDictionaryAsync(r => r.UserId, r => r.Role);
 
             var result = users.Select(u => new UserCompanyDto
@@ -51,6 +51,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPost("add")]
+        [Authorize(Roles = "CompanyOwner,Admin")]
         public async Task<IActionResult> AddUserToCompany([FromBody] AddUserToCompanyRequest request)
         {
             var owner = await GetCurrentUserWithCompany();
@@ -74,6 +75,21 @@ namespace IdentityService.Controllers
                 return BadRequest(new { message = "Nie udało się przypisać użytkownika do firmy." });
             }
 
+            if (await _userManager.IsInRoleAsync(userToAdd, "CompanyOwner"))
+            {
+                await _userManager.RemoveFromRoleAsync(userToAdd, "CompanyOwner");
+            }
+
+            if (await _userManager.IsInRoleAsync(userToAdd, "CompanyManager"))
+            {
+                await _userManager.RemoveFromRoleAsync(userToAdd, "CompanyManager");
+            }
+
+            if (request.Role == CompanyRoles.Manager)
+            {
+                await _userManager.AddToRoleAsync(userToAdd, "CompanyManager");
+            }
+
             _context.UserCompanyRoles.Add(new UserCompanyRole
             {
                 UserId = userToAdd.Id,
@@ -88,6 +104,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpDelete("{userId}")]
+        [Authorize(Roles = "CompanyOwner,Admin")]
         public async Task<IActionResult> RemoveUserFromCompany(string userId)
         {
             var owner = await GetCurrentUserWithCompany();
@@ -107,6 +124,16 @@ namespace IdentityService.Controllers
             userToRemove.CompanyId = null;
             await _userManager.UpdateAsync(userToRemove);
 
+            if (await _userManager.IsInRoleAsync(userToRemove, "CompanyOwner"))
+            {
+                await _userManager.RemoveFromRoleAsync(userToRemove, "CompanyOwner");
+            }
+
+            if (await _userManager.IsInRoleAsync(userToRemove, "CompanyManager"))
+            {
+                await _userManager.RemoveFromRoleAsync(userToRemove, "CompanyManager");
+            }
+
             var rolesToDeactivate = await _context.UserCompanyRoles
                 .Where(r => r.UserId == userId && r.CompanyId == owner.CompanyId.Value && r.IsActive)
                 .ToListAsync();
@@ -125,6 +152,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPut("{userId}/role")]
+        [Authorize(Roles = "CompanyOwner,Admin")]
         public async Task<IActionResult> UpdateUserRole(string userId, [FromBody] UpdateUserRoleRequest request)
         {
             if (!IsValidCompanyRole(request.Role))
@@ -149,6 +177,25 @@ namespace IdentityService.Controllers
             roleToUpdate.Role = request.Role;
             await _context.SaveChangesAsync();
 
+            var userToUpdate = await _userManager.FindByIdAsync(userId);
+            if (userToUpdate != null)
+            {
+                if (request.Role == CompanyRoles.Manager)
+                {
+                    if (!await _userManager.IsInRoleAsync(userToUpdate, "CompanyManager"))
+                    {
+                        await _userManager.AddToRoleAsync(userToUpdate, "CompanyManager");
+                    }
+                }
+                else
+                {
+                    if (await _userManager.IsInRoleAsync(userToUpdate, "CompanyManager"))
+                    {
+                        await _userManager.RemoveFromRoleAsync(userToUpdate, "CompanyManager");
+                    }
+                }
+            }
+
             return Ok(new { message = "Rola użytkownika została zaktualizowana." });
         }
 
@@ -165,6 +212,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPost("transfer-ownership")]
+        [Authorize(Roles = "CompanyOwner,Admin")]
         public async Task<IActionResult> TransferOwnership([FromBody] TransferOwnershipRequest request)
         {
             var oldOwner = await GetCurrentUserWithCompany();
@@ -194,6 +242,16 @@ namespace IdentityService.Controllers
                 // Swap global Identity roles
                 await _userManager.RemoveFromRoleAsync(oldOwner, "CompanyOwner");
                 await _userManager.AddToRoleAsync(newOwner, "CompanyOwner");
+
+                if (!await _userManager.IsInRoleAsync(oldOwner, "CompanyManager"))
+                {
+                    await _userManager.AddToRoleAsync(oldOwner, "CompanyManager");
+                }
+
+                if (await _userManager.IsInRoleAsync(newOwner, "CompanyManager"))
+                {
+                    await _userManager.RemoveFromRoleAsync(newOwner, "CompanyManager");
+                }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();

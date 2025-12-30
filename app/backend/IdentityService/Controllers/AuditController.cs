@@ -21,6 +21,7 @@ public class AuditController : ControllerBase
     
     // GET: api/audit
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<List<AuditLog>>> GetAuditLogs([FromQuery] int take = 100)
     {
         var logs = await _auditService.GetAuditLogsAsync(null, take);
@@ -29,6 +30,7 @@ public class AuditController : ControllerBase
     
     // GET: api/audit/user/abc-123
     [HttpGet("user/{userId}")]
+    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<List<AuditLog>>> GetUserAuditLogs(string userId, [FromQuery] int take = 100)
     {
         var logs = await _auditService.GetAuditLogsAsync(userId, take);

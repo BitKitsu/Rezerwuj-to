@@ -16,6 +16,10 @@ public class EventSourcingService : IEventSourcingService
 {
     private readonly ReservationDbContext _context;
     private readonly ILogger<EventSourcingService> _logger;
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
     
     public EventSourcingService(ReservationDbContext context, ILogger<EventSourcingService> logger)
     {
@@ -30,7 +34,7 @@ public class EventSourcingService : IEventSourcingService
             EventId = domainEvent.EventId,
             AggregateId = domainEvent.AggregateId,
             EventType = domainEvent.EventType,
-            EventData = JsonSerializer.Serialize(domainEvent),
+            EventData = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), SerializerOptions),
             UserId = domainEvent.UserId,
             OccurredAt = domainEvent.OccurredAt,
             StoredAt = DateTime.UtcNow,
@@ -66,7 +70,7 @@ public class EventSourcingService : IEventSourcingService
             var eventType = Type.GetType($"ReservationService.Models.{eventStore.EventType}");
             if (eventType == null) continue;
             
-            var domainEvent = JsonSerializer.Deserialize(eventStore.EventData, eventType);
+            var domainEvent = JsonSerializer.Deserialize(eventStore.EventData, eventType, SerializerOptions);
             if (domainEvent == null) continue;
             
             ApplyEvent(aggregate, domainEvent);

@@ -38,7 +38,17 @@ public class JwtService : IJwtService
         // Pobierz role użytkownika, aby dodać je do JWT i odpowiedzi
         var roles = await _userManager.GetRolesAsync(user);
 
-        var jwtToken = GenerateJwtToken(user, roles);
+        string? companyRole = null;
+        if (user.CompanyId.HasValue)
+        {
+            companyRole = await _context.UserCompanyRoles
+                .AsNoTracking()
+                .Where(r => r.UserId == user.Id && r.CompanyId == user.CompanyId.Value && r.IsActive)
+                .Select(r => r.Role)
+                .FirstOrDefaultAsync();
+        }
+
+        var jwtToken = GenerateJwtToken(user, roles, companyRole);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id, jwtToken.Id);
         
         return new TokenResponse
@@ -48,7 +58,8 @@ public class JwtService : IJwtService
             ExpiresIn = 900, // 15 minut
             TokenType = "Bearer",
             Roles = roles.ToList(),
-            CompanyId = user.CompanyId
+            CompanyId = user.CompanyId,
+            CompanyRole = companyRole
         };
     }
     
@@ -120,7 +131,7 @@ public class JwtService : IJwtService
         await _context.SaveChangesAsync();
     }
     
-    private (string Token, string Id) GenerateJwtToken(ApplicationUser user, IList<string> roles)
+    private (string Token, string Id) GenerateJwtToken(ApplicationUser user, IList<string> roles, string? companyRole)
     {
         var jwtId = Guid.NewGuid().ToString();
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
@@ -140,6 +151,11 @@ public class JwtService : IJwtService
         if (user.CompanyId.HasValue)
         {
             claims.Add(new Claim("CompanyId", user.CompanyId.Value.ToString()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(companyRole))
+        {
+            claims.Add(new Claim("CompanyRole", companyRole));
         }
 
         // Dodaj role użytkownika jako osobne claimy typu Role
@@ -199,4 +215,5 @@ public class TokenResponse
     public string TokenType { get; set; } = "Bearer";
     public List<string> Roles { get; set; } = new();
     public int? CompanyId { get; set; }
+    public string? CompanyRole { get; set; }
 }

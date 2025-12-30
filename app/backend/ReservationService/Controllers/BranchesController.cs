@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ReservationService.Data;
 using ReservationService.Models;
+using ReservationService.Services;
 using System.Linq;
 
 namespace ReservationService.Controllers;
@@ -12,10 +14,22 @@ namespace ReservationService.Controllers;
 public class BranchesController : ControllerBase
 {
     private readonly ReservationDbContext _context;
+    private readonly ICompanyAuditService _audit;
 
-    public BranchesController(ReservationDbContext context)
+    private string? GetClientIpAddress()
+    {
+        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+        {
+            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        }
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    public BranchesController(ReservationDbContext context, ICompanyAuditService audit)
     {
         _context = context;
+        _audit = audit;
     }
 
     [HttpGet]
@@ -52,8 +66,18 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<ActionResult<Branch>> CreateBranch([FromBody] BranchCreateUpdateDto dto)
     {
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, dto.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
+
         var companyExists = await _context.Companies.AnyAsync(c => c.Id == dto.CompanyId);
         if (!companyExists)
         {
@@ -87,6 +111,23 @@ public class BranchesController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+
+            try
+            {
+                await _audit.LogAsync(
+                    branch.CompanyId,
+                    nameof(Branch),
+                    branch.Id.ToString(),
+                    "Create",
+                    null,
+                    branch,
+                    User,
+                    GetClientIpAddress(),
+                    HttpContext.Request.Headers["User-Agent"].ToString());
+            }
+            catch
+            {
+            }
         }
         catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
@@ -97,6 +138,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> UpdateBranch(int id, [FromBody] BranchCreateUpdateDto dto)
     {
         var branch = await _context.Branches.FindAsync(id);
@@ -104,6 +146,36 @@ public class BranchesController : ControllerBase
         {
             return NotFound();
         }
+
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, branch.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
+            if (dto.CompanyId != branch.CompanyId)
+            {
+                return BadRequest(new { message = "Nie można zmienić firmy oddziału." });
+            }
+        }
+
+        var oldValues = new
+        {
+            branch.Id,
+            branch.CompanyId,
+            branch.BranchName,
+            branch.Phone,
+            branch.StreetName,
+            branch.StreetNumber,
+            branch.ApartmentNumber,
+            branch.City,
+            branch.PostalCode,
+            branch.Country,
+            branch.OpeningHour,
+            branch.ClosingHour
+        };
 
         if (branch.CompanyId != dto.CompanyId)
         {
@@ -136,6 +208,23 @@ public class BranchesController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+
+            try
+            {
+                await _audit.LogAsync(
+                    branch.CompanyId,
+                    nameof(Branch),
+                    branch.Id.ToString(),
+                    "Update",
+                    oldValues,
+                    branch,
+                    User,
+                    GetClientIpAddress(),
+                    HttpContext.Request.Headers["User-Agent"].ToString());
+            }
+            catch
+            {
+            }
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -155,6 +244,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> DeleteBranch(int id)
     {
         var branch = await _context.Branches.FindAsync(id);
@@ -162,6 +252,31 @@ public class BranchesController : ControllerBase
         {
             return NotFound();
         }
+
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, branch.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
+
+        var oldValues = new
+        {
+            branch.Id,
+            branch.CompanyId,
+            branch.BranchName,
+            branch.Phone,
+            branch.StreetName,
+            branch.StreetNumber,
+            branch.ApartmentNumber,
+            branch.City,
+            branch.PostalCode,
+            branch.Country,
+            branch.OpeningHour,
+            branch.ClosingHour
+        };
 
         var timeSlots = await _context.TimeSlots
             .Where(ts => ts.BranchId == id)
@@ -197,6 +312,23 @@ public class BranchesController : ControllerBase
 
         _context.Branches.Remove(branch);
         await _context.SaveChangesAsync();
+
+        try
+        {
+            await _audit.LogAsync(
+                oldValues.CompanyId,
+                nameof(Branch),
+                oldValues.Id.ToString(),
+                "Delete",
+                oldValues,
+                null,
+                User,
+                GetClientIpAddress(),
+                HttpContext.Request.Headers["User-Agent"].ToString());
+        }
+        catch
+        {
+        }
 
         return NoContent();
     }

@@ -20,6 +20,17 @@ namespace IdentityService.Controllers
         private readonly IAuditService _auditService;
         private readonly ApplicationDbContext _context;
 
+        private string GetClientIpAddress()
+        {
+            var xForwardedFor = HttpContext?.Request?.Headers["X-Forwarded-For"].ToString();
+            if (!string.IsNullOrWhiteSpace(xForwardedFor))
+            {
+                return xForwardedFor.Split(',')[0].Trim();
+            }
+
+            return HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "Unknown";
+        }
+
         public AccountController(
             UserManager<ApplicationUser> userManager, 
             SignInManager<ApplicationUser> signInManager,
@@ -107,7 +118,7 @@ namespace IdentityService.Controllers
                     var tokens = await _jwtService.GenerateTokensAsync(user);
                     
                     // Zapisz w audit log
-                    await _auditService.LogLoginAsync(user.Id, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown", 
+                    await _auditService.LogLoginAsync(user.Id, GetClientIpAddress(), 
                                                        HttpContext.Request.Headers["User-Agent"].ToString());
                     
                     return Ok(new 
@@ -122,7 +133,8 @@ namespace IdentityService.Controllers
                         firstName = user.FirstName,
                         lastName = user.LastName,
                         roles = tokens.Roles,
-                        companyId = user.CompanyId
+                        companyId = user.CompanyId,
+                        companyRole = tokens.CompanyRole
                     });
                 }
             }
@@ -295,6 +307,13 @@ namespace IdentityService.Controllers
                 return BadRequest(new { errors });
             }
 
+            await _auditService.LogAsync(
+                AuditActions.Update,
+                "Password",
+                user.Id,
+                null,
+                null);
+
             return Ok(new { message = "Hasło zostało pomyślnie zmienione." });
         }
 
@@ -388,6 +407,11 @@ namespace IdentityService.Controllers
                 }
             }
 
+            if (await _userManager.IsInRoleAsync(user, "CompanyManager"))
+            {
+                await _userManager.RemoveFromRoleAsync(user, "CompanyManager");
+            }
+
             var existingCompanyRole = await _context.UserCompanyRoles
                 .FirstOrDefaultAsync(r => r.UserId == user.Id && r.CompanyId == request.CompanyId);
 
@@ -423,7 +447,8 @@ namespace IdentityService.Controllers
                 firstName = user.FirstName,
                 lastName = user.LastName,
                 roles = tokens.Roles,
-                companyId = user.CompanyId
+                companyId = user.CompanyId,
+                companyRole = tokens.CompanyRole
             });
         }
 
@@ -461,6 +486,11 @@ namespace IdentityService.Controllers
                 await _userManager.RemoveFromRoleAsync(user, "CompanyOwner");
             }
 
+            if (await _userManager.IsInRoleAsync(user, "CompanyManager"))
+            {
+                await _userManager.RemoveFromRoleAsync(user, "CompanyManager");
+            }
+
             var activeCompanyRoles = await _context.UserCompanyRoles
                 .Where(r => r.UserId == user.Id && r.CompanyId == companyId && r.IsActive)
                 .ToListAsync();
@@ -489,7 +519,8 @@ namespace IdentityService.Controllers
                 firstName = user.FirstName,
                 lastName = user.LastName,
                 roles = tokens.Roles,
-                companyId = user.CompanyId
+                companyId = user.CompanyId,
+                companyRole = tokens.CompanyRole
             });
         }
 

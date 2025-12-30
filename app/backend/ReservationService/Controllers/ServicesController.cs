@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
+using ReservationService.Services;
+using System.Linq;
 
 namespace ReservationService.Controllers;
 
@@ -11,11 +14,23 @@ public class ServicesController : ControllerBase
 {
     private readonly ReservationDbContext _context;
     private readonly ILogger<ServicesController> _logger;
+    private readonly ICompanyAuditService _audit;
 
-    public ServicesController(ReservationDbContext context, ILogger<ServicesController> logger)
+    private string? GetClientIpAddress()
+    {
+        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+        {
+            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        }
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    public ServicesController(ReservationDbContext context, ILogger<ServicesController> logger, ICompanyAuditService audit)
     {
         _context = context;
         _logger = logger;
+        _audit = audit;
     }
 
     // GET: api/services
@@ -152,9 +167,19 @@ public class ServicesController : ControllerBase
 
     // POST: api/services
     [HttpPost]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<ActionResult<Service>> CreateService(ServiceCreateUpdateDto dto)
     {
         _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", dto.ServiceName);
+
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, dto.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
 
         var branch = await _context.Branches
             .AsNoTracking()
@@ -183,11 +208,29 @@ public class ServicesController : ControllerBase
         _context.Services.Add(service);
         await _context.SaveChangesAsync();
 
+        try
+        {
+            await _audit.LogAsync(
+                service.CompanyId,
+                nameof(Service),
+                service.Id.ToString(),
+                "Create",
+                null,
+                service,
+                User,
+                GetClientIpAddress(),
+                HttpContext.Request.Headers["User-Agent"].ToString());
+        }
+        catch
+        {
+        }
+
         return CreatedAtAction(nameof(GetService), new { id = service.Id }, service);
     }
 
     // PUT: api/services/5
     [HttpPut("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> UpdateService(int id, ServiceCreateUpdateDto dto)
     {
         var service = await _context.Services.FindAsync(id);
@@ -195,6 +238,31 @@ public class ServicesController : ControllerBase
         {
             return NotFound();
         }
+
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, service.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+
+            if (dto.CompanyId != service.CompanyId)
+            {
+                return BadRequest(new { message = "Nie można zmienić firmy usługi." });
+            }
+        }
+
+        var oldValues = new
+        {
+            service.Id,
+            service.CompanyId,
+            service.BranchId,
+            service.ServiceName,
+            service.Description,
+            service.Price,
+            service.DurationMinutes
+        };
 
         var branch = await _context.Branches
             .AsNoTracking()
@@ -220,6 +288,23 @@ public class ServicesController : ControllerBase
         try
         {
             await _context.SaveChangesAsync();
+
+            try
+            {
+                await _audit.LogAsync(
+                    service.CompanyId,
+                    nameof(Service),
+                    service.Id.ToString(),
+                    "Update",
+                    oldValues,
+                    service,
+                    User,
+                    GetClientIpAddress(),
+                    HttpContext.Request.Headers["User-Agent"].ToString());
+            }
+            catch
+            {
+            }
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -238,6 +323,7 @@ public class ServicesController : ControllerBase
 
     // DELETE: api/services/5
     [HttpDelete("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> DeleteService(int id)
     {
         var service = await _context.Services.FindAsync(id);
@@ -246,8 +332,45 @@ public class ServicesController : ControllerBase
             return NotFound();
         }
 
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, service.CompanyId.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
+
+        var oldValues = new
+        {
+            service.Id,
+            service.CompanyId,
+            service.BranchId,
+            service.ServiceName,
+            service.Description,
+            service.Price,
+            service.DurationMinutes
+        };
+
         _context.Services.Remove(service);
         await _context.SaveChangesAsync();
+
+        try
+        {
+            await _audit.LogAsync(
+                oldValues.CompanyId,
+                nameof(Service),
+                oldValues.Id.ToString(),
+                "Delete",
+                oldValues,
+                null,
+                User,
+                GetClientIpAddress(),
+                HttpContext.Request.Headers["User-Agent"].ToString());
+        }
+        catch
+        {
+        }
 
         _logger.LogInformation("Usunięto usługę o ID: {Id}", id);
         return NoContent();

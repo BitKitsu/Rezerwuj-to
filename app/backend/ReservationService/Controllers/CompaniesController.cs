@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
+using ReservationService.Services;
+using System.Linq;
 
 namespace ReservationService.Controllers;
 
@@ -10,10 +13,22 @@ namespace ReservationService.Controllers;
 public class CompaniesController : ControllerBase
 {
     private readonly ReservationDbContext _context;
+    private readonly ICompanyAuditService _audit;
 
-    public CompaniesController(ReservationDbContext context)
+    private string? GetClientIpAddress()
+    {
+        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
+        {
+            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        }
+
+        return HttpContext.Connection.RemoteIpAddress?.ToString();
+    }
+
+    public CompaniesController(ReservationDbContext context, ICompanyAuditService audit)
     {
         _context = context;
+        _audit = audit;
     }
 
     // GET: api/companies
@@ -135,6 +150,7 @@ public class CompaniesController : ControllerBase
 
     // POST: api/companies
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<Company>> CreateCompany(Company company)
     {
         company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
@@ -142,11 +158,29 @@ public class CompaniesController : ControllerBase
         _context.Companies.Add(company);
         await _context.SaveChangesAsync();
 
+        try
+        {
+            await _audit.LogAsync(
+                company.Id,
+                nameof(Company),
+                company.Id.ToString(),
+                "Create",
+                null,
+                company,
+                User,
+                GetClientIpAddress(),
+                HttpContext.Request.Headers["User-Agent"].ToString());
+        }
+        catch
+        {
+        }
+
         return CreatedAtAction(nameof(GetCompany), new { id = company.Id }, company);
     }
 
     // PUT: api/companies/5
     [HttpPut("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> UpdateCompany(int id, Company company)
     {
         if (id != company.Id)
@@ -154,13 +188,61 @@ public class CompaniesController : ControllerBase
             return BadRequest();
         }
 
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, id.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
+
+        var existing = await _context.Companies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == id);
+
+        if (existing == null)
+        {
+            return NotFound();
+        }
+
         company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
 
-        _context.Entry(company).State = EntityState.Modified;
+        var tracked = await _context.Companies.FirstAsync(c => c.Id == id);
+        tracked.CompanyName = company.CompanyName;
+        tracked.Email = company.Email;
+        tracked.Phone = company.Phone;
+        tracked.StreetName = company.StreetName;
+        tracked.StreetNumber = company.StreetNumber;
+        tracked.ApartmentNumber = company.ApartmentNumber;
+        tracked.City = company.City;
+        tracked.PostalCode = company.PostalCode;
+        tracked.Country = company.Country;
+        tracked.Description = company.Description;
+        tracked.Website = company.Website;
+        tracked.OpeningHour = company.OpeningHour;
+        tracked.ClosingHour = company.ClosingHour;
 
         try
         {
             await _context.SaveChangesAsync();
+
+            try
+            {
+                await _audit.LogAsync(
+                    id,
+                    nameof(Company),
+                    id.ToString(),
+                    "Update",
+                    existing,
+                    tracked,
+                    User,
+                    GetClientIpAddress(),
+                    HttpContext.Request.Headers["User-Agent"].ToString());
+            }
+            catch
+            {
+            }
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -179,13 +261,27 @@ public class CompaniesController : ControllerBase
 
     // DELETE: api/companies/5
     [HttpDelete("{id}")]
+    [Authorize(Policy = "CompanyOwnerOrAdmin")]
     public async Task<IActionResult> DeleteCompany(int id)
     {
+        if (!User.IsInRole("Admin"))
+        {
+            var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+            if (!string.Equals(claimCompanyId, id.ToString(), StringComparison.Ordinal))
+            {
+                return Forbid();
+            }
+        }
+
         var company = await _context.Companies.FindAsync(id);
         if (company == null)
         {
             return NotFound();
         }
+
+        var oldValues = await _context.Companies
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == id);
 
         var timeSlots = await _context.TimeSlots
             .Where(ts => ts.CompanyId == id)
@@ -229,6 +325,23 @@ public class CompaniesController : ControllerBase
 
         _context.Companies.Remove(company);
         await _context.SaveChangesAsync();
+
+        try
+        {
+            await _audit.LogAsync(
+                id,
+                nameof(Company),
+                id.ToString(),
+                "Delete",
+                oldValues,
+                null,
+                User,
+                GetClientIpAddress(),
+                HttpContext.Request.Headers["User-Agent"].ToString());
+        }
+        catch
+        {
+        }
 
         return NoContent();
     }

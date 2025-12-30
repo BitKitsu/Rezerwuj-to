@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { servicesAPI } from "../services/api";
+import { branchReviewsAPI, geocodeAPI, servicesAPI } from "../services/api";
 
 function ServiceDetailsPage() {
   const { id } = useParams();
@@ -11,6 +11,14 @@ function ServiceDetailsPage() {
   const [service, setService] = useState(() => initialService);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [branchSummary, setBranchSummary] = useState(null);
+  const [branchSummaryError, setBranchSummaryError] = useState("");
+  const [branchReviews, setBranchReviews] = useState([]);
+  const [branchReviewsLoading, setBranchReviewsLoading] = useState(false);
+  const [branchReviewsError, setBranchReviewsError] = useState("");
+
+  const [mapCoords, setMapCoords] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +54,7 @@ function ServiceDetailsPage() {
 
   const company = service?.company;
   const branch = service?.branch;
+  const branchId = branch?.id ?? service?.branchId ?? null;
 
   const companyName = company?.companyName || service?.companyName;
   const branchName = branch?.branchName || service?.branchName;
@@ -79,27 +88,157 @@ function ServiceDetailsPage() {
     return close;
   }, [branch, company]);
 
-  const mapQuery = useMemo(() => {
-    const parts = [
-      branchName,
-      companyName,
-      branch?.streetName,
-      branch?.streetNumber,
-      branch?.postalCode,
-      cityName,
-      branch?.country || company?.country,
-    ].filter(Boolean);
+  const normalizeStreet = (value) => {
+    if (!value) return null;
+    return String(value)
+      .trim()
+      .replace(/^(ul\.|ulica|al\.|aleja|pl\.|plac)\s+/i, "")
+      .trim();
+  };
+
+  const osmQuery = useMemo(() => {
+    const streetNameRaw = branch?.streetName || company?.streetName;
+    const streetName = normalizeStreet(streetNameRaw);
+    const streetNumber = branch?.streetNumber || company?.streetNumber;
+    const city = cityName;
+    const country = branch?.country || company?.country;
+
+    const parts = [streetName, streetNumber, city, country]
+      .filter(Boolean)
+      .map((x) => String(x).trim())
+      .filter((x) => x.length > 0);
 
     const raw = parts.join(" ").trim();
-    return raw ? encodeURIComponent(raw) : null;
-  }, [branch?.streetName, branch?.streetNumber, branch?.postalCode, branch?.country, company?.country, branchName, companyName, cityName]);
+    return raw || null;
+  }, [branch?.streetName, branch?.streetNumber, branch?.country, company?.streetName, company?.streetNumber, company?.country, cityName]);
 
-  const mapLink = mapQuery
-    ? `https://www.google.com/maps/search/?api=1&query=${mapQuery}`
+  const mapSearchLink = osmQuery
+    ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(osmQuery)}`
     : null;
-  const mapEmbedSrc = mapQuery
-    ? `https://www.google.com/maps?q=${mapQuery}&output=embed`
-    : null;
+
+  const mapLink = mapCoords
+    ? `https://www.openstreetmap.org/?mlat=${mapCoords.lat}&mlon=${mapCoords.lon}#map=18/${mapCoords.lat}/${mapCoords.lon}`
+    : mapSearchLink;
+
+  const mapEmbedSrc = useMemo(() => {
+    if (!mapCoords) return null;
+    const delta = 0.005;
+    const left = mapCoords.lon - delta;
+    const right = mapCoords.lon + delta;
+    const top = mapCoords.lat + delta;
+    const bottom = mapCoords.lat - delta;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${left}%2C${bottom}%2C${right}%2C${top}&layer=mapnik&marker=${mapCoords.lat}%2C${mapCoords.lon}`;
+  }, [mapCoords]);
+
+  useEffect(() => {
+    if (!osmQuery) {
+      setMapCoords(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const geocode = async () => {
+      try {
+        const res = await geocodeAPI.geocode(osmQuery);
+        if (cancelled) return;
+
+        if (res.data?.found && Number.isFinite(res.data.lat) && Number.isFinite(res.data.lon)) {
+          setMapCoords({ lat: res.data.lat, lon: res.data.lon });
+          return;
+        }
+
+        setMapCoords(null);
+      } catch (err) {
+        if (!cancelled) {
+          setMapCoords(null);
+        }
+      }
+    };
+
+    geocode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [osmQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBranchSummary = async () => {
+      if (!branchId) {
+        setBranchSummary(null);
+        setBranchSummaryError("");
+        return;
+      }
+
+      try {
+        const res = await branchReviewsAPI.getBranchSummary(branchId);
+        if (!cancelled) {
+          setBranchSummary(res.data);
+          setBranchSummaryError("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const status = err?.response?.status;
+          setBranchSummary(null);
+          setBranchSummaryError(
+            status
+              ? `Nie udało się pobrać oceny. (HTTP ${status})`
+              : "Nie udało się pobrać oceny.",
+          );
+        }
+      }
+    };
+
+    const loadBranchReviews = async () => {
+      if (!branchId) {
+        setBranchReviews([]);
+        setBranchReviewsError("");
+        return;
+      }
+
+      setBranchReviewsLoading(true);
+      setBranchReviewsError("");
+
+      try {
+        const res = await branchReviewsAPI.getBranchReviews(branchId);
+        if (!cancelled) {
+          setBranchReviews(res.data || []);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const status = err?.response?.status;
+          setBranchReviews([]);
+          setBranchReviewsError(
+            status
+              ? `Nie udało się pobrać opinii. (HTTP ${status})`
+              : "Nie udało się pobrać opinii.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setBranchReviewsLoading(false);
+        }
+      }
+    };
+
+    loadBranchSummary();
+    loadBranchReviews();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId]);
+
+  const formatBranchSummary = (summary) => {
+    if (!summary) return "—";
+    const count = summary.reviewCount ?? 0;
+    const avg = summary.averageRating ?? 0;
+    if (count === 0) return "Brak ocen";
+    return `${Number(avg).toFixed(1)}/5 (${count})`;
+  };
 
   if (loading) {
     return <div className="list-page">Ładowanie szczegółów usługi...</div>;
@@ -170,8 +309,13 @@ function ServiceDetailsPage() {
             {mapLink && (
               <div style={{ marginTop: "6px" }}>
                 <a href={mapLink} target="_blank" rel="noreferrer">
-                  Otwórz w Google Maps
+                  Otwórz w OpenStreetMap
                 </a>
+                {!mapCoords && osmQuery && (
+                  <div style={{ fontSize: "0.85em", opacity: 0.8, marginTop: "4px" }}>
+                    Nie udało się dopasować mapy do adresu – możesz użyć linku powyżej.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -210,6 +354,41 @@ function ServiceDetailsPage() {
         )}
       </div>
 
+      <div className="card" style={{ padding: "16px", marginBottom: "16px" }}>
+        <h2 style={{ marginTop: 0 }}>Oceny i opinie</h2>
+        <div style={{ marginBottom: "8px" }}>
+          <strong>Ocena oddziału:</strong>{" "}
+          {branchSummaryError ? branchSummaryError : formatBranchSummary(branchSummary)}
+        </div>
+
+        {branchReviewsLoading ? (
+          <p>Ładowanie...</p>
+        ) : branchReviewsError ? (
+          <div className="list-state list-state-error">{branchReviewsError}</div>
+        ) : branchReviews.length === 0 ? (
+          <p>Brak opinii dla tego oddziału.</p>
+        ) : (
+          <ul style={{ margin: 0, paddingLeft: "18px" }}>
+            {branchReviews.map((review) => {
+              const dateText = review.createdAt
+                ? new Date(review.createdAt).toLocaleDateString()
+                : "";
+              return (
+                <li key={review.id} style={{ marginBottom: "10px" }}>
+                  <div>
+                    <strong>{review.rating}/5</strong>
+                    {review.comment ? ` — ${review.comment}` : ""}
+                  </div>
+                  {dateText && (
+                    <div style={{ fontSize: "0.85em", opacity: 0.8 }}>{dateText}</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
       {mapEmbedSrc && (
         <div className="card" style={{ padding: "0", overflow: "hidden" }}>
           <iframe
@@ -219,7 +398,6 @@ function ServiceDetailsPage() {
             height="320"
             style={{ border: 0, display: "block" }}
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
           />
         </div>
       )}

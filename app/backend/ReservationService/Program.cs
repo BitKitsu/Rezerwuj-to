@@ -24,6 +24,9 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient();
+
 // CORS dla frontendu
 builder.Services.AddCors(options =>
 {

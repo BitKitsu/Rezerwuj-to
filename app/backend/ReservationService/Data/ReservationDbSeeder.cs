@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ReservationService.Models;
+using System.Text.RegularExpressions;
 
 namespace ReservationService.Data;
 
@@ -9,6 +10,7 @@ public static class ReservationDbSeeder
     public static void SeedDevBranchReviews(ReservationDbContext dbContext, ILogger logger)
     {
         var phonesChanged = NormalizeCompanyPhones(dbContext);
+        var addressesChanged = NormalizeSeededAddresses(dbContext);
 
         var branches = dbContext.Branches
             .AsNoTracking()
@@ -18,7 +20,7 @@ public static class ReservationDbSeeder
 
         if (branches.Count == 0)
         {
-            if (phonesChanged)
+            if (phonesChanged || addressesChanged)
             {
                 dbContext.SaveChanges();
             }
@@ -98,6 +100,79 @@ public static class ReservationDbSeeder
         dbContext.SaveChanges();
 
         logger.LogInformation("Dev seed: ensured at least one BranchReview per Branch.");
+    }
+
+    private static bool NormalizeSeededAddresses(ReservationDbContext dbContext)
+    {
+        var changed = false;
+        var seededCompanyIds = new HashSet<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12 };
+        var seededBranchIds = new HashSet<int> { 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12 };
+
+        var companies = dbContext.Companies
+            .Where(c => seededCompanyIds.Contains(c.Id))
+            .ToList();
+
+        foreach (var company in companies)
+        {
+            if (!string.IsNullOrWhiteSpace(company.StreetNumber))
+            {
+                continue;
+            }
+
+            if (TrySplitStreetAndNumber(company.StreetName, out var street, out var number))
+            {
+                company.StreetName = street;
+                company.StreetNumber = number;
+                changed = true;
+            }
+        }
+
+        var branches = dbContext.Branches
+            .Where(b => seededBranchIds.Contains(b.Id))
+            .ToList();
+
+        foreach (var branch in branches)
+        {
+            if (!string.IsNullOrWhiteSpace(branch.StreetNumber))
+            {
+                continue;
+            }
+
+            if (TrySplitStreetAndNumber(branch.StreetName, out var street, out var number))
+            {
+                branch.StreetName = street;
+                branch.StreetNumber = number;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool TrySplitStreetAndNumber(string? raw, out string street, out string number)
+    {
+        street = string.Empty;
+        number = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+        var match = Regex.Match(raw.Trim(), "^(?<street>.+?)\\s+(?<number>\\d+[A-Za-z]?(/\\d+)?)$", RegexOptions.CultureInvariant);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        street = match.Groups["street"].Value.Trim();
+        number = match.Groups["number"].Value.Trim();
+
+        if (street.Length == 0 || number.Length == 0)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static bool NormalizeCompanyPhones(ReservationDbContext dbContext)

@@ -108,6 +108,10 @@ namespace ReservationService.Migrations
                     b.Property<string>("OpeningHour")
                         .HasColumnType("text");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<string>("PostalCode")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -135,7 +139,7 @@ namespace ReservationService.Migrations
                             City = "Warszawa",
                             CompanyId = 1,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4485),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4935),
                             PostalCode = "00-001",
                             StreetName = "ul. Główna 15"
                         },
@@ -146,7 +150,7 @@ namespace ReservationService.Migrations
                             City = "Warszawa",
                             CompanyId = 2,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4487),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4939),
                             PostalCode = "00-120",
                             StreetName = "ul. Męska 10"
                         },
@@ -157,7 +161,7 @@ namespace ReservationService.Migrations
                             City = "Kraków",
                             CompanyId = 3,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4488),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4941),
                             PostalCode = "30-001",
                             StreetName = "ul. Piękna 5"
                         },
@@ -168,7 +172,7 @@ namespace ReservationService.Migrations
                             City = "Kraków",
                             CompanyId = 4,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4489),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4942),
                             PostalCode = "30-045",
                             StreetName = "ul. Leśna 8"
                         },
@@ -179,7 +183,7 @@ namespace ReservationService.Migrations
                             City = "Wrocław",
                             CompanyId = 5,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4490),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4944),
                             PostalCode = "50-001",
                             StreetName = "ul. Dłonie 2"
                         },
@@ -190,7 +194,7 @@ namespace ReservationService.Migrations
                             City = "Poznań",
                             CompanyId = 6,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4492),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4946),
                             PostalCode = "60-001",
                             StreetName = "ul. Relaksu 21"
                         },
@@ -201,7 +205,7 @@ namespace ReservationService.Migrations
                             City = "Wrocław",
                             CompanyId = 7,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4493),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4947),
                             PostalCode = "50-120",
                             StreetName = "ul. Kawowa 7"
                         },
@@ -212,7 +216,7 @@ namespace ReservationService.Migrations
                             City = "Gdańsk",
                             CompanyId = 8,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4494),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4949),
                             PostalCode = "80-001",
                             StreetName = "ul. Luksusowa 1"
                         },
@@ -223,7 +227,7 @@ namespace ReservationService.Migrations
                             City = "Łódź",
                             CompanyId = 9,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4495),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4951),
                             PostalCode = "90-001",
                             StreetName = "ul. Miejska 11"
                         },
@@ -234,7 +238,7 @@ namespace ReservationService.Migrations
                             City = "Rzeszów",
                             CompanyId = 11,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4497),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4953),
                             PostalCode = "35-001",
                             StreetName = "ul. Rzeszowska 14"
                         },
@@ -245,7 +249,7 @@ namespace ReservationService.Migrations
                             City = "Rzeszów",
                             CompanyId = 12,
                             Country = "Polska",
-                            CreatedAt = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4499),
+                            CreatedAt = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4955),
                             PostalCode = "35-010",
                             StreetName = "ul. Piłsudskiego 22"
                         });
@@ -369,9 +373,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Nowoczesny salon fryzjerski z wieloletnim doświadczeniem",
                             Email = "kontakt@artisticstudio.pl",
-                            Phone = "123456789",
+                            Phone = "+48123456789",
                             PostalCode = "00-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4187),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4517),
                             StreetName = "ul. Główna 15",
                             Website = "https://artisticstudio.pl"
                         },
@@ -383,9 +387,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Męski barber shop z tradycyjnym podejściem do stylizacji",
                             Email = "kontakt@barbercraft.pl",
-                            Phone = "222333444",
+                            Phone = "+48222333444",
                             PostalCode = "00-120",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4190),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4521),
                             StreetName = "ul. Męska 10",
                             Website = "https://barbercraft.pl"
                         },
@@ -397,9 +401,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Profesjonalne studio urody i kosmetyki",
                             Email = "kontakt@beautyglamour.pl",
-                            Phone = "333444555",
+                            Phone = "+48333444555",
                             PostalCode = "30-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4192),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4524),
                             StreetName = "ul. Piękna 5",
                             Website = "https://beautyglamour.pl"
                         },
@@ -411,9 +415,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Centrum SPA i masażu relaksacyjnego",
                             Email = "info@wellnessspa.pl",
-                            Phone = "444555666",
+                            Phone = "+48444555666",
                             PostalCode = "30-045",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4194),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4526),
                             StreetName = "ul. Leśna 8",
                             Website = "https://wellnessspa.pl"
                         },
@@ -425,9 +429,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Profesjonalny salon paznokci i stylizacji dłoni",
                             Email = "kontakt@nailsstudio.pl",
-                            Phone = "555666777",
+                            Phone = "+48555666777",
                             PostalCode = "50-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4196),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4528),
                             StreetName = "ul. Dłonie 2",
                             Website = "https://nailsstudio.pl"
                         },
@@ -439,9 +443,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Masaże relaksacyjne i zabiegi lecznicze",
                             Email = "kontakt@massagecenter.pl",
-                            Phone = "666777888",
+                            Phone = "+48666777888",
                             PostalCode = "60-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4198),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4531),
                             StreetName = "ul. Relaksu 21",
                             Website = "https://massagecenter.pl"
                         },
@@ -453,9 +457,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Barber shop z kawiarnią w stylu industrialnym",
                             Email = "kontakt@coffeebarber.pl",
-                            Phone = "777888999",
+                            Phone = "+48777888999",
                             PostalCode = "50-120",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4200),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4533),
                             StreetName = "ul. Kawowa 7",
                             Website = "https://coffeebarber.pl"
                         },
@@ -467,9 +471,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Zaawansowane zabiegi kosmetologiczne i medycyny estetycznej",
                             Email = "rejestracja@prestigeclinic.pl",
-                            Phone = "888999000",
+                            Phone = "+48888999000",
                             PostalCode = "80-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4201),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4536),
                             StreetName = "ul. Luksusowa 1",
                             Website = "https://prestigeclinic.pl"
                         },
@@ -481,9 +485,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Nowoczesny salon fryzjerski w centrum miasta",
                             Email = "kontakt@cityhairstudio.pl",
-                            Phone = "999000111",
+                            Phone = "+48999000111",
                             PostalCode = "90-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4203),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4538),
                             StreetName = "ul. Miejska 11",
                             Website = "https://cityhairstudio.pl"
                         },
@@ -495,9 +499,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Tradycyjny barber shop z nowoczesnym podejściem",
                             Email = "kontakt@podkarpackiebarber.pl",
-                            Phone = "171234567",
+                            Phone = "+48171234567",
                             PostalCode = "35-001",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4205),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4541),
                             StreetName = "ul. Rzeszowska 14",
                             Website = "https://podkarpackiebarber.pl"
                         },
@@ -509,9 +513,9 @@ namespace ReservationService.Migrations
                             Country = "Polska",
                             Description = "Nowoczesne studio urody z pełną ofertą zabiegów",
                             Email = "info@beautystudiorzeszow.pl",
-                            Phone = "172345678",
+                            Phone = "+48172345678",
                             PostalCode = "35-010",
-                            RegistrationDate = new DateTime(2025, 12, 30, 9, 39, 19, 675, DateTimeKind.Utc).AddTicks(4207),
+                            RegistrationDate = new DateTime(2025, 12, 30, 13, 11, 52, 484, DateTimeKind.Utc).AddTicks(4543),
                             StreetName = "ul. Piłsudskiego 22",
                             Website = "https://beautystudiorzeszow.pl"
                         });

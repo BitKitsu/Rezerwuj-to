@@ -1,25 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { servicesAPI, companiesAPI } from "../services/api";
-
-const demoServices = [
-  {
-    id: "demo-1",
-    serviceName: "Strzyżenie damskie",
-    description: "Strzyżenie i modelowanie",
-    durationMinutes: 60,
-    price: 80,
-    companyName: "Przykładowy Fryzjer",
-  },
-  {
-    id: "demo-2",
-    serviceName: "Strzyżenie męskie",
-    description: "Profesjonalne strzyżenie",
-    durationMinutes: 30,
-    price: 50,
-    companyName: "Przykładowy Fryzjer",
-  },
-];
+import { servicesAPI, companiesAPI, branchesAPI } from "../services/api";
 
 function ServicesPage() {
   const navigate = useNavigate();
@@ -65,29 +46,15 @@ function ServicesPage() {
         const total =
           typeof data.totalCount === "number" ? data.totalCount : items.length;
 
-        const hasBranchFilter = !!branchIdFromQuery;
-
-        // Fallback do danych demo, jeśli backend nie zwraca nic (np. w trybie offline)
-        if (!items.length && !hasBranchFilter) {
-          setServices(demoServices);
-          setTotalCount(demoServices.length);
-          setUsingDemoData(true);
-        } else {
-          setServices(items);
-          setTotalCount(total);
-          setUsingDemoData(false);
-        }
+        setServices(items);
+        setTotalCount(total);
       } catch (err) {
         console.error("Error loading services", err);
         setError(
           "Nie udało się pobrać listy usług. Sprawdź, czy backend działa.",
         );
-        // W trybie błędu zostaw ostatnie dane; jeśli ich nie ma, pokaż demo
-        if (!services.length) {
-          setServices(demoServices);
-          setTotalCount(demoServices.length);
-          setUsingDemoData(true);
-        }
+        setServices([]);
+        setTotalCount(0);
       } finally {
         setLoading(false);
       }
@@ -132,8 +99,6 @@ function ServicesPage() {
   );
   const currentPage = Math.min(page, pageCount);
   const visibleServices = services;
-
-  const hasRealData = !usingDemoData && services.length > 0;
 
   const handlePageSizeChange = (e) => {
     setPageSize(Number(e.target.value));
@@ -224,12 +189,6 @@ function ServicesPage() {
 
       {!loading && !error && services.length > 0 && (
         <>
-          {!hasRealData && (
-            <div className="list-state list-state-spaced">
-              Brak danych z backendu. Poniżej przykładowe usługi demonstracyjne.
-            </div>
-          )}
-
           <section className="card-grid">
             {visibleServices.map((service) => (
               <article

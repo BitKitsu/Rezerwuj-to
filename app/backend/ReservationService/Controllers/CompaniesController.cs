@@ -137,6 +137,7 @@ public class CompaniesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Company>> CreateCompany(Company company)
     {
+        company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
         company.RegistrationDate = DateTime.UtcNow;
         _context.Companies.Add(company);
         await _context.SaveChangesAsync();
@@ -152,6 +153,8 @@ public class CompaniesController : ControllerBase
         {
             return BadRequest();
         }
+
+        company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
 
         _context.Entry(company).State = EntityState.Modified;
 
@@ -233,5 +236,15 @@ public class CompaniesController : ControllerBase
     private bool CompanyExists(int id)
     {
         return _context.Companies.Any(e => e.Id == id);
+    }
+
+    private static string? SanitizePhoneNumber(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            return null;
+
+        var sanitized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+        return string.IsNullOrEmpty(sanitized) ? null : sanitized;
     }
 }

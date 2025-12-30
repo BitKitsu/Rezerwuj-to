@@ -4,6 +4,7 @@ import {
   companiesAPI,
   servicesAPI,
   branchesAPI,
+  branchReviewsAPI,
   authAPI,
   companyUsersAPI,
 } from "../services/api";
@@ -14,6 +15,7 @@ const CompanyPanel = () => {
   const [company, setCompany] = useState(null);
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [branchReviewSummaries, setBranchReviewSummaries] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -136,6 +138,56 @@ const CompanyPanel = () => {
       console.error("Failed to load branches", err);
     }
   }, [companyId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBranchReviewSummaries = async () => {
+      if (branches.length === 0) {
+        setBranchReviewSummaries({});
+        return;
+      }
+
+      try {
+        const results = await Promise.all(
+          branches.map(async (branch) => {
+            try {
+              const res = await branchReviewsAPI.getBranchSummary(branch.id);
+              return [branch.id, res.data];
+            } catch (err) {
+              console.error(
+                `Failed to load branch review summary for branch ${branch.id}`,
+                err,
+              );
+              return [branch.id, null];
+            }
+          }),
+        );
+
+        if (!cancelled) {
+          setBranchReviewSummaries(Object.fromEntries(results));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setBranchReviewSummaries({});
+        }
+      }
+    };
+
+    loadBranchReviewSummaries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branches]);
+
+  const formatBranchReviewSummary = (summary) => {
+    if (!summary) return "—";
+    const count = summary.reviewCount ?? 0;
+    const avg = summary.averageRating ?? 0;
+    if (count === 0) return "Brak ocen";
+    return `${Number(avg).toFixed(1)}/5 (${count})`;
+  };
 
   useEffect(() => {
     const loadAllData = async () => {
@@ -758,6 +810,7 @@ const CompanyPanel = () => {
                 <th>Nazwa</th>
                 <th>Miasto</th>
                 <th>Adres</th>
+                <th>Oceny</th>
                 <th>Akcje</th>
               </tr>
             </thead>
@@ -769,6 +822,9 @@ const CompanyPanel = () => {
                   <td>
                     {(branch.streetName || "") +
                       (branch.streetNumber ? ` ${branch.streetNumber}` : "")}
+                  </td>
+                  <td>
+                    {formatBranchReviewSummary(branchReviewSummaries[branch.id])}
                   </td>
                   <td>
                     <button

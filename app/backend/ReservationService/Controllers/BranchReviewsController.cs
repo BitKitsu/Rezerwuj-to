@@ -26,6 +26,27 @@ public class BranchReviewsController : ControllerBase
         return Ok(new { branchId, averageRating = avg, reviewCount = count });
     }
 
+    [HttpGet("branch/{branchId}")]
+    public async Task<ActionResult<IEnumerable<object>>> GetBranchReviews(int branchId)
+    {
+        var reviews = await _context.BranchReviews
+            .AsNoTracking()
+            .Where(r => r.BranchId == branchId)
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new
+            {
+                r.Id,
+                r.CompanyId,
+                r.BranchId,
+                r.Rating,
+                r.Comment,
+                r.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(reviews);
+    }
+
     [HttpGet("company/{companyId}/summary")]
     public async Task<ActionResult<object>> GetCompanySummary(int companyId)
     {

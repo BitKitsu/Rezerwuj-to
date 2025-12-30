@@ -8,6 +8,8 @@ public static class ReservationDbSeeder
 {
     public static void SeedDevBranchReviews(ReservationDbContext dbContext, ILogger logger)
     {
+        var phonesChanged = NormalizeCompanyPhones(dbContext);
+
         var branches = dbContext.Branches
             .AsNoTracking()
             .Select(b => new { b.Id, b.CompanyId })
@@ -16,6 +18,10 @@ public static class ReservationDbSeeder
 
         if (branches.Count == 0)
         {
+            if (phonesChanged)
+            {
+                dbContext.SaveChanges();
+            }
             return;
         }
 
@@ -92,5 +98,62 @@ public static class ReservationDbSeeder
         dbContext.SaveChanges();
 
         logger.LogInformation("Dev seed: ensured at least one BranchReview per Branch.");
+    }
+
+    private static bool NormalizeCompanyPhones(ReservationDbContext dbContext)
+    {
+        var companies = dbContext.Companies.ToList();
+        var changed = false;
+
+        foreach (var company in companies)
+        {
+            var formatted = FormatPhone(company.Phone);
+            if (formatted != null && !string.Equals(company.Phone, formatted, StringComparison.Ordinal))
+            {
+                company.Phone = formatted;
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static string? FormatPhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return null;
+        }
+
+        var sanitized = new string(phone.Where(c => char.IsDigit(c) || c == '+').ToArray());
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            return null;
+        }
+
+        if (sanitized.StartsWith("+", StringComparison.Ordinal))
+        {
+            var digitsOnly = new string(sanitized.Where(char.IsDigit).ToArray());
+            return digitsOnly.Length == 0 ? null : $"+{digitsOnly}";
+        }
+
+        var digits = new string(sanitized.Where(char.IsDigit).ToArray());
+
+        if (digits.Length == 13 && digits.StartsWith("0048", StringComparison.Ordinal))
+        {
+            return $"+48{digits.Substring(4)}";
+        }
+
+        if (digits.Length == 11 && digits.StartsWith("48", StringComparison.Ordinal))
+        {
+            return $"+{digits}";
+        }
+
+        if (digits.Length == 9)
+        {
+            return $"+48{digits}";
+        }
+
+        return null;
     }
 }

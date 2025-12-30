@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Services;
-using ReservationService.Models;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,96 +51,21 @@ using (var scope = app.Services.CreateScope())
         try
         {
             logger.LogInformation($"Applying ReservationDB migrations... (attempt {retry + 1}/{maxRetryCount})");
-            dbContext.Database.EnsureCreated(); // Tworzy bazę i tabele jeśli nie istnieją
-            logger.LogInformation("ReservationDB is ready!");
-            
-            // Dodaj dane testowe jeśli baza jest pusta
-            if (!dbContext.Services.Any())
+            var migrations = dbContext.Database.GetMigrations().ToList();
+            if (migrations.Count == 0)
             {
-                logger.LogInformation("Seeding test data...");
+                logger.LogWarning("No EF Core migrations were found for ReservationDB. Falling back to EnsureCreated(). Generate an initial migration to use Database.Migrate().");
+                dbContext.Database.EnsureCreated();
+            }
+            else
+            {
+                dbContext.Database.Migrate();
+            }
+            logger.LogInformation("ReservationDB is ready!");
 
-                Company testCompany;
-                if (!dbContext.Companies.Any())
-                {
-                    testCompany = new Company
-                    {
-                        CompanyName = "Przykładowy Fryzjer",
-                        Description = "Najlepszy fryzjer w mieście",
-                        StreetName = "ul. Testowa",
-                        StreetNumber = "123",
-                        ApartmentNumber = null,
-                        City = "Warszawa",
-                        PostalCode = "00-001",
-                        Country = "Polska",
-                        Phone = "+48 111 222 333",
-                        Email = "fryzjer@example.com"
-                    };
-
-                    dbContext.Companies.Add(testCompany);
-                    dbContext.SaveChanges();
-                }
-                else
-                {
-                    testCompany = dbContext.Companies.OrderBy(c => c.Id).First();
-                }
-
-                var testBranch = dbContext.Branches
-                    .OrderBy(b => b.Id)
-                    .FirstOrDefault(b => b.CompanyId == testCompany.Id)
-                    ?? new Branch
-                    {
-                        CompanyId = testCompany.Id,
-                        BranchName = "Oddział główny",
-                        StreetName = testCompany.StreetName,
-                        StreetNumber = testCompany.StreetNumber,
-                        ApartmentNumber = testCompany.ApartmentNumber,
-                        City = testCompany.City,
-                        PostalCode = testCompany.PostalCode,
-                        Country = testCompany.Country,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                if (testBranch.Id == 0)
-                {
-                    dbContext.Branches.Add(testBranch);
-                    dbContext.SaveChanges();
-                }
-
-                var services = new[]
-                {
-                    new Service
-                    {
-                        ServiceName = "Strzyżenie męskie",
-                        Description = "Klasyczne strzyżenie męskie",
-                        DurationMinutes = 30,
-                        Price = 50.00M,
-                        CompanyId = testCompany.Id,
-                        BranchId = testBranch.Id
-                    },
-                    new Service
-                    {
-                        ServiceName = "Strzyżenie damskie",
-                        Description = "Strzyżenie i modelowanie",
-                        DurationMinutes = 60,
-                        Price = 80.00M,
-                        CompanyId = testCompany.Id,
-                        BranchId = testBranch.Id
-                    },
-                    new Service
-                    {
-                        ServiceName = "Koloryzacja",
-                        Description = "Farbowanie włosów",
-                        DurationMinutes = 120,
-                        Price = 200.00M,
-                        CompanyId = testCompany.Id,
-                        BranchId = testBranch.Id
-                    }
-                };
-                
-                dbContext.Services.AddRange(services);
-                dbContext.SaveChanges();
-                
-                logger.LogInformation("Test data seeded successfully!");
+            if (app.Environment.IsDevelopment())
+            {
+                ReservationDbSeeder.SeedDevBranchReviews(dbContext, logger);
             }
             
             break; // Sukces

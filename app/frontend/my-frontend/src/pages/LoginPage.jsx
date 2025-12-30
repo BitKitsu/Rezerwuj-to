@@ -12,10 +12,13 @@ function LoginPage() {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    const nextValue = name === 'loginIdentifier' || name === 'password' ? value.trim() : value;
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: nextValue
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -24,7 +27,11 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      await authAPI.login(formData);
+      await authAPI.login({
+        ...formData,
+        loginIdentifier: formData.loginIdentifier.trim(),
+        password: formData.password.trim()
+      });
       
       // JWT tokeny są automatycznie zapisywane w authAPI.login()
       // Przekieruj do dashboardu

@@ -19,6 +19,8 @@ const CompanyPanel = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [panelSuccess, setPanelSuccess] = useState("");
+
   // Company details form
   const [companyForm, setCompanyForm] = useState(null);
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
@@ -53,6 +55,18 @@ const CompanyPanel = () => {
   const [addUserFormSubmitting, setAddUserFormSubmitting] = useState(false);
 
   const companyId = tokenManager.getUser()?.companyId;
+
+  useEffect(() => {
+    if (!panelSuccess) return undefined;
+
+    const handle = setTimeout(() => {
+      setPanelSuccess("");
+    }, 3500);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [panelSuccess]);
 
   const loadCompanyData = useCallback(async () => {
     if (!companyId) {
@@ -275,6 +289,7 @@ const CompanyPanel = () => {
   const resetBranchForm = () => {
     setEditingBranch({
       branchName: "",
+      phone: companyForm?.phone || "",
       streetName: companyForm?.streetName || "",
       streetNumber: companyForm?.streetNumber || "",
       apartmentNumber: companyForm?.apartmentNumber || "",
@@ -322,8 +337,10 @@ const CompanyPanel = () => {
 
       if (editingBranch.id) {
         await branchesAPI.update(editingBranch.id, payload);
+        setPanelSuccess("Oddział został zaktualizowany.");
       } else {
         await branchesAPI.create(payload);
+        setPanelSuccess("Oddział został dodany.");
       }
 
       setBranchFormVisible(false);
@@ -352,6 +369,7 @@ const CompanyPanel = () => {
         await branchesAPI.delete(branchId);
         await loadBranches();
         await loadServices();
+        setPanelSuccess("Oddział został usunięty.");
       } catch (err) {
         console.error("Failed to delete branch", err);
         alert(err.response?.data?.message || "Nie udało się usunąć oddziału.");
@@ -404,8 +422,10 @@ const CompanyPanel = () => {
       const serviceData = { ...editingService, companyId };
       if (editingService.id) {
         await servicesAPI.update(editingService.id, serviceData);
+        setPanelSuccess("Usługa została zaktualizowana.");
       } else {
         await servicesAPI.create(serviceData);
+        setPanelSuccess("Usługa została dodana.");
       }
       setServiceFormVisible(false);
       await loadServices();
@@ -549,6 +569,7 @@ const CompanyPanel = () => {
       try {
         await servicesAPI.delete(serviceId);
         await loadServices();
+        setPanelSuccess("Usługa została usunięta.");
       } catch (err) {
         console.error("Failed to delete service", err);
         alert("Nie udało się usunąć usługi.");
@@ -810,6 +831,7 @@ const CompanyPanel = () => {
                 <th>Nazwa</th>
                 <th>Miasto</th>
                 <th>Adres</th>
+                <th>Telefon</th>
                 <th>Oceny</th>
                 <th>Akcje</th>
               </tr>
@@ -823,6 +845,7 @@ const CompanyPanel = () => {
                     {(branch.streetName || "") +
                       (branch.streetNumber ? ` ${branch.streetNumber}` : "")}
                   </td>
+                  <td>{branch.phone || "—"}</td>
                   <td>
                     {formatBranchReviewSummary(branchReviewSummaries[branch.id])}
                   </td>
@@ -1050,6 +1073,17 @@ const CompanyPanel = () => {
                 required
                 className="admin-input"
                 maxLength={100}
+              />
+            </div>
+            <div className="admin-form__field">
+              <label>Telefon (opcjonalnie)</label>
+              <input
+                name="phone"
+                type="tel"
+                value={editingBranch?.phone || ""}
+                onChange={handleBranchFormChange}
+                className="admin-input"
+                placeholder="+48 111 222 333"
               />
             </div>
             <div className="admin-form__field">
@@ -1293,6 +1327,12 @@ const CompanyPanel = () => {
           </p>
         </div>
       </header>
+
+      {panelSuccess && (
+        <div className="admin-alert admin-alert--success" style={{ marginBottom: "12px" }}>
+          {panelSuccess}
+        </div>
+      )}
 
       <div className="admin-page__tabs">
         <button

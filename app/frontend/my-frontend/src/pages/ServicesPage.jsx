@@ -10,7 +10,7 @@ function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [usingDemoData, setUsingDemoData] = useState(false);
+  const [filteredBranch, setFilteredBranch] = useState(null);
 
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
@@ -26,6 +26,38 @@ function ServicesPage() {
     const parsed = Number(raw);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }, [location.search]);
+
+  const handleClearBranchFilter = () => {
+    navigate("/services", { replace: true });
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBranch = async () => {
+      if (branchIdFromQuery == null) {
+        setFilteredBranch(null);
+        return;
+      }
+
+      try {
+        const res = await branchesAPI.getById(branchIdFromQuery);
+        if (!cancelled) {
+          setFilteredBranch(res.data ?? null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setFilteredBranch(null);
+        }
+      }
+    };
+
+    loadBranch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [branchIdFromQuery]);
 
   useEffect(() => {
     const load = async () => {
@@ -174,6 +206,21 @@ function ServicesPage() {
           </div>
         </div>
       </section>
+
+      {branchIdFromQuery != null && (
+        <div className="list-state" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <div>
+            Filtr oddziału aktywny
+            {filteredBranch?.branchName
+              ? ` (${filteredBranch.branchName}${filteredBranch.city ? `, ${filteredBranch.city}` : ""})`
+              : ""}
+            . Wyniki mogą być ograniczone.
+          </div>
+          <button type="button" className="btn btn-outline" onClick={handleClearBranchFilter}>
+            Wyczyść filtr oddziału
+          </button>
+        </div>
+      )}
 
       {loading && <div className="list-state">Ładowanie usług...</div>}
 

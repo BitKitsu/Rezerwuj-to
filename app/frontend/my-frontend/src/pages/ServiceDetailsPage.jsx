@@ -60,10 +60,16 @@ function ServiceDetailsPage() {
   const branchName = branch?.branchName || service?.branchName;
   const cityName = branch?.city || company?.city || service?.city;
 
-  const phoneHref = useMemo(() => {
+  const branchPhoneHref = useMemo(() => {
+    const phone = branch?.phone;
+    if (!phone) return null;
+    return `tel:${String(phone).replace(/\s+/g, "")}`;
+  }, [branch?.phone]);
+
+  const companyPhoneHref = useMemo(() => {
     const phone = company?.phone;
     if (!phone) return null;
-    return `tel:${phone.replace(/\s+/g, "")}`;
+    return `tel:${String(phone).replace(/\s+/g, "")}`;
   }, [company?.phone]);
 
   const addressText = useMemo(() => {
@@ -79,14 +85,26 @@ function ServiceDetailsPage() {
     return lines.join(", ");
   }, [branch, company, cityName]);
 
-  const hoursText = useMemo(() => {
-    const open = branch?.openingHour || company?.openingHour;
-    const close = branch?.closingHour || company?.closingHour;
+  const branchHoursText = useMemo(() => {
+    const open = branch?.openingHour;
+    const close = branch?.closingHour;
     if (!open && !close) return null;
     if (open && close) return `${open} - ${close}`;
     if (open) return open;
     return close;
-  }, [branch, company]);
+  }, [branch?.openingHour, branch?.closingHour]);
+
+  const companyHoursText = useMemo(() => {
+    const open = company?.openingHour;
+    const close = company?.closingHour;
+    if (!open && !close) return null;
+    if (open && close) return `${open} - ${close}`;
+    if (open) return open;
+    return close;
+  }, [company?.openingHour, company?.closingHour]);
+
+  const hoursText = branchHoursText || companyHoursText;
+  const hoursLabel = branchHoursText ? "Godziny oddziału:" : "Godziny firmy (domyślne):";
 
   const normalizeStreet = (value) => {
     if (!value) return null;
@@ -323,15 +341,26 @@ function ServiceDetailsPage() {
 
         {hoursText && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Godziny otwarcia:</strong> {hoursText}
+            <strong>{hoursLabel}</strong> {hoursText}
           </div>
         )}
 
-        {company?.phone && (
+        {branch?.phone && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Telefon:</strong>{" "}
-            {phoneHref ? (
-              <a href={phoneHref}>{company.phone}</a>
+            <strong>Telefon oddziału:</strong>{" "}
+            {branchPhoneHref ? (
+              <a href={branchPhoneHref}>{branch.phone}</a>
+            ) : (
+              branch.phone
+            )}
+          </div>
+        )}
+
+        {company?.phone && (!branch?.phone || company.phone !== branch.phone) && (
+          <div style={{ marginBottom: "8px" }}>
+            <strong>Telefon firmy:</strong>{" "}
+            {companyPhoneHref ? (
+              <a href={companyPhoneHref}>{company.phone}</a>
             ) : (
               company.phone
             )}

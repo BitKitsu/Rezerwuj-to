@@ -13,6 +13,10 @@ public class Branch : IValidatableObject
     [StringLength(100, MinimumLength = 2)]
     public string BranchName { get; set; } = string.Empty;
 
+    [StringLength(30)]
+    [RegularExpression(@"^$|^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 111 222 333.")]
+    public string? Phone { get; set; }
+
     [StringLength(100)]
     public string? StreetName { get; set; }
 

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ReservationService.Data;
 using ReservationService.Models;
+using System.Linq;
 
 namespace ReservationService.Controllers;
 
@@ -70,6 +71,7 @@ public class BranchesController : ControllerBase
         {
             CompanyId = dto.CompanyId,
             BranchName = dto.BranchName,
+            Phone = SanitizePhoneNumber(dto.Phone),
             StreetName = dto.StreetName,
             StreetNumber = dto.StreetNumber,
             ApartmentNumber = dto.ApartmentNumber,
@@ -121,6 +123,7 @@ public class BranchesController : ControllerBase
 
         branch.CompanyId = dto.CompanyId;
         branch.BranchName = dto.BranchName;
+        branch.Phone = SanitizePhoneNumber(dto.Phone);
         branch.StreetName = dto.StreetName;
         branch.StreetNumber = dto.StreetNumber;
         branch.ApartmentNumber = dto.ApartmentNumber;
@@ -206,5 +209,15 @@ public class BranchesController : ControllerBase
     private static bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
         return ex.InnerException is PostgresException pgEx && pgEx.SqlState == PostgresErrorCodes.UniqueViolation;
+    }
+
+    private static string? SanitizePhoneNumber(string? phoneNumber)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+            return null;
+
+        var sanitized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
+
+        return string.IsNullOrEmpty(sanitized) ? null : sanitized;
     }
 }

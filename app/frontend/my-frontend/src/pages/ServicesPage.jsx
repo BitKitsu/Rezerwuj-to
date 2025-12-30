@@ -188,8 +188,7 @@ function ServicesPage() {
               <option value="price_desc">Cena: od najwyższej</option>
               <option value="duration_asc">Czas trwania: najkrótszy</option>
               <option value="name_asc">Nazwa usługi (A–Z)</option>
-              <option value="distance">Najbliżej (TODO: backend)</option>
-              <option value="rating">Najwyżej oceniane (TODO: backend)</option>
+              <option value="rating">Najwyżej oceniane</option>
             </select>
           </div>
         </div>

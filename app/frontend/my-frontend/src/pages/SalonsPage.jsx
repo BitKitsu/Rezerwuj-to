@@ -138,8 +138,7 @@ function SalonsPage() {
             <select className="list-filter-select" value={sortBy} onChange={handleSortChange}>
               <option value="recommended">Polecane (placeholder)</option>
               <option value="name_asc">Nazwa (A–Z)</option>
-              <option value="distance">Najbliżej (TODO: backend)</option>
-              <option value="rating">Najwyżej oceniane (TODO: backend)</option>
+              <option value="rating">Najwyżej oceniane</option>
             </select>
           </div>
         </div>

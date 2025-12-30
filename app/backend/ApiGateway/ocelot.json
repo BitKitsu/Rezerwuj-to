@@ -268,6 +268,18 @@
       "UpstreamHttpMethod": [ "GET", "POST" ]
     },
     {
+      "DownstreamPathTemplate": "/api/geocode",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/geocode",
+      "UpstreamHttpMethod": [ "GET" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/branchreviews/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

@@ -268,6 +268,21 @@
       "UpstreamHttpMethod": [ "GET", "POST" ]
     },
     {
+      "DownstreamPathTemplate": "/api/company-audit/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/company-audit/{everything}",
+      "UpstreamHttpMethod": [ "GET" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
       "DownstreamPathTemplate": "/api/geocode",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [
@@ -487,6 +502,9 @@
   "GlobalConfiguration": {
     "RequestIdKey": "X-Request-Id",
     "BaseUrl": "http://localhost:5000",
+    "UpstreamHeaderTransform": {
+      "X-Forwarded-For": "{RemoteIpAddress}"
+    },
     "RateLimitOptions": {
       "DisableRateLimitHeaders": false,
       "QuotaExceededMessage": "Too many requests",

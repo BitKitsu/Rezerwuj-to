@@ -10,5 +10,7 @@ public record ServiceListItemDto(
     int BranchId,
     string CompanyName,
     string BranchName,
-    string? City
+    string? City,
+    double AverageRating,
+    int ReviewCount
 );

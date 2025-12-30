@@ -63,31 +63,57 @@ public class ServicesController : ControllerBase
             servicesQuery = servicesQuery.Where(s => s.BranchId == branchId.Value);
         }
 
-        servicesQuery = sort switch
-        {
-            "price_asc" => servicesQuery.OrderBy(s => s.Price),
-            "price_desc" => servicesQuery.OrderByDescending(s => s.Price),
-            "duration_asc" => servicesQuery.OrderBy(s => s.DurationMinutes),
-            "name_asc" => servicesQuery.OrderBy(s => s.ServiceName),
-            _ => servicesQuery.OrderBy(s => s.Id)
-        };
-
         var totalCount = await servicesQuery.CountAsync();
 
-        var items = await servicesQuery
+        var ratingByBranch = _context.BranchReviews
+            .GroupBy(r => r.BranchId)
+            .Select(g => new
+            {
+                BranchId = g.Key,
+                AvgRating = g.Average(r => (double)r.Rating),
+                ReviewCount = g.Count()
+            });
+
+        var itemsQuery = servicesQuery
+            .Select(s => new
+            {
+                Service = s,
+                AvgRating = ratingByBranch
+                    .Where(x => x.BranchId == s.BranchId)
+                    .Select(x => (double?)x.AvgRating)
+                    .FirstOrDefault() ?? 0,
+                ReviewCount = ratingByBranch
+                    .Where(x => x.BranchId == s.BranchId)
+                    .Select(x => (int?)x.ReviewCount)
+                    .FirstOrDefault() ?? 0
+            });
+
+        itemsQuery = sort switch
+        {
+            "price_asc" => itemsQuery.OrderBy(x => x.Service.Price),
+            "price_desc" => itemsQuery.OrderByDescending(x => x.Service.Price),
+            "duration_asc" => itemsQuery.OrderBy(x => x.Service.DurationMinutes),
+            "name_asc" => itemsQuery.OrderBy(x => x.Service.ServiceName),
+            "rating" => itemsQuery.OrderByDescending(x => x.AvgRating).ThenBy(x => x.Service.Id),
+            _ => itemsQuery.OrderBy(x => x.Service.Id)
+        };
+
+        var items = await itemsQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(s => new ServiceListItemDto(
-                s.Id,
-                s.ServiceName,
-                s.Description,
-                s.DurationMinutes,
-                s.Price,
-                s.CompanyId,
-                s.BranchId,
-                s.Company != null ? s.Company.CompanyName : string.Empty,
-                s.Branch != null ? s.Branch.BranchName : string.Empty,
-                s.Branch != null ? s.Branch.City : (s.Company != null ? s.Company.City : null)
+            .Select(x => new ServiceListItemDto(
+                x.Service.Id,
+                x.Service.ServiceName,
+                x.Service.Description,
+                x.Service.DurationMinutes,
+                x.Service.Price,
+                x.Service.CompanyId,
+                x.Service.BranchId,
+                x.Service.Company != null ? x.Service.Company.CompanyName : string.Empty,
+                x.Service.Branch != null ? x.Service.Branch.BranchName : string.Empty,
+                x.Service.Branch != null ? x.Service.Branch.City : (x.Service.Company != null ? x.Service.Company.City : null),
+                x.AvgRating,
+                x.ReviewCount
             ))
             .ToListAsync();
 

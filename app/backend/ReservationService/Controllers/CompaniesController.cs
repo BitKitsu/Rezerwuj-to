@@ -46,22 +46,48 @@ public class CompaniesController : ControllerBase
                 c.City != null && c.City.ToLower().Contains(normalizedCity));
         }
 
-        companiesQuery = sort switch
-        {
-            "name_asc" => companiesQuery.OrderBy(c => c.CompanyName),
-            _ => companiesQuery.OrderBy(c => c.Id)
-        };
-
         var totalCount = await companiesQuery.CountAsync();
 
-        var items = await companiesQuery
+        var ratingByCompany = _context.BranchReviews
+            .GroupBy(r => r.CompanyId)
+            .Select(g => new
+            {
+                CompanyId = g.Key,
+                AvgRating = g.Average(r => (double)r.Rating),
+                ReviewCount = g.Count()
+            });
+
+        var itemsQuery = companiesQuery
+            .Select(c => new
+            {
+                Company = c,
+                AvgRating = ratingByCompany
+                    .Where(x => x.CompanyId == c.Id)
+                    .Select(x => (double?)x.AvgRating)
+                    .FirstOrDefault() ?? 0,
+                ReviewCount = ratingByCompany
+                    .Where(x => x.CompanyId == c.Id)
+                    .Select(x => (int?)x.ReviewCount)
+                    .FirstOrDefault() ?? 0
+            });
+
+        itemsQuery = sort switch
+        {
+            "name_asc" => itemsQuery.OrderBy(x => x.Company.CompanyName),
+            "rating" => itemsQuery.OrderByDescending(x => x.AvgRating).ThenBy(x => x.Company.Id),
+            _ => itemsQuery.OrderBy(x => x.Company.Id)
+        };
+
+        var items = await itemsQuery
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(c => new CompanyListItemDto(
-                c.Id,
-                c.CompanyName,
-                c.Description,
-                c.City
+            .Select(x => new CompanyListItemDto(
+                x.Company.Id,
+                x.Company.CompanyName,
+                x.Company.Description,
+                x.Company.City,
+                x.AvgRating,
+                x.ReviewCount
             ))
             .ToListAsync();
 

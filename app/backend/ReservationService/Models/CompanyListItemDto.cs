@@ -4,5 +4,7 @@ public record CompanyListItemDto(
     int Id,
     string CompanyName,
     string? Description,
-    string? City
+    string? City,
+    double AverageRating,
+    int ReviewCount
 );

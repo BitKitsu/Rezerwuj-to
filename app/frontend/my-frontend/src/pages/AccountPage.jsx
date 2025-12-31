@@ -52,14 +52,18 @@ function AccountPage() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditError, setAuditError] = useState('');
 
+  const [auditPageSize, setAuditPageSize] = useState(10);
+  const [auditPage, setAuditPage] = useState(1);
+
   const loadAuditLogs = async () => {
     setAuditLoading(true);
     setAuditError('');
     try {
-      const res = await auditAPI.getMy(100);
+      const res = await auditAPI.getMy(200);
       const items = Array.isArray(res.data) ? res.data : [];
       items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAuditLogs(items);
+      setAuditPage(1);
     } catch (err) {
       console.error('Audit logs load error:', err);
       setAuditError('Nie udało się załadować historii aktywności.');
@@ -434,6 +438,17 @@ function AccountPage() {
     return result;
   };
 
+  const criticalAuditLogs = getCriticalAuditLogs(auditLogs);
+  const auditPageCount = Math.max(1, Math.ceil(criticalAuditLogs.length / auditPageSize));
+  const auditCurrentPage = Math.min(auditPage, auditPageCount);
+  const auditStart = (auditCurrentPage - 1) * auditPageSize;
+  const visibleAuditLogs = criticalAuditLogs.slice(auditStart, auditStart + auditPageSize);
+
+  const handleAuditPageSizeChange = (e) => {
+    setAuditPageSize(Number(e.target.value));
+    setAuditPage(1);
+  };
+
   const renderAuditLogs = () => (
     <section className="dashboard-card">
       <div className="admin-section" style={{ gap: '0.75rem' }}>
@@ -450,31 +465,66 @@ function AccountPage() {
 
         {auditLoading ? (
           <p>Ładowanie...</p>
-        ) : auditLogs.length === 0 ? (
+        ) : criticalAuditLogs.length === 0 ? (
           <p>Brak wpisów.</p>
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Akcja</th>
-                <th>IP</th>
-                <th>Przeglądarka</th>
-              </tr>
-            </thead>
-            <tbody>
-              {getCriticalAuditLogs(auditLogs).map((log) => (
-                <tr key={log.id}>
-                  <td>{formatAuditDate(log.createdAt)}</td>
-                  <td>{formatAuditAction(log)}</td>
-                  <td>{log.ipAddress || '—'}</td>
-                  <td style={{ maxWidth: 420, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {log.userAgent || '—'}
-                  </td>
+          <>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Akcja</th>
+                  <th>IP</th>
+                  <th>Przeglądarka</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleAuditLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td>{formatAuditDate(log.createdAt)}</td>
+                    <td>{formatAuditAction(log)}</td>
+                    <td>{log.ipAddress || '—'}</td>
+                    <td style={{ maxWidth: 420, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {log.userAgent || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="list-pagination">
+              <div className="list-page-size">
+                <span>Na stronie:</span>
+                <select value={auditPageSize} onChange={handleAuditPageSizeChange}>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+
+              <div className="list-page-controls">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={auditCurrentPage === 1}
+                  onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                >
+                  Poprzednia
+                </button>
+                <span>
+                  Strona {auditCurrentPage} z {auditPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={auditCurrentPage === auditPageCount}
+                  onClick={() => setAuditPage((p) => Math.min(auditPageCount, p + 1))}
+                >
+                  Następna
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </section>

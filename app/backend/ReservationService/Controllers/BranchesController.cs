@@ -56,7 +56,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<ActionResult<Branch>> CreateBranch([FromBody] BranchCreateUpdateDto dto)
     {
         if (!User.IsInRole("Admin"))
@@ -144,7 +144,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> UpdateBranch(int id, [FromBody] BranchCreateUpdateDto dto)
     {
         var branch = await _context.Branches.FindAsync(id);
@@ -262,7 +262,7 @@ public class BranchesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> DeleteBranch(int id)
     {
         var branch = await _context.Branches.FindAsync(id);

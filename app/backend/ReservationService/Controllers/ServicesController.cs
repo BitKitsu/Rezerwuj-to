@@ -157,7 +157,7 @@ public class ServicesController : ControllerBase
 
     // POST: api/services
     [HttpPost]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<ActionResult<Service>> CreateService(ServiceCreateUpdateDto dto)
     {
         _logger.LogInformation("Tworzenie nowej usługi: {ServiceName}", dto.ServiceName);
@@ -230,7 +230,7 @@ public class ServicesController : ControllerBase
 
     // PUT: api/services/5
     [HttpPut("{id}")]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> UpdateService(int id, ServiceCreateUpdateDto dto)
     {
         var service = await _context.Services.FindAsync(id);
@@ -343,7 +343,7 @@ public class ServicesController : ControllerBase
 
     // DELETE: api/services/5
     [HttpDelete("{id}")]
-    [Authorize(Policy = "CompanyOwnerOrAdmin")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> DeleteService(int id)
     {
         var service = await _context.Services.FindAsync(id);

@@ -51,7 +51,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPost("add")]
-        [Authorize(Roles = "CompanyOwner,Admin")]
+        [Authorize(Roles = "CompanyOwner,CompanyManager,Admin")]
         public async Task<IActionResult> AddUserToCompany([FromBody] AddUserToCompanyRequest request)
         {
             var owner = await GetCurrentUserWithCompany();
@@ -104,7 +104,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpDelete("{userId}")]
-        [Authorize(Roles = "CompanyOwner,Admin")]
+        [Authorize(Roles = "CompanyOwner,CompanyManager,Admin")]
         public async Task<IActionResult> RemoveUserFromCompany(string userId)
         {
             var owner = await GetCurrentUserWithCompany();
@@ -119,6 +119,15 @@ namespace IdentityService.Controllers
             if (userToRemove == null || userToRemove.CompanyId != owner.CompanyId)
             {
                 return NotFound(new { message = "Użytkownik nie został znaleziony w Twojej firmie." });
+            }
+
+            var targetRole = await _context.UserCompanyRoles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.UserId == userId && r.CompanyId == owner.CompanyId.Value && r.IsActive);
+
+            if (targetRole?.Role == CompanyRoles.Owner && !User.IsInRole("Admin"))
+            {
+                return BadRequest(new { message = "Nie można usunąć właściciela firmy." });
             }
 
             userToRemove.CompanyId = null;
@@ -152,7 +161,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPut("{userId}/role")]
-        [Authorize(Roles = "CompanyOwner,Admin")]
+        [Authorize(Roles = "CompanyOwner,CompanyManager,Admin")]
         public async Task<IActionResult> UpdateUserRole(string userId, [FromBody] UpdateUserRoleRequest request)
         {
             if (!IsValidCompanyRole(request.Role))
@@ -163,15 +172,20 @@ namespace IdentityService.Controllers
             var owner = await GetCurrentUserWithCompany();
             if (owner == null || !owner.CompanyId.HasValue) return Forbid();
 
-            if (owner.Id == userId && request.Role != CompanyRoles.Owner)
-            {
-                return BadRequest(new { message = "Nie możesz zmienić swojej własnej roli właściciela." });
-            }
-
             var roleToUpdate = await _context.UserCompanyRoles.FirstOrDefaultAsync(r => r.UserId == userId && r.CompanyId == owner.CompanyId.Value);
             if (roleToUpdate == null)
             {
                 return NotFound(new { message = "Nie znaleziono roli dla tego użytkownika w Twojej firmie." });
+            }
+
+            if (owner.Id == userId && roleToUpdate.Role == CompanyRoles.Owner && request.Role != CompanyRoles.Owner)
+            {
+                return BadRequest(new { message = "Nie możesz zmienić swojej własnej roli właściciela." });
+            }
+
+            if (roleToUpdate.Role == CompanyRoles.Owner && !User.IsInRole("Admin"))
+            {
+                return BadRequest(new { message = "Roli właściciela nie można zmienić w ten sposób. Użyj przekazania własności." });
             }
 
             roleToUpdate.Role = request.Role;

@@ -26,6 +26,9 @@ const CompanyPanel = () => {
   const [companyAuditLoading, setCompanyAuditLoading] = useState(false);
   const [companyAuditError, setCompanyAuditError] = useState("");
 
+  const [companyAuditPageSize, setCompanyAuditPageSize] = useState(10);
+  const [companyAuditPage, setCompanyAuditPage] = useState(1);
+
   // Company details form
   const [companyForm, setCompanyForm] = useState(null);
   const [companyFormSubmitting, setCompanyFormSubmitting] = useState(false);
@@ -119,6 +122,7 @@ const CompanyPanel = () => {
     try {
       const res = await companyAuditAPI.getByCompany(companyId, 200);
       setCompanyAuditLogs(res.data || []);
+      setCompanyAuditPage(1);
     } catch (err) {
       console.error("Failed to load company audit", err);
       setCompanyAuditError("Nie udało się załadować audytu firmy.");
@@ -126,6 +130,17 @@ const CompanyPanel = () => {
       setCompanyAuditLoading(false);
     }
   }, [companyId]);
+
+  const companyAuditItems = Array.isArray(companyAuditLogs) ? companyAuditLogs : [];
+  const companyAuditPageCount = Math.max(1, Math.ceil(companyAuditItems.length / companyAuditPageSize));
+  const companyAuditCurrentPage = Math.min(companyAuditPage, companyAuditPageCount);
+  const companyAuditStart = (companyAuditCurrentPage - 1) * companyAuditPageSize;
+  const visibleCompanyAuditLogs = companyAuditItems.slice(companyAuditStart, companyAuditStart + companyAuditPageSize);
+
+  const handleCompanyAuditPageSizeChange = (e) => {
+    setCompanyAuditPageSize(Number(e.target.value));
+    setCompanyAuditPage(1);
+  };
 
   useEffect(() => {
     if (activeTab === "audit" && canEditCompany) {
@@ -1090,56 +1105,91 @@ const CompanyPanel = () => {
         </div>
       </div>
 
-      {companyAuditError && (
+      {companyAuditError ? (
         <div className="admin-alert admin-alert--error">{companyAuditError}</div>
-      )}
+      ) : null}
 
       <div className="admin-card">
         {companyAuditLoading ? (
           <p>Ładowanie...</p>
-        ) : companyAuditLogs.length === 0 ? (
+        ) : companyAuditItems.length === 0 ? (
           <p>Brak wpisów.</p>
         ) : (
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Akcja</th>
-                <th>Obiekt</th>
-                <th>Użytkownik</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companyAuditLogs.map((log) => (
-                <tr
-                  key={
-                    log.eventId ||
-                    `${log.occurredAt}-${log.entityName}-${log.entityDisplayName || ''}`
-                  }
-                >
-                  <td>
-                    {log.occurredAt
-                      ? new Date(log.occurredAt).toLocaleString()
-                      : "—"}
-                  </td>
-                  <td>{log.action || "—"}</td>
-                  <td>
-                    {log.entityDisplayName || log.entityName || "—"}
-                  </td>
-                  <td
-                    style={{
-                      maxWidth: 220,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {log.userEmail || "—"}
-                  </td>
+          <>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Akcja</th>
+                  <th>Obiekt</th>
+                  <th>Użytkownik</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleCompanyAuditLogs.map((log) => (
+                  <tr
+                    key={
+                      log.eventId ||
+                      `${log.occurredAt}-${log.entityName}-${log.entityDisplayName || ''}`
+                    }
+                  >
+                    <td>
+                      {log.occurredAt
+                        ? new Date(log.occurredAt).toLocaleString()
+                        : "—"}
+                    </td>
+                    <td>{log.action || "—"}</td>
+                    <td>
+                      {log.entityDisplayName || log.entityName || "—"}
+                    </td>
+                    <td
+                      style={{
+                        maxWidth: 220,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {log.userEmail || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="list-pagination">
+              <div className="list-page-size">
+                <span>Na stronie:</span>
+                <select value={companyAuditPageSize} onChange={handleCompanyAuditPageSizeChange}>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+
+              <div className="list-page-controls">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={companyAuditCurrentPage === 1}
+                  onClick={() => setCompanyAuditPage((p) => Math.max(1, p - 1))}
+                >
+                  Poprzednia
+                </button>
+                <span>
+                  Strona {companyAuditCurrentPage} z {companyAuditPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={companyAuditCurrentPage === companyAuditPageCount}
+                  onClick={() => setCompanyAuditPage((p) => Math.min(companyAuditPageCount, p + 1))}
+                >
+                  Następna
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </section>

@@ -178,6 +178,11 @@ namespace IdentityService.Controllers
                 return NotFound(new { message = "Nie znaleziono roli dla tego użytkownika w Twojej firmie." });
             }
 
+            if (owner.Id == userId && roleToUpdate.Role == CompanyRoles.Manager && !User.IsInRole("Admin"))
+            {
+                return BadRequest(new { message = "Manager nie może zmienić swojej własnej roli." });
+            }
+
             if (owner.Id == userId && roleToUpdate.Role == CompanyRoles.Owner && request.Role != CompanyRoles.Owner)
             {
                 return BadRequest(new { message = "Nie możesz zmienić swojej własnej roli właściciela." });

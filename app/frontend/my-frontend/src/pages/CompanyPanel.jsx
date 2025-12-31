@@ -61,6 +61,7 @@ const CompanyPanel = () => {
 
   const companyId = tokenManager.getUser()?.companyId;
   const companyRole = tokenManager.getUser()?.companyRole;
+  const currentUserId = tokenManager.getUser()?.userId;
   const userRoles = tokenManager.getUser()?.roles || [];
   const isAdmin = userRoles.includes("Admin");
   const isOwner = companyRole === "Owner";
@@ -1025,7 +1026,11 @@ const CompanyPanel = () => {
                         handleUpdateUserRole(user.id, e.target.value)
                       }
                       className="admin-input admin-input--inline"
-                      disabled={!canManageEmployeesActions || user.role === "Owner"}
+                      disabled={
+                        !canManageEmployeesActions ||
+                        user.role === "Owner" ||
+                        (currentUserId && user.id === currentUserId)
+                      }
                     >
                       <option value="Owner" disabled>
                         Właściciel
@@ -1040,7 +1045,11 @@ const CompanyPanel = () => {
                         type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
                         onClick={() => handleRemoveUser(user.id)}
-                        disabled={!canManageEmployeesActions || user.role === "Owner"}
+                        disabled={
+                          !canManageEmployeesActions ||
+                          user.role === "Owner" ||
+                          (currentUserId && user.id === currentUserId)
+                        }
                       >
                         Usuń
                       </button>

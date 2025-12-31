@@ -331,8 +331,7 @@ function AccountPage() {
 
   const formatAuditAction = (log) => {
     if (!log) return '';
-    if (log.action === 'Login') return 'Logowanie';
-    if (log.action === 'Logout') return 'Wylogowanie';
+    if (log.action === 'Login') return 'Nowe logowanie';
     if (log.action === 'Update' && log.entityName === 'Password') return 'Zmiana hasła';
     if (log.action === 'Update' && log.entityName === 'ApplicationUser') {
       try {
@@ -373,35 +372,66 @@ function AccountPage() {
 
       return 'Zmiana profilu';
     }
-    if (log.action === 'Create' && log.entityName === 'RefreshToken') return 'Token odświeżania';
     return `${log.action || ''}`;
   };
 
-  const shouldDisplayAuditLog = (log) => {
+  const isRelevantProfileUpdateLog = (log) => {
     if (!log) return false;
-    if (log.action === 'Update' && log.entityName === 'ApplicationUser') {
-      try {
-        const raw = log.changes;
-        const changes = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (!Array.isArray(changes) || changes.length === 0) return true;
+    if (log.action !== 'Update' || log.entityName !== 'ApplicationUser') return false;
 
-        const allowedFields = new Set([
-          'UserName',
-          'Username',
-          'FirstName',
-          'LastName',
-          'PhoneNumber',
-          'Phone',
-          'Email',
-        ]);
+    try {
+      const raw = log.changes;
+      const changes = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!Array.isArray(changes) || changes.length === 0) return true;
 
-        return changes.some((c) => c?.Field && allowedFields.has(c.Field));
-      } catch {
-        return true;
+      const allowedFields = new Set([
+        'UserName',
+        'Username',
+        'FirstName',
+        'LastName',
+        'PhoneNumber',
+        'Phone',
+        'Email',
+      ]);
+
+      return changes.some((c) => c?.Field && allowedFields.has(c.Field));
+    } catch {
+      return true;
+    }
+  };
+
+  const getCriticalAuditLogs = (items) => {
+    const result = [];
+    const seenLoginKeys = new Set();
+
+    for (const log of items) {
+      if (!log) continue;
+
+      if (log.action === 'Login') {
+        const key = `${log.ipAddress || ''}|${log.userAgent || ''}`;
+        if (seenLoginKeys.has(key)) continue;
+        seenLoginKeys.add(key);
+        result.push(log);
+        continue;
+      }
+
+      if (log.action === 'Update' && log.entityName === 'Password') {
+        result.push(log);
+        continue;
+      }
+
+      if (isRelevantProfileUpdateLog(log)) {
+        result.push(log);
+        continue;
+      }
+
+      if (log.action === 'Delete' && log.entityName === 'ApplicationUser') {
+        result.push(log);
+        continue;
       }
     }
 
-    return true;
+    return result;
   };
 
   const renderAuditLogs = () => (
@@ -433,7 +463,7 @@ function AccountPage() {
               </tr>
             </thead>
             <tbody>
-              {auditLogs.filter(shouldDisplayAuditLog).map((log) => (
+              {getCriticalAuditLogs(auditLogs).map((log) => (
                 <tr key={log.id}>
                   <td>{formatAuditDate(log.createdAt)}</td>
                   <td>{formatAuditAction(log)}</td>

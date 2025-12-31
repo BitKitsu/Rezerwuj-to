@@ -66,6 +66,7 @@ const CompanyPanel = () => {
   const isOwner = companyRole === "Owner";
   const isManager = companyRole === "Manager";
   const isEmployee = companyRole === "Employee";
+  const canViewReservations = Boolean(companyId) && (isAdmin || isOwner || isManager || isEmployee);
   const canManageEmployees = isAdmin || isOwner || isManager;
   const canEditCompany = isAdmin || isOwner;
   const canManageEmployeesActions = isAdmin || isOwner;
@@ -85,17 +86,17 @@ const CompanyPanel = () => {
   useEffect(() => {
     const allowedTabs = [];
     if (canEditCompany) {
-      allowedTabs.push("details", "branches", "services", "employees", "audit", "settings");
+      allowedTabs.push("reservations", "details", "branches", "services", "employees", "audit", "settings");
     } else if (canManageEmployees) {
-      allowedTabs.push("branches", "services", "employees");
-    } else if (isEmployee) {
+      allowedTabs.push("reservations", "branches", "services", "employees");
+    } else if (canViewReservations) {
       allowedTabs.push("reservations");
     }
 
     if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
       setActiveTab(allowedTabs[0]);
     }
-  }, [activeTab, canEditCompany, canManageEmployees, isEmployee]);
+  }, [activeTab, canEditCompany, canManageEmployees, canViewReservations]);
 
   const renderReservationsTab = () => (
     <section className="admin-section">
@@ -1093,7 +1094,6 @@ const CompanyPanel = () => {
                 <th>Akcja</th>
                 <th>Obiekt</th>
                 <th>Użytkownik</th>
-                <th>IP</th>
               </tr>
             </thead>
             <tbody>
@@ -1101,7 +1101,7 @@ const CompanyPanel = () => {
                 <tr
                   key={
                     log.eventId ||
-                    `${log.occurredAt}-${log.entityName}-${log.entityId}`
+                    `${log.occurredAt}-${log.entityName}-${log.entityDisplayName || ''}`
                   }
                 >
                   <td>
@@ -1111,8 +1111,7 @@ const CompanyPanel = () => {
                   </td>
                   <td>{log.action || "—"}</td>
                   <td>
-                    {log.entityName || "—"}
-                    {log.entityId ? ` #${log.entityId}` : ""}
+                    {log.entityDisplayName || log.entityName || "—"}
                   </td>
                   <td
                     style={{
@@ -1122,9 +1121,8 @@ const CompanyPanel = () => {
                       textOverflow: "ellipsis",
                     }}
                   >
-                    {log.userId || "—"}
+                    {log.userEmail || "—"}
                   </td>
-                  <td>{log.ipAddress || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -1487,7 +1485,7 @@ const CompanyPanel = () => {
       )}
 
       <div className="admin-page__tabs">
-        {isEmployee && (
+        {canViewReservations && (
           <button
             type="button"
             className={`admin-tab ${activeTab === "reservations" ? "admin-tab--active" : ""}`}
@@ -1562,7 +1560,7 @@ const CompanyPanel = () => {
       </div>
 
       <div className="admin-page__content">
-        {activeTab === "reservations" && isEmployee && renderReservationsTab()}
+        {activeTab === "reservations" && canViewReservations && renderReservationsTab()}
         {activeTab === "details" && canEditCompany && renderCompanyDetailsTab()}
         {activeTab === "branches" && (canEditCompany || isManager) && renderBranchesTab()}
         {activeTab === "services" && (canEditCompany || isManager) && renderServicesTab()}

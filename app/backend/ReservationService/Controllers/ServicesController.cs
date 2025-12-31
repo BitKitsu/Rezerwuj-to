@@ -16,16 +16,6 @@ public class ServicesController : ControllerBase
     private readonly ILogger<ServicesController> _logger;
     private readonly ICompanyAuditService _audit;
 
-    private string? GetClientIpAddress()
-    {
-        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
-        {
-            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        }
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
-    }
-
     public ServicesController(ReservationDbContext context, ILogger<ServicesController> logger, ICompanyAuditService audit)
     {
         _context = context;
@@ -210,15 +200,25 @@ public class ServicesController : ControllerBase
 
         try
         {
+            var entityDisplayName = $"Usługa: {service.ServiceName}";
+            var safeService = new
+            {
+                service.ServiceName,
+                service.Description,
+                service.Price,
+                service.DurationMinutes,
+                BranchName = branch.BranchName
+            };
+
             await _audit.LogAsync(
                 service.CompanyId,
                 nameof(Service),
-                service.Id.ToString(),
+                null,
+                entityDisplayName,
                 "Create",
                 null,
-                service,
+                safeService,
                 User,
-                GetClientIpAddress(),
                 HttpContext.Request.Headers["User-Agent"].ToString());
         }
         catch
@@ -255,9 +255,20 @@ public class ServicesController : ControllerBase
 
         var oldValues = new
         {
-            service.Id,
-            service.CompanyId,
-            service.BranchId,
+            BranchName = (string?)null,
+            service.ServiceName,
+            service.Description,
+            service.Price,
+            service.DurationMinutes
+        };
+
+        var oldBranch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == service.BranchId);
+
+        var oldValuesWithBranch = new
+        {
+            BranchName = oldBranch?.BranchName,
             service.ServiceName,
             service.Description,
             service.Price,
@@ -285,6 +296,8 @@ public class ServicesController : ControllerBase
         service.CompanyId = dto.CompanyId;
         service.BranchId = dto.BranchId;
 
+        var entityDisplayName = $"Usługa: {service.ServiceName}";
+
         try
         {
             await _context.SaveChangesAsync();
@@ -294,12 +307,19 @@ public class ServicesController : ControllerBase
                 await _audit.LogAsync(
                     service.CompanyId,
                     nameof(Service),
-                    service.Id.ToString(),
+                    null,
+                    entityDisplayName,
                     "Update",
-                    oldValues,
-                    service,
+                    oldValuesWithBranch,
+                    new
+                    {
+                        service.ServiceName,
+                        service.Description,
+                        service.Price,
+                        service.DurationMinutes,
+                        BranchName = branch.BranchName
+                    },
                     User,
-                    GetClientIpAddress(),
                     HttpContext.Request.Headers["User-Agent"].ToString());
             }
             catch
@@ -332,6 +352,8 @@ public class ServicesController : ControllerBase
             return NotFound();
         }
 
+        var entityDisplayName = $"Usługa: {service.ServiceName}";
+
         if (!User.IsInRole("Admin"))
         {
             var claimCompanyId = User.FindFirst("CompanyId")?.Value;
@@ -341,11 +363,13 @@ public class ServicesController : ControllerBase
             }
         }
 
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == service.BranchId);
+
         var oldValues = new
         {
-            service.Id,
-            service.CompanyId,
-            service.BranchId,
+            BranchName = branch?.BranchName,
             service.ServiceName,
             service.Description,
             service.Price,
@@ -358,14 +382,14 @@ public class ServicesController : ControllerBase
         try
         {
             await _audit.LogAsync(
-                oldValues.CompanyId,
+                service.CompanyId,
                 nameof(Service),
-                oldValues.Id.ToString(),
+                null,
+                entityDisplayName,
                 "Delete",
                 oldValues,
                 null,
                 User,
-                GetClientIpAddress(),
                 HttpContext.Request.Headers["User-Agent"].ToString());
         }
         catch

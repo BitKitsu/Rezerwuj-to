@@ -339,6 +339,15 @@ function AccountPage() {
         const raw = log.changes;
         const changes = typeof raw === 'string' ? JSON.parse(raw) : raw;
         if (Array.isArray(changes) && changes.length > 0) {
+          const allowedFields = new Set([
+            'UserName',
+            'Username',
+            'FirstName',
+            'LastName',
+            'PhoneNumber',
+            'Phone',
+            'Email',
+          ]);
           const labels = {
             UserName: 'nazwy użytkownika',
             Username: 'nazwy użytkownika',
@@ -346,11 +355,13 @@ function AccountPage() {
             LastName: 'nazwiska',
             PhoneNumber: 'numeru telefonu',
             Phone: 'numeru telefonu',
+            Email: 'adresu e-mail',
           };
 
           const fields = changes
             .map((c) => c?.Field)
             .filter(Boolean)
+            .filter((f) => allowedFields.has(f))
             .map((f) => labels[f] || f);
 
           const unique = Array.from(new Set(fields));
@@ -364,6 +375,33 @@ function AccountPage() {
     }
     if (log.action === 'Create' && log.entityName === 'RefreshToken') return 'Token odświeżania';
     return `${log.action || ''}`;
+  };
+
+  const shouldDisplayAuditLog = (log) => {
+    if (!log) return false;
+    if (log.action === 'Update' && log.entityName === 'ApplicationUser') {
+      try {
+        const raw = log.changes;
+        const changes = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (!Array.isArray(changes) || changes.length === 0) return true;
+
+        const allowedFields = new Set([
+          'UserName',
+          'Username',
+          'FirstName',
+          'LastName',
+          'PhoneNumber',
+          'Phone',
+          'Email',
+        ]);
+
+        return changes.some((c) => c?.Field && allowedFields.has(c.Field));
+      } catch {
+        return true;
+      }
+    }
+
+    return true;
   };
 
   const renderAuditLogs = () => (
@@ -395,7 +433,7 @@ function AccountPage() {
               </tr>
             </thead>
             <tbody>
-              {auditLogs.map((log) => (
+              {auditLogs.filter(shouldDisplayAuditLog).map((log) => (
                 <tr key={log.id}>
                   <td>{formatAuditDate(log.createdAt)}</td>
                   <td>{formatAuditAction(log)}</td>

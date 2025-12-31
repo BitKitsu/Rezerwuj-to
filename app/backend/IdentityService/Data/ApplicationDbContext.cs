@@ -318,7 +318,19 @@ namespace IdentityService.Data
         {
             if (entry.Entity is ApplicationUser)
             {
-                if (propertyName is "PasswordHash" or "SecurityStamp" or "ConcurrencyStamp")
+                if (propertyName is
+                    "PasswordHash" or
+                    "SecurityStamp" or
+                    "ConcurrencyStamp" or
+                    "AccessFailedCount" or
+                    "LockoutEnabled" or
+                    "LockoutEnd" or
+                    "NormalizedEmail" or
+                    "NormalizedUserName" or
+                    "EmailConfirmed" or
+                    "PhoneNumberConfirmed" or
+                    "TwoFactorEnabled" or
+                    "CompanyId")
                 {
                     return false;
                 }

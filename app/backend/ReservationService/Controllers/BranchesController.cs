@@ -16,16 +16,6 @@ public class BranchesController : ControllerBase
     private readonly ReservationDbContext _context;
     private readonly ICompanyAuditService _audit;
 
-    private string? GetClientIpAddress()
-    {
-        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
-        {
-            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        }
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
-    }
-
     public BranchesController(ReservationDbContext context, ICompanyAuditService audit)
     {
         _context = context;
@@ -114,15 +104,31 @@ public class BranchesController : ControllerBase
 
             try
             {
+                var entityDisplayName = $"Oddział: {branch.BranchName}";
+
+                var safeBranch = new
+                {
+                    branch.BranchName,
+                    branch.Phone,
+                    branch.StreetName,
+                    branch.StreetNumber,
+                    branch.ApartmentNumber,
+                    branch.City,
+                    branch.PostalCode,
+                    branch.Country,
+                    branch.OpeningHour,
+                    branch.ClosingHour
+                };
+
                 await _audit.LogAsync(
                     branch.CompanyId,
                     nameof(Branch),
-                    branch.Id.ToString(),
+                    null,
+                    entityDisplayName,
                     "Create",
                     null,
-                    branch,
+                    safeBranch,
                     User,
-                    GetClientIpAddress(),
                     HttpContext.Request.Headers["User-Agent"].ToString());
             }
             catch
@@ -163,8 +169,6 @@ public class BranchesController : ControllerBase
 
         var oldValues = new
         {
-            branch.Id,
-            branch.CompanyId,
             branch.BranchName,
             branch.Phone,
             branch.StreetName,
@@ -205,6 +209,8 @@ public class BranchesController : ControllerBase
         branch.OpeningHour = dto.OpeningHour;
         branch.ClosingHour = dto.ClosingHour;
 
+        var entityDisplayName = $"Oddział: {branch.BranchName}";
+
         try
         {
             await _context.SaveChangesAsync();
@@ -214,12 +220,24 @@ public class BranchesController : ControllerBase
                 await _audit.LogAsync(
                     branch.CompanyId,
                     nameof(Branch),
-                    branch.Id.ToString(),
+                    null,
+                    entityDisplayName,
                     "Update",
                     oldValues,
-                    branch,
+                    new
+                    {
+                        branch.BranchName,
+                        branch.Phone,
+                        branch.StreetName,
+                        branch.StreetNumber,
+                        branch.ApartmentNumber,
+                        branch.City,
+                        branch.PostalCode,
+                        branch.Country,
+                        branch.OpeningHour,
+                        branch.ClosingHour
+                    },
                     User,
-                    GetClientIpAddress(),
                     HttpContext.Request.Headers["User-Agent"].ToString());
             }
             catch
@@ -262,21 +280,7 @@ public class BranchesController : ControllerBase
             }
         }
 
-        var oldValues = new
-        {
-            branch.Id,
-            branch.CompanyId,
-            branch.BranchName,
-            branch.Phone,
-            branch.StreetName,
-            branch.StreetNumber,
-            branch.ApartmentNumber,
-            branch.City,
-            branch.PostalCode,
-            branch.Country,
-            branch.OpeningHour,
-            branch.ClosingHour
-        };
+        var entityDisplayName = $"Oddział: {branch.BranchName}";
 
         var timeSlots = await _context.TimeSlots
             .Where(ts => ts.BranchId == id)
@@ -316,14 +320,26 @@ public class BranchesController : ControllerBase
         try
         {
             await _audit.LogAsync(
-                oldValues.CompanyId,
+                branch.CompanyId,
                 nameof(Branch),
-                oldValues.Id.ToString(),
+                null,
+                entityDisplayName,
                 "Delete",
-                oldValues,
+                new
+                {
+                    branch.BranchName,
+                    branch.Phone,
+                    branch.StreetName,
+                    branch.StreetNumber,
+                    branch.ApartmentNumber,
+                    branch.City,
+                    branch.PostalCode,
+                    branch.Country,
+                    branch.OpeningHour,
+                    branch.ClosingHour
+                },
                 null,
                 User,
-                GetClientIpAddress(),
                 HttpContext.Request.Headers["User-Agent"].ToString());
         }
         catch

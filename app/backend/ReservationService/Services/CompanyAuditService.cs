@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
@@ -12,11 +13,11 @@ public interface ICompanyAuditService
         int companyId,
         string entityName,
         string? entityId,
+        string? entityDisplayName,
         string action,
         object? oldValues,
         object? newValues,
         ClaimsPrincipal user,
-        string? ipAddress,
         string? userAgent);
 
     Task<List<CompanyAuditEvent>> GetCompanyAuditAsync(int companyId, int take = 200);
@@ -41,26 +42,29 @@ public class CompanyAuditService : ICompanyAuditService
         int companyId,
         string entityName,
         string? entityId,
+        string? entityDisplayName,
         string action,
         object? oldValues,
         object? newValues,
         ClaimsPrincipal user,
-        string? ipAddress,
         string? userAgent)
     {
-        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userEmail = user.FindFirst(ClaimTypes.Email)?.Value
+            ?? user.FindFirst(JwtRegisteredClaimNames.Email)?.Value
+            ?? user.FindFirst("email")?.Value;
 
         var domainEvent = new CompanyAuditEvent
         {
             AggregateId = $"company-{companyId}",
             CompanyId = companyId,
             EntityName = entityName,
-            EntityId = entityId,
+            EntityId = null,
+            EntityDisplayName = entityDisplayName,
             Action = action,
             OldValues = oldValues != null ? JsonSerializer.Serialize(oldValues) : null,
             NewValues = newValues != null ? JsonSerializer.Serialize(newValues) : null,
-            UserId = userId,
-            IpAddress = ipAddress,
+            UserId = null,
+            UserEmail = userEmail,
             UserAgent = userAgent
         };
 

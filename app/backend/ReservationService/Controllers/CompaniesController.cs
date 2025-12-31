@@ -15,16 +15,6 @@ public class CompaniesController : ControllerBase
     private readonly ReservationDbContext _context;
     private readonly ICompanyAuditService _audit;
 
-    private string? GetClientIpAddress()
-    {
-        if (HttpContext.Request.Headers.ContainsKey("X-Forwarded-For"))
-        {
-            return HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        }
-
-        return HttpContext.Connection.RemoteIpAddress?.ToString();
-    }
-
     public CompaniesController(ReservationDbContext context, ICompanyAuditService audit)
     {
         _context = context;
@@ -160,15 +150,32 @@ public class CompaniesController : ControllerBase
 
         try
         {
+            var safeCompany = new
+            {
+                company.CompanyName,
+                company.Email,
+                company.Phone,
+                company.StreetName,
+                company.StreetNumber,
+                company.ApartmentNumber,
+                company.City,
+                company.PostalCode,
+                company.Country,
+                company.Description,
+                company.Website,
+                company.OpeningHour,
+                company.ClosingHour
+            };
+
             await _audit.LogAsync(
                 company.Id,
                 nameof(Company),
-                company.Id.ToString(),
+                null,
+                company.CompanyName,
                 "Create",
                 null,
-                company,
+                safeCompany,
                 User,
-                GetClientIpAddress(),
                 HttpContext.Request.Headers["User-Agent"].ToString());
         }
         catch
@@ -229,15 +236,49 @@ public class CompaniesController : ControllerBase
 
             try
             {
+                var safeExisting = new
+                {
+                    existing.CompanyName,
+                    existing.Email,
+                    existing.Phone,
+                    existing.StreetName,
+                    existing.StreetNumber,
+                    existing.ApartmentNumber,
+                    existing.City,
+                    existing.PostalCode,
+                    existing.Country,
+                    existing.Description,
+                    existing.Website,
+                    existing.OpeningHour,
+                    existing.ClosingHour
+                };
+
+                var safeTracked = new
+                {
+                    tracked.CompanyName,
+                    tracked.Email,
+                    tracked.Phone,
+                    tracked.StreetName,
+                    tracked.StreetNumber,
+                    tracked.ApartmentNumber,
+                    tracked.City,
+                    tracked.PostalCode,
+                    tracked.Country,
+                    tracked.Description,
+                    tracked.Website,
+                    tracked.OpeningHour,
+                    tracked.ClosingHour
+                };
+
                 await _audit.LogAsync(
                     id,
                     nameof(Company),
-                    id.ToString(),
+                    null,
+                    tracked.CompanyName,
                     "Update",
-                    existing,
-                    tracked,
+                    safeExisting,
+                    safeTracked,
                     User,
-                    GetClientIpAddress(),
                     HttpContext.Request.Headers["User-Agent"].ToString());
             }
             catch
@@ -328,15 +369,34 @@ public class CompaniesController : ControllerBase
 
         try
         {
+            var safeOldValues = oldValues == null
+                ? null
+                : new
+                {
+                    oldValues.CompanyName,
+                    oldValues.Email,
+                    oldValues.Phone,
+                    oldValues.StreetName,
+                    oldValues.StreetNumber,
+                    oldValues.ApartmentNumber,
+                    oldValues.City,
+                    oldValues.PostalCode,
+                    oldValues.Country,
+                    oldValues.Description,
+                    oldValues.Website,
+                    oldValues.OpeningHour,
+                    oldValues.ClosingHour
+                };
+
             await _audit.LogAsync(
                 id,
                 nameof(Company),
-                id.ToString(),
+                null,
+                oldValues?.CompanyName,
                 "Delete",
-                oldValues,
+                safeOldValues,
                 null,
                 User,
-                GetClientIpAddress(),
                 HttpContext.Request.Headers["User-Agent"].ToString());
         }
         catch

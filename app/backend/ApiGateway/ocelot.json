@@ -352,6 +352,36 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/staffbreaks/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/staffbreaks/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/staffbreaks",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "reservation_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/reservation/staffbreaks",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
       "DownstreamPathTemplate": "/api/schedules/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

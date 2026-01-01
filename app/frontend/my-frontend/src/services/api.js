@@ -278,7 +278,12 @@ export const appointmentsAPI = {
     reservationAPI.get(`/appointments/available-slots`, { 
       params: { serviceId, date } 
     }),
+  getPublicAvailableSlots: (serviceId, date) =>
+    reservationAPI.get(`/appointments/public/available-slots`, {
+      params: { serviceId, date },
+    }),
   create: (data) => reservationAPI.post('/appointments', data),
+  createPublic: (data) => reservationAPI.post('/appointments/public', data),
   confirm: (id) => reservationAPI.put(`/appointments/${id}/confirm`),
   cancel: (id) => reservationAPI.put(`/appointments/${id}/cancel`),
   delete: (id) => reservationAPI.delete(`/appointments/${id}`),

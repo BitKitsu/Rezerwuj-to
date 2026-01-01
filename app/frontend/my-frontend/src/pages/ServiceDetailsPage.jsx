@@ -303,8 +303,8 @@ function ServiceDetailsPage() {
         </div>
 
         <div style={{ marginTop: "16px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <Link to="/login" className="btn btn-primary">
-            Zarezerwuj (wkrótce)
+          <Link to={`/services/${id}/book`} className="btn btn-primary">
+            Zarezerwuj
           </Link>
           <Link to="/services" className="btn btn-outline">
             Wróć

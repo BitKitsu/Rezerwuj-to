@@ -3,10 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { appointmentsAPI, authAPI, servicesAPI, tokenManager } from "../services/api";
 
 const sanitizePhoneNumberInput = (value) => {
-  const sanitized = String(value || "").replace(/[^0-9+]/g, "");
-  if (!sanitized) return "";
-  const plus = sanitized.startsWith("+") ? "+" : "";
-  const digits = sanitized.replace(/\+/g, "");
+  const raw = String(value || "");
+  const plus = raw.trim().startsWith("+") ? "+" : "";
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!plus && !digits) return "";
   return plus + digits;
 };
 
@@ -17,7 +17,7 @@ const formatPhoneDisplay = (value) => {
   const digits = sanitized.replace(/^\+/, "");
   if (!digits) return plus;
 
-  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const inferredCountryLen = digits.length > 9 ? Math.min(3, digits.length - 9) : Math.min(3, digits.length);
   const country = digits.slice(0, inferredCountryLen);
   const rest = digits.slice(inferredCountryLen);
 

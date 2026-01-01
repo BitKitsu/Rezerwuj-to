@@ -19,10 +19,10 @@ const normalizeHumanNameInput = (value) => {
 };
 
 const sanitizePhoneNumberInput = (value) => {
-  const sanitized = String(value || '').replace(/[^0-9+]/g, '');
-  if (!sanitized) return '';
-  const plus = sanitized.startsWith('+') ? '+' : '';
-  const digits = sanitized.replace(/\+/g, '');
+  const raw = String(value || '');
+  const plus = raw.trim().startsWith('+') ? '+' : '';
+  const digits = raw.replace(/\D/g, '').slice(0, 12);
+  if (!plus && !digits) return '';
   return plus + digits;
 };
 
@@ -33,7 +33,7 @@ const formatPhoneDisplay = (value) => {
   const digits = sanitized.replace(/^\+/, '');
   if (!digits) return plus;
 
-  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const inferredCountryLen = digits.length > 9 ? Math.min(3, digits.length - 9) : Math.min(3, digits.length);
   const country = digits.slice(0, inferredCountryLen);
   const rest = digits.slice(inferredCountryLen);
 
@@ -283,6 +283,9 @@ function AccountPage() {
     if (name === 'streetNumber' || name === 'apartmentNumber') {
       nextValue = stripAllWhitespace(value);
     }
+    if (name === 'phone') {
+      nextValue = formatPhoneDisplay(value);
+    }
     setCompanyForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
@@ -301,7 +304,10 @@ function AccountPage() {
 
     try {
       // Step 1: Create the company in ReservationService
-      const createCompanyResponse = await companiesAPI.create(companyForm);
+      const createCompanyResponse = await companiesAPI.create({
+        ...companyForm,
+        phone: sanitizePhoneNumberInput(companyForm.phone),
+      });
       const newCompanyId = createCompanyResponse.data.id;
 
       if (!newCompanyId) {

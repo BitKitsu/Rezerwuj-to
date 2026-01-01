@@ -7,6 +7,7 @@ public class Service
     public string Description { get; set; } = string.Empty;
     public decimal Price { get; set; }
     public int DurationMinutes { get; set; } = 60;
+    public int BufferMinutesAfter { get; set; } = 0;
     
     // Foreign keys
     public int BranchId { get; set; }

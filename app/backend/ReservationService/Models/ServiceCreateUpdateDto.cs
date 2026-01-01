@@ -15,6 +15,9 @@ public class ServiceCreateUpdateDto
     [Range(1, int.MaxValue)]
     public int DurationMinutes { get; set; } = 60;
 
+    [Range(0, int.MaxValue)]
+    public int BufferMinutesAfter { get; set; } = 0;
+
     [Required]
     public int CompanyId { get; set; }
 

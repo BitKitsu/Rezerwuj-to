@@ -14,6 +14,7 @@ public class ReservationDbContext : DbContext
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<BranchReview> BranchReviews { get; set; }
     public DbSet<Schedule> Schedules { get; set; }
+    public DbSet<StaffBreak> StaffBreaks { get; set; }
     public DbSet<TimeSlot> TimeSlots { get; set; }
     public DbSet<EventStore> EventStores { get; set; }
 
@@ -105,6 +106,19 @@ public class ReservationDbContext : DbContext
             .WithMany()
             .HasForeignKey(s => s.ServiceId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Konfiguracja StaffBreak
+        modelBuilder.Entity<StaffBreak>()
+            .HasOne(sb => sb.Company)
+            .WithMany()
+            .HasForeignKey(sb => sb.CompanyId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<StaffBreak>()
+            .HasOne(sb => sb.Branch)
+            .WithMany()
+            .HasForeignKey(sb => sb.BranchId)
+            .OnDelete(DeleteBehavior.Cascade);
             
         // Konfiguracja TimeSlot
         modelBuilder.Entity<TimeSlot>()
@@ -133,8 +147,11 @@ public class ReservationDbContext : DbContext
             
         // Indeksy
         modelBuilder.Entity<Schedule>()
-            .HasIndex(s => new { s.CompanyId, s.BranchId, s.ServiceId, s.DayOfWeek })
+            .HasIndex(s => new { s.CompanyId, s.BranchId, s.ServiceId, s.StaffId, s.DayOfWeek })
             .IsUnique();
+
+        modelBuilder.Entity<StaffBreak>()
+            .HasIndex(sb => new { sb.CompanyId, sb.BranchId, sb.StaffId, sb.DayOfWeek, sb.IsActive });
             
         modelBuilder.Entity<TimeSlot>()
             .HasIndex(ts => new { ts.CompanyId, ts.BranchId, ts.SlotStart, ts.SlotEnd });

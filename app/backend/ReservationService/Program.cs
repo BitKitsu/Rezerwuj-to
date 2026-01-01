@@ -73,6 +73,13 @@ builder.Services.AddAuthorization(options =>
             ctx.User.IsInRole("Admin")
             || ctx.User.HasClaim("CompanyRole", "Owner")
             || ctx.User.HasClaim("CompanyRole", "Manager")));
+
+    options.AddPolicy("CompanyEmployeeOrHigherOrAdmin", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.IsInRole("Admin")
+            || ctx.User.HasClaim("CompanyRole", "Owner")
+            || ctx.User.HasClaim("CompanyRole", "Manager")
+            || ctx.User.HasClaim("CompanyRole", "Employee")));
 });
 
 // CORS dla frontendu

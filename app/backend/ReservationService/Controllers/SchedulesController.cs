@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
@@ -26,10 +27,16 @@ public class SchedulesController : ControllerBase
     
     // GET: api/schedules/company/1
     [HttpGet("company/{companyId}")]
+    [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
     public async Task<ActionResult<List<Schedule>>> GetCompanySchedules(
         int companyId,
         [FromQuery] int? branchId)
     {
+        if (!IsCompanyAuthorized(companyId))
+        {
+            return Forbid();
+        }
+
         var schedules = await _context.Schedules
             .Where(s => s.CompanyId == companyId && (!branchId.HasValue || s.BranchId == branchId.Value))
             .Include(s => s.Service)
@@ -43,20 +50,37 @@ public class SchedulesController : ControllerBase
     
     // GET: api/schedules/available-slots?companyId=1&serviceId=1&date=2024-01-15
     [HttpGet("available-slots")]
+    [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
     public async Task<ActionResult<List<AvailableSlot>>> GetAvailableSlots(
         [FromQuery] int companyId,
         [FromQuery] int branchId,
         [FromQuery] int serviceId,
         [FromQuery] DateTime date)
     {
+        if (!IsCompanyAuthorized(companyId))
+        {
+            return Forbid();
+        }
+
         var slots = await _scheduleService.GetAvailableSlotsAsync(companyId, branchId, serviceId, date);
         return Ok(slots);
     }
     
     // POST: api/schedules
     [HttpPost]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<ActionResult<Schedule>> CreateSchedule([FromBody] CreateScheduleDto dto)
     {
+        if (!IsCompanyAuthorized(dto.CompanyId))
+        {
+            return Forbid();
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.StaffId))
+        {
+            return BadRequest("StaffId is required");
+        }
+
         var branch = await _context.Branches
             .AsNoTracking()
             .FirstOrDefaultAsync(b => b.Id == dto.BranchId);
@@ -69,6 +93,19 @@ public class SchedulesController : ControllerBase
         if (branch.CompanyId != dto.CompanyId)
         {
             return BadRequest("Branch does not belong to company");
+        }
+
+        if (!string.IsNullOrWhiteSpace(branch.OpeningHour) && !string.IsNullOrWhiteSpace(branch.ClosingHour)
+            && TimeSpan.TryParse(branch.OpeningHour, out var open)
+            && TimeSpan.TryParse(branch.ClosingHour, out var close))
+        {
+            var scheduleStart = TimeOnly.Parse(dto.StartTime).ToTimeSpan();
+            var scheduleEnd = TimeOnly.Parse(dto.EndTime).ToTimeSpan();
+
+            if (scheduleStart < open || scheduleEnd > close)
+            {
+                return BadRequest($"Schedule must be within branch opening hours: {branch.OpeningHour} - {branch.ClosingHour}");
+            }
         }
 
         var serviceExistsInBranch = await _context.Services
@@ -107,6 +144,7 @@ public class SchedulesController : ControllerBase
     
     // PUT: api/schedules/5
     [HttpPut("{id}")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> UpdateSchedule(int id, [FromBody] UpdateScheduleDto dto)
     {
         var schedule = await _context.Schedules.FindAsync(id);
@@ -114,6 +152,30 @@ public class SchedulesController : ControllerBase
         if (schedule == null)
         {
             return NotFound();
+        }
+
+        if (!IsCompanyAuthorized(schedule.CompanyId))
+        {
+            return Forbid();
+        }
+
+        var branch = await _context.Branches
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Id == schedule.BranchId);
+
+        if (branch != null
+            && !string.IsNullOrWhiteSpace(branch.OpeningHour)
+            && !string.IsNullOrWhiteSpace(branch.ClosingHour)
+            && TimeSpan.TryParse(branch.OpeningHour, out var open)
+            && TimeSpan.TryParse(branch.ClosingHour, out var close))
+        {
+            var scheduleStart = TimeOnly.Parse(dto.StartTime).ToTimeSpan();
+            var scheduleEnd = TimeOnly.Parse(dto.EndTime).ToTimeSpan();
+
+            if (scheduleStart < open || scheduleEnd > close)
+            {
+                return BadRequest($"Schedule must be within branch opening hours: {branch.OpeningHour} - {branch.ClosingHour}");
+            }
         }
         
         schedule.DayOfWeek = dto.DayOfWeek;
@@ -127,9 +189,21 @@ public class SchedulesController : ControllerBase
         
         return NoContent();
     }
+
+    private bool IsCompanyAuthorized(int companyId)
+    {
+        if (User.IsInRole("Admin"))
+        {
+            return true;
+        }
+
+        var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+        return string.Equals(claimCompanyId, companyId.ToString(), StringComparison.Ordinal);
+    }
     
     // DELETE: api/schedules/5
     [HttpDelete("{id}")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> DeleteSchedule(int id)
     {
         var schedule = await _context.Schedules.FindAsync(id);
@@ -138,19 +212,58 @@ public class SchedulesController : ControllerBase
         {
             return NotFound();
         }
-        
-        schedule.IsActive = false;
+
+        if (!IsCompanyAuthorized(schedule.CompanyId))
+        {
+            return Forbid();
+        }
+
+        _context.Schedules.Remove(schedule);
         await _context.SaveChangesAsync();
-        
-        _logger.LogInformation("Schedule {Id} deactivated", id);
+
+        _logger.LogInformation("Schedule {Id} deleted", id);
         
         return NoContent();
     }
     
     // POST: api/schedules/book-slot
     [HttpPost("book-slot")]
+    [Authorize(Policy = "CompanyManagerOrOwnerOrAdmin")]
     public async Task<IActionResult> BookTimeSlot([FromBody] BookSlotDto dto)
     {
+        if (dto == null)
+        {
+            return BadRequest();
+        }
+
+        var slot = await _context.TimeSlots
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ts => ts.Id == dto.SlotId);
+
+        if (slot == null)
+        {
+            return NotFound("Slot not found");
+        }
+
+        if (!IsCompanyAuthorized(slot.CompanyId))
+        {
+            return Forbid();
+        }
+
+        var appointment = await _context.Appointments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == dto.AppointmentId);
+
+        if (appointment == null)
+        {
+            return NotFound("Appointment not found");
+        }
+
+        if (appointment.CompanyId != slot.CompanyId)
+        {
+            return BadRequest("Appointment does not belong to slot company");
+        }
+
         var success = await _scheduleService.BookTimeSlotAsync(dto.SlotId, dto.AppointmentId);
         
         if (!success)

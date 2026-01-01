@@ -191,6 +191,7 @@ public class ServicesController : ControllerBase
             Description = dto.Description ?? string.Empty,
             Price = dto.Price,
             DurationMinutes = dto.DurationMinutes,
+            BufferMinutesAfter = dto.BufferMinutesAfter,
             CompanyId = dto.CompanyId,
             BranchId = dto.BranchId
         };
@@ -207,6 +208,7 @@ public class ServicesController : ControllerBase
                 service.Description,
                 service.Price,
                 service.DurationMinutes,
+                service.BufferMinutesAfter,
                 BranchName = branch.BranchName
             };
 
@@ -272,7 +274,8 @@ public class ServicesController : ControllerBase
             service.ServiceName,
             service.Description,
             service.Price,
-            service.DurationMinutes
+            service.DurationMinutes,
+            service.BufferMinutesAfter
         };
 
         var branch = await _context.Branches
@@ -293,6 +296,7 @@ public class ServicesController : ControllerBase
         service.Description = dto.Description ?? string.Empty;
         service.Price = dto.Price;
         service.DurationMinutes = dto.DurationMinutes;
+        service.BufferMinutesAfter = dto.BufferMinutesAfter;
         service.CompanyId = dto.CompanyId;
         service.BranchId = dto.BranchId;
 
@@ -317,6 +321,7 @@ public class ServicesController : ControllerBase
                         service.Description,
                         service.Price,
                         service.DurationMinutes,
+                        service.BufferMinutesAfter,
                         BranchName = branch.BranchName
                     },
                     User,

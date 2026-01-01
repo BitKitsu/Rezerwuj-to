@@ -15,8 +15,10 @@ public class AppointmentCreatedEvent : DomainEvent
 {
     public int AppointmentId { get; set; }
     public int CompanyId { get; set; }
+    public int BranchId { get; set; }
     public int ServiceId { get; set; }
     public string CustomerId { get; set; } = string.Empty;
+    public string StaffId { get; set; } = string.Empty;
     public DateTime DateStart { get; set; }
     public DateTime DateEnd { get; set; }
 }
@@ -24,16 +26,30 @@ public class AppointmentCreatedEvent : DomainEvent
 public class AppointmentCancelledEvent : DomainEvent
 {
     public int AppointmentId { get; set; }
+    public int CompanyId { get; set; }
     public string Reason { get; set; } = string.Empty;
+}
+
+public class AppointmentConfirmedEvent : DomainEvent
+{
+    public int AppointmentId { get; set; }
+    public int CompanyId { get; set; }
 }
 
 public class AppointmentRescheduledEvent : DomainEvent
 {
     public int AppointmentId { get; set; }
+    public int CompanyId { get; set; }
     public DateTime OldDateStart { get; set; }
     public DateTime OldDateEnd { get; set; }
     public DateTime NewDateStart { get; set; }
     public DateTime NewDateEnd { get; set; }
+}
+
+public class AppointmentDeletedEvent : DomainEvent
+{
+    public int AppointmentId { get; set; }
+    public int CompanyId { get; set; }
 }
 
 public class CompanyAuditEvent : DomainEvent

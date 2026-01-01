@@ -99,20 +99,30 @@ public class EventSourcingService : IEventSourcingService
                 case AppointmentCreatedEvent created:
                     appointment.Id = created.AppointmentId;
                     appointment.CompanyId = created.CompanyId;
+                    appointment.BranchId = created.BranchId;
                     appointment.ServiceId = created.ServiceId;
                     appointment.CustomerId = created.CustomerId;
+                    appointment.StaffId = created.StaffId;
                     appointment.DateStart = created.DateStart;
                     appointment.DateEnd = created.DateEnd;
-                    appointment.Status = "confirmed";
+                    appointment.Status = "pending";
                     break;
                     
                 case AppointmentCancelledEvent cancelled:
                     appointment.Status = "cancelled";
                     break;
+
+                case AppointmentConfirmedEvent:
+                    appointment.Status = "confirmed";
+                    break;
                     
                 case AppointmentRescheduledEvent rescheduled:
                     appointment.DateStart = rescheduled.NewDateStart;
                     appointment.DateEnd = rescheduled.NewDateEnd;
+                    break;
+
+                case AppointmentDeletedEvent:
+                    appointment.Status = "deleted";
                     break;
             }
         }

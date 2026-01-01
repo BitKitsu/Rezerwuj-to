@@ -5,6 +5,8 @@ namespace ReservationService.Models;
 public class ServiceCreateUpdateDto
 {
     [Required]
+    [StringLength(120, MinimumLength = 2, ErrorMessage = "Nazwa usługi musi mieć od 2 do 120 znaków.")]
+    [RegularExpression(@"^(?!\s*$).+", ErrorMessage = "Nazwa usługi jest wymagana.")]
     public string ServiceName { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;

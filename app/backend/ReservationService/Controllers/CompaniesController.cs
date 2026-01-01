@@ -144,6 +144,9 @@ public class CompaniesController : ControllerBase
     public async Task<ActionResult<Company>> CreateCompany(Company company)
     {
         company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
+        company.PostalCode = NormalizePostalCode(company.PostalCode);
+        company.StreetNumber = StripAllWhitespace(company.StreetNumber);
+        company.ApartmentNumber = StripAllWhitespace(company.ApartmentNumber);
         company.RegistrationDate = DateTime.UtcNow;
         _context.Companies.Add(company);
         await _context.SaveChangesAsync();
@@ -214,6 +217,9 @@ public class CompaniesController : ControllerBase
         }
 
         company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;
+        company.PostalCode = NormalizePostalCode(company.PostalCode);
+        company.StreetNumber = StripAllWhitespace(company.StreetNumber);
+        company.ApartmentNumber = StripAllWhitespace(company.ApartmentNumber);
 
         var tracked = await _context.Companies.FirstAsync(c => c.Id == id);
         tracked.CompanyName = company.CompanyName;
@@ -419,5 +425,28 @@ public class CompaniesController : ControllerBase
         var sanitized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
 
         return string.IsNullOrEmpty(sanitized) ? null : sanitized;
+    }
+
+    private static string? NormalizePostalCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits.Length == 0) return null;
+        if (digits.Length <= 2) return digits;
+        if (digits.Length > 5) digits = digits[..5];
+
+        if (digits.Length == 5)
+        {
+            return $"{digits[..2]}-{digits[2..]}";
+        }
+
+        return $"{digits[..2]}-{digits[2..]}";
+    }
+
+    private static string? StripAllWhitespace(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        return new string(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
     }
 }

@@ -87,10 +87,10 @@ public class BranchesController : ControllerBase
             BranchName = dto.BranchName,
             Phone = SanitizePhoneNumber(dto.Phone),
             StreetName = dto.StreetName,
-            StreetNumber = dto.StreetNumber,
-            ApartmentNumber = dto.ApartmentNumber,
+            StreetNumber = StripAllWhitespace(dto.StreetNumber),
+            ApartmentNumber = StripAllWhitespace(dto.ApartmentNumber),
             City = dto.City,
-            PostalCode = dto.PostalCode,
+            PostalCode = NormalizePostalCode(dto.PostalCode),
             Country = dto.Country,
             OpeningHour = dto.OpeningHour,
             ClosingHour = dto.ClosingHour,
@@ -201,10 +201,10 @@ public class BranchesController : ControllerBase
         branch.BranchName = dto.BranchName;
         branch.Phone = SanitizePhoneNumber(dto.Phone);
         branch.StreetName = dto.StreetName;
-        branch.StreetNumber = dto.StreetNumber;
-        branch.ApartmentNumber = dto.ApartmentNumber;
+        branch.StreetNumber = StripAllWhitespace(dto.StreetNumber);
+        branch.ApartmentNumber = StripAllWhitespace(dto.ApartmentNumber);
         branch.City = dto.City;
-        branch.PostalCode = dto.PostalCode;
+        branch.PostalCode = NormalizePostalCode(dto.PostalCode);
         branch.Country = dto.Country;
         branch.OpeningHour = dto.OpeningHour;
         branch.ClosingHour = dto.ClosingHour;
@@ -367,5 +367,28 @@ public class BranchesController : ControllerBase
         var sanitized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
 
         return string.IsNullOrEmpty(sanitized) ? null : sanitized;
+    }
+
+    private static string? NormalizePostalCode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+
+        var digits = new string(value.Where(char.IsDigit).ToArray());
+        if (digits.Length == 0) return null;
+        if (digits.Length <= 2) return digits;
+        if (digits.Length > 5) digits = digits[..5];
+
+        if (digits.Length == 5)
+        {
+            return $"{digits[..2]}-{digits[2..]}";
+        }
+
+        return $"{digits[..2]}-{digits[2..]}";
+    }
+
+    private static string? StripAllWhitespace(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        return new string(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
     }
 }

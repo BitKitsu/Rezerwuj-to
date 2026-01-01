@@ -48,6 +48,15 @@ namespace IdentityService.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto model)
         {
+            model.Email = (model.Email ?? string.Empty).Trim();
+            model.Username = (model.Username ?? string.Empty).Trim();
+            model.FirstName = NormalizeHumanName(model.FirstName);
+            model.LastName = NormalizeHumanName(model.LastName);
+            model.Phone = (model.Phone ?? string.Empty).Trim();
+
+            ModelState.Clear();
+            TryValidateModel(model);
+
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
@@ -185,6 +194,14 @@ namespace IdentityService.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto model)
         {
+            model.Username = model.Username?.Trim();
+            model.FirstName = NormalizeHumanName(model.FirstName);
+            model.LastName = NormalizeHumanName(model.LastName);
+            model.Phone = model.Phone?.Trim();
+
+            ModelState.Clear();
+            TryValidateModel(model);
+
             if (!ModelState.IsValid)
             {
                 return BadRequest(new { errors = GetModelErrors(ModelState) });
@@ -208,8 +225,8 @@ namespace IdentityService.Controllers
                 return BadRequest(new { errors = new[] { error } });
             }
 
-            var trimmedFirstName = model.FirstName.Trim();
-            var trimmedLastName = model.LastName.Trim();
+            var trimmedFirstName = model.FirstName;
+            var trimmedLastName = model.LastName;
 
             // Update username only if it's provided and different
             var trimmedUsername = model.Username?.Trim();
@@ -534,6 +551,18 @@ namespace IdentityService.Controllers
 
             // Zwraca null jeśli po czyszczeniu numer jest pusty
             return string.IsNullOrEmpty(sanitized) ? null : sanitized;
+        }
+
+        private static string NormalizeHumanName(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var parts = value
+                .Trim()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+
+            return string.Join(" ", parts);
         }
 
         // Metoda do tłumaczenia błędów Identity

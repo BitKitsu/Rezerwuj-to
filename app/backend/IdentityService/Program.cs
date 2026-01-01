@@ -50,7 +50,17 @@ builder.Services.AddHttpContextAccessor();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
+var secretKey = jwtSettings["SecretKey"]
+    ?? builder.Configuration["Jwt:SecretKey"]
+    ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
+
+var issuer = jwtSettings["Issuer"]
+    ?? builder.Configuration["Jwt:Issuer"]
+    ?? "MikroSaaS-IdentityService";
+
+var audience = jwtSettings["Audience"]
+    ?? builder.Configuration["Jwt:Audience"]
+    ?? "MikroSaaS-Apps";
 
 builder.Services.AddAuthentication(options =>
 {
@@ -65,8 +75,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"] ?? "MikroSaaS-IdentityService",
-        ValidAudience = jwtSettings["Audience"] ?? "MikroSaaS-Apps",
+        ValidIssuer = issuer,
+        ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
         ClockSkew = TimeSpan.Zero
     };

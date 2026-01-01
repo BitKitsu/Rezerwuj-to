@@ -2,6 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { authAPI, auditAPI, companiesAPI, tokenManager } from '../services/api';
 import '../admin.css'; // Reuse some admin styles for the form
 
+const normalizePostalCodeInput = (value) => {
+  const digits = String(value || '')
+    .replace(/\D/g, '')
+    .slice(0, 5);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+};
+
+const stripAllWhitespace = (value) => {
+  return String(value || '').replace(/\s+/g, '');
+};
+
+const normalizeHumanNameInput = (value) => {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+};
+
 function AccountPage() {
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -102,9 +118,13 @@ function AccountPage() {
 
   const handleProfileInputChange = (e) => {
     const { name, value } = e.target;
+    let nextValue = value;
+    if (name === 'username') {
+      nextValue = String(value || '').replace(/\s+/g, '');
+    }
     setProfileForm((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: nextValue,
     }));
   };
 
@@ -115,7 +135,24 @@ function AccountPage() {
     setSavingProfile(true);
 
     try {
-      const response = await authAPI.updateProfile(profileForm);
+      const payload = {
+        username: String(profileForm.username || '').replace(/\s+/g, ''),
+        firstName: normalizeHumanNameInput(profileForm.firstName),
+        lastName: normalizeHumanNameInput(profileForm.lastName),
+        phone: String(profileForm.phone || '').trim(),
+      };
+
+      if (!payload.firstName || !payload.lastName) {
+        setProfileError('Imię i nazwisko są wymagane.');
+        return;
+      }
+
+      if (!payload.username) {
+        setProfileError('Nazwa użytkownika jest wymagana.');
+        return;
+      }
+
+      const response = await authAPI.updateProfile(payload);
       const data = response.data;
 
       setProfile(data);
@@ -211,7 +248,14 @@ function AccountPage() {
 
   const handleCompanyFormChange = (e) => {
     const { name, value } = e.target;
-    setCompanyForm((prev) => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (name === 'postalCode') {
+      nextValue = normalizePostalCodeInput(value);
+    }
+    if (name === 'streetNumber' || name === 'apartmentNumber') {
+      nextValue = stripAllWhitespace(value);
+    }
+    setCompanyForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const handleCompanyFormSubmit = async (e) => {

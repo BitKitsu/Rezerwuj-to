@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
+const normalizeHumanNameInput = (value) => {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+};
+
 function RegisterPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -18,9 +22,17 @@ function RegisterPage() {
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+    let nextValue = value;
+    if (name === 'username') {
+      nextValue = String(value || '').replace(/\s+/g, '');
+    }
+    if (name === 'email') {
+      nextValue = String(value || '').replace(/\s+/g, '');
+    }
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: nextValue
     });
   };
 
@@ -28,9 +40,30 @@ function RegisterPage() {
     e.preventDefault();
     setError('');
 
+    const email = String(formData.email || '').trim().toLowerCase();
+    const username = String(formData.username || '').replace(/\s+/g, '');
+    const firstName = normalizeHumanNameInput(formData.firstName);
+    const lastName = normalizeHumanNameInput(formData.lastName);
+    const phone = String(formData.phone || '').trim();
+
+    if (!email) {
+      setError('Email jest wymagany!');
+      return;
+    }
+
+    if (!username) {
+      setError('Nazwa użytkownika jest wymagana!');
+      return;
+    }
+
     // Walidacja pól wymaganych
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+    if (!firstName || !lastName) {
       setError('Imię i nazwisko są wymagane!');
+      return;
+    }
+
+    if (!phone) {
+      setError('Numer telefonu jest wymagany!');
       return;
     }
 
@@ -55,12 +88,12 @@ function RegisterPage() {
 
     try {
       await authAPI.register({
-        email: formData.email,
-        username: formData.username,
+        email,
+        username,
         password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone
+        firstName,
+        lastName,
+        phone
       });
       
       setSuccess(true);

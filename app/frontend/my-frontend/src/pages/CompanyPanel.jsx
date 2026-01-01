@@ -51,6 +51,18 @@ const getDaysSummaryLabel = (days) => {
   return normalized.map((d) => dayLabels[d] || d).join(", ");
 };
 
+const normalizePostalCodeInput = (value) => {
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 5);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+};
+
+const stripAllWhitespace = (value) => {
+  return String(value || "").replace(/\s+/g, "");
+};
+
 const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -201,7 +213,8 @@ const CompanyPanel = () => {
     slotIndex: "",
     dateStart: "",
     dateEnd: "",
-    customerId: "",
+    customerEmail: "",
+    customerPhone: "",
     staffId: "",
   });
 
@@ -992,7 +1005,8 @@ const CompanyPanel = () => {
       slotIndex: "",
       dateStart: "",
       dateEnd: "",
-      customerId: "",
+      customerEmail: "",
+      customerPhone: "",
       staffId: defaultStaffId,
     });
     setCreateAppointmentVisible(true);
@@ -1125,12 +1139,6 @@ const CompanyPanel = () => {
         return;
       }
 
-      const customerId = (createAppointmentForm.customerId || "").trim();
-      if (!customerId) {
-        setCreateAppointmentError("Podaj identyfikator klienta (np. email/telefon).");
-        return;
-      }
-
       const sanitizePhone = (value) => String(value || "").replace(/[^0-9+]/g, "");
       const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
       const isValidPhone = (value) => {
@@ -1139,10 +1147,28 @@ const CompanyPanel = () => {
         return /^\+\d{1,3}(\s?\d{3}){3}$/.test(v);
       };
 
-      if (!isValidEmail(customerId) && !isValidPhone(customerId)) {
-        setCreateAppointmentError("Klient musi być poprawnym adresem email lub numerem telefonu.");
+      const email = String(createAppointmentForm.customerEmail || "").trim();
+      const phone = sanitizePhone(createAppointmentForm.customerPhone || "");
+
+      const hasEmail = Boolean(email);
+      const hasPhone = Boolean(phone);
+
+      if (!hasEmail && !hasPhone) {
+        setCreateAppointmentError("Email lub telefon klienta jest wymagany.");
         return;
       }
+
+      if (hasEmail && !isValidEmail(email)) {
+        setCreateAppointmentError("Nieprawidłowy email klienta.");
+        return;
+      }
+
+      if (hasPhone && !isValidPhone(phone)) {
+        setCreateAppointmentError("Nieprawidłowy telefon klienta.");
+        return;
+      }
+
+      const customerId = hasEmail ? email : phone;
 
       const dateStart = createAppointmentForm.dateStart;
       const dateEnd = createAppointmentForm.dateEnd;
@@ -1868,15 +1894,26 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Klient (ID/email/telefon)</label>
+              <label>Email</label>
               <input
-                type="text"
-                name="customerId"
-                value={createAppointmentForm.customerId}
+                type="email"
+                name="customerEmail"
+                value={createAppointmentForm.customerEmail}
                 onChange={handleCreateAppointmentFormChange}
                 className="admin-input"
-                placeholder="np. email:jan@x.pl lub tel:+48111222333"
-                required
+                placeholder="np. jan@x.pl"
+              />
+            </div>
+
+            <div className="admin-form__field">
+              <label>Telefon</label>
+              <input
+                type="text"
+                name="customerPhone"
+                value={createAppointmentForm.customerPhone}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+                placeholder="np. +48 123 123 123"
               />
             </div>
           </div>
@@ -2103,7 +2140,14 @@ const CompanyPanel = () => {
   // --- Handlers for Company Details ---
   const handleCompanyFormChange = (e) => {
     const { name, value } = e.target;
-    setCompanyForm((prev) => ({ ...prev, [name]: value }));
+    let nextValue = value;
+    if (name === "postalCode") {
+      nextValue = normalizePostalCodeInput(value);
+    }
+    if (name === "streetNumber" || name === "apartmentNumber") {
+      nextValue = stripAllWhitespace(value);
+    }
+    setCompanyForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
   const handleCompanyFormSubmit = async (e) => {
@@ -2177,9 +2221,16 @@ const CompanyPanel = () => {
 
   const handleBranchFormChange = (e) => {
     const { name, value } = e.target;
+    let nextValue = value;
+    if (name === "postalCode") {
+      nextValue = normalizePostalCodeInput(value);
+    }
+    if (name === "streetNumber" || name === "apartmentNumber") {
+      nextValue = stripAllWhitespace(value);
+    }
     setEditingBranch((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: nextValue,
     }));
   };
 
@@ -2243,7 +2294,7 @@ const CompanyPanel = () => {
       description: "",
       durationMinutes: 30,
       bufferMinutesAfter: 0,
-      price: 50,
+      price: "50",
       branchId: defaultBranchId,
     });
     setServiceFormError("");
@@ -2255,20 +2306,32 @@ const CompanyPanel = () => {
   };
 
   const handleOpenEditService = (service) => {
-    setEditingService(service);
+    setEditingService({
+      ...service,
+      price: service?.price === null || service?.price === undefined ? "" : String(service.price),
+    });
     setServiceFormError("");
     setServiceFormVisible(true);
   };
 
   const handleServiceFormChange = (e) => {
     const { name, value, type } = e.target;
+    if (name === "price") {
+      const normalized = String(value || "")
+        .replace(/\s+/g, "")
+        .replace(/,/g, ".")
+        .replace(/[^0-9.]/g, "");
+      setEditingService((prev) => ({
+        ...prev,
+        price: normalized,
+      }));
+      return;
+    }
     setEditingService((prev) => ({
       ...prev,
       [name]:
         type === "number"
-          ? name === "price"
-            ? parseFloat(value)
-            : parseInt(value, 10)
+          ? parseInt(value, 10)
           : name === "branchId"
             ? parseInt(value, 10)
             : value,
@@ -2280,7 +2343,39 @@ const CompanyPanel = () => {
     setServiceFormSubmitting(true);
     setServiceFormError("");
     try {
-      const serviceData = { ...editingService, companyId };
+      const serviceName = String(editingService?.serviceName || "").trim();
+      if (!serviceName) {
+        setServiceFormError("Nazwa usługi jest wymagana.");
+        return;
+      }
+
+      if (serviceName.length > 120) {
+        setServiceFormError("Nazwa usługi może mieć maksymalnie 120 znaków.");
+        return;
+      }
+
+      const rawPrice = String(editingService?.price ?? "").trim();
+      const normalizedPrice = rawPrice.replace(/\s+/g, "").replace(/,/g, ".");
+      const parsedPrice = normalizedPrice === "" ? NaN : Number(normalizedPrice);
+      if (!Number.isFinite(parsedPrice)) {
+        setServiceFormError("Podaj poprawną cenę (np. 50 lub 49.99). ");
+        return;
+      }
+
+      if (parsedPrice < 0) {
+        setServiceFormError("Cena nie może być ujemna.");
+        return;
+      }
+
+      const serviceData = {
+        ...editingService,
+        companyId,
+        serviceName,
+        price: parsedPrice,
+        durationMinutes: parseInt(editingService?.durationMinutes, 10),
+        bufferMinutesAfter: parseInt(editingService?.bufferMinutesAfter ?? 0, 10),
+        branchId: parseInt(editingService?.branchId, 10),
+      };
       if (editingService.id) {
         await servicesAPI.update(editingService.id, serviceData);
         setPanelSuccess("Usługa została zaktualizowana.");
@@ -3383,11 +3478,12 @@ const CompanyPanel = () => {
                 type="text"
                 value={editingBranch?.postalCode || ""}
                 onChange={handleBranchFormChange}
-                className="admin-input"
-                placeholder="00-000"
+                required
                 pattern="^[0-9]{2}-[0-9]{3}$"
                 maxLength={6}
                 title="Kod pocztowy w formacie 00-000"
+                className="admin-input"
+                placeholder="00-000"
               />
             </div>
             <div className="admin-form__field">
@@ -3489,6 +3585,8 @@ const CompanyPanel = () => {
                 onChange={handleServiceFormChange}
                 required
                 className="admin-input"
+                maxLength={120}
+                title="Maksymalnie 120 znaków"
               />
             </div>
             <div className="admin-form__field admin-form__field--full">
@@ -3529,13 +3627,13 @@ const CompanyPanel = () => {
               <label>Cena (PLN)</label>
               <input
                 name="price"
-                type="number"
-                value={editingService?.price || 0}
+                type="text"
+                inputMode="decimal"
+                value={editingService?.price ?? ""}
                 onChange={handleServiceFormChange}
                 required
                 className="admin-input"
-                min="0"
-                step="0.01"
+                placeholder="np. 49.99"
               />
             </div>
           </div>

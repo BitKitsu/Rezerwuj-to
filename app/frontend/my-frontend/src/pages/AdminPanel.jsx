@@ -2,6 +2,18 @@ import React, { useEffect, useState } from "react";
 import "../admin.css";
 import { adminAPI, companiesAPI, tokenManager } from "../services/api";
 
+const normalizePostalCodeInput = (value) => {
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 5);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+};
+
+const stripAllWhitespace = (value) => {
+  return String(value || "").replace(/\s+/g, "");
+};
+
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState("users");
   const currentUser = tokenManager.getUser();
@@ -222,9 +234,16 @@ const AdminPanel = () => {
   };
 
   const handleCompanyFormChange = (field, value) => {
+    let nextValue = value;
+    if (field === "postalCode") {
+      nextValue = normalizePostalCodeInput(value);
+    }
+    if (field === "streetNumber" || field === "apartmentNumber") {
+      nextValue = stripAllWhitespace(value);
+    }
     setEditingCompany((prev) => ({
       ...prev,
-      [field]: value,
+      [field]: nextValue,
     }));
   };
 

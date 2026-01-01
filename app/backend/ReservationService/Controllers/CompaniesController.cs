@@ -147,6 +147,14 @@ public class CompaniesController : ControllerBase
         company.PostalCode = NormalizePostalCode(company.PostalCode);
         company.StreetNumber = StripAllWhitespace(company.StreetNumber);
         company.ApartmentNumber = StripAllWhitespace(company.ApartmentNumber);
+
+        ModelState.Clear();
+        TryValidateModel(company);
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
         company.RegistrationDate = DateTime.UtcNow;
         _context.Companies.Add(company);
         await _context.SaveChangesAsync();

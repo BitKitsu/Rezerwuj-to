@@ -52,7 +52,7 @@ namespace IdentityService.Controllers
             model.Username = (model.Username ?? string.Empty).Trim();
             model.FirstName = NormalizeHumanName(model.FirstName);
             model.LastName = NormalizeHumanName(model.LastName);
-            model.Phone = (model.Phone ?? string.Empty).Trim();
+            model.Phone = SanitizePhoneNumber(model.Phone) ?? string.Empty;
 
             ModelState.Clear();
             TryValidateModel(model);
@@ -197,7 +197,10 @@ namespace IdentityService.Controllers
             model.Username = model.Username?.Trim();
             model.FirstName = NormalizeHumanName(model.FirstName);
             model.LastName = NormalizeHumanName(model.LastName);
-            model.Phone = model.Phone?.Trim();
+            if (model.Phone != null)
+            {
+                model.Phone = SanitizePhoneNumber(model.Phone) ?? string.Empty;
+            }
 
             ModelState.Clear();
             TryValidateModel(model);

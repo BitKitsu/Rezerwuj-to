@@ -269,7 +269,11 @@ export const companyUsersAPI = {
 // ===== Appointments API ===== 
 export const appointmentsAPI = {
   getAll: () => reservationAPI.get('/appointments'),
+  getByCompany: (companyId, take = 200) =>
+    reservationAPI.get(`/appointments/company/${companyId}`, { params: { take } }),
   getById: (id) => reservationAPI.get(`/appointments/${id}`),
+  getEvents: (id, take = 200) =>
+    reservationAPI.get(`/appointments/${id}/events`, { params: { take } }),
   getAvailableSlots: (serviceId, date) => 
     reservationAPI.get(`/appointments/available-slots`, { 
       params: { serviceId, date } 
@@ -278,6 +282,23 @@ export const appointmentsAPI = {
   confirm: (id) => reservationAPI.put(`/appointments/${id}/confirm`),
   cancel: (id) => reservationAPI.put(`/appointments/${id}/cancel`),
   delete: (id) => reservationAPI.delete(`/appointments/${id}`),
+};
+
+// ===== Schedules API =====
+export const schedulesAPI = {
+  getByCompany: (companyId, params) =>
+    reservationAPI.get(`/schedules/company/${companyId}`, { params }),
+  create: (data) => reservationAPI.post('/schedules', data),
+  update: (id, data) => reservationAPI.put(`/schedules/${id}`, data),
+  delete: (id) => reservationAPI.delete(`/schedules/${id}`),
+};
+
+export const staffBreaksAPI = {
+  getByCompany: (companyId, params) =>
+    reservationAPI.get(`/staffbreaks/company/${companyId}`, { params }),
+  create: (data) => reservationAPI.post('/staffbreaks', data),
+  update: (id, data) => reservationAPI.put(`/staffbreaks/${id}`, data),
+  delete: (id) => reservationAPI.delete(`/staffbreaks/${id}`),
 };
 
 // ===== Admin API (Identity) =====

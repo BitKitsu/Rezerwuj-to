@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   tokenManager,
   companiesAPI,
   companyAuditAPI,
+  appointmentsAPI,
+  staffBreaksAPI,
+  schedulesAPI,
   servicesAPI,
   branchesAPI,
   branchReviewsAPI,
@@ -10,6 +13,161 @@ import {
   companyUsersAPI,
 } from "../services/api";
 import "../admin.css"; // Reusing admin panel styles for consistency
+
+const dayLabels = {
+  0: "Niedziela",
+  1: "Poniedziałek",
+  2: "Wtorek",
+  3: "Środa",
+  4: "Czwartek",
+  5: "Piątek",
+  6: "Sobota",
+};
+
+const daysOrder = [1, 2, 3, 4, 5, 6, 0];
+const allDays = [0, 1, 2, 3, 4, 5, 6];
+const workdays = [1, 2, 3, 4, 5];
+
+const normalizeDays = (days) => {
+  const unique = Array.from(
+    new Set((Array.isArray(days) ? days : []).map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)),
+  );
+  unique.sort((a, b) => daysOrder.indexOf(a) - daysOrder.indexOf(b));
+  return unique;
+};
+
+const daysEqual = (a, b) => {
+  const aa = normalizeDays(a);
+  const bb = normalizeDays(b);
+  if (aa.length !== bb.length) return false;
+  return aa.every((x, i) => x === bb[i]);
+};
+
+const getDaysSummaryLabel = (days) => {
+  const normalized = normalizeDays(days);
+  if (daysEqual(normalized, allDays)) return "Wszystkie dni";
+  if (daysEqual(normalized, workdays)) return "Dni robocze";
+  if (normalized.length === 0) return "Wybierz dni";
+  return normalized.map((d) => dayLabels[d] || d).join(", ");
+};
+
+const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const normalizedValue = normalizeDays(value);
+  const label = getDaysSummaryLabel(normalizedValue);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const handler = (event) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+    };
+  }, [open]);
+
+  const setSelected = (days) => {
+    onChange(normalizeDays(days));
+  };
+
+  const toggleDay = (day) => {
+    const d = Number(day);
+    const current = normalizeDays(normalizedValue);
+    const next = current.includes(d) ? current.filter((x) => x !== d) : [...current, d];
+    setSelected(next);
+  };
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="admin-input"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+        <span aria-hidden="true">▾</span>
+      </button>
+
+      {open ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            background: "var(--admin-card-bg, #0b1020)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 10,
+            padding: 10,
+            boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
+          }}
+        >
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              onClick={() => {
+                setSelected(allDays);
+                setOpen(false);
+              }}
+              disabled={disabled}
+            >
+              Wszystkie dni
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              onClick={() => {
+                setSelected(workdays);
+                setOpen(false);
+              }}
+              disabled={disabled}
+            >
+              Dni robocze
+            </button>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
+            {daysOrder.map((day) => (
+              <label
+                key={day}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: disabled ? "default" : "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={normalizedValue.includes(day)}
+                  onChange={() => toggleDay(day)}
+                  disabled={disabled}
+                />
+                <span>{dayLabels[day]}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const CompanyPanel = () => {
   const [activeTab, setActiveTab] = useState("details");
@@ -21,6 +179,46 @@ const CompanyPanel = () => {
   const [error, setError] = useState("");
 
   const [panelSuccess, setPanelSuccess] = useState("");
+
+  const [appointments, setAppointments] = useState([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState("");
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
+  const [appointmentsListPage, setAppointmentsListPage] = useState(1);
+  const [appointmentEvents, setAppointmentEvents] = useState([]);
+  const [appointmentEventsLoading, setAppointmentEventsLoading] = useState(false);
+  const [appointmentEventsError, setAppointmentEventsError] = useState("");
+
+  const [createAppointmentVisible, setCreateAppointmentVisible] = useState(false);
+  const [createAppointmentSubmitting, setCreateAppointmentSubmitting] = useState(false);
+  const [createAppointmentError, setCreateAppointmentError] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [availableSlotsLoading, setAvailableSlotsLoading] = useState(false);
+  const [availableSlotsError, setAvailableSlotsError] = useState("");
+  const [createAppointmentForm, setCreateAppointmentForm] = useState({
+    serviceId: "",
+    date: "",
+    slotIndex: "",
+    dateStart: "",
+    dateEnd: "",
+    customerId: "",
+    staffId: "",
+  });
+
+  const [schedules, setSchedules] = useState([]);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
+  const [schedulesError, setSchedulesError] = useState("");
+  const [scheduleCreateVisible, setScheduleCreateVisible] = useState(false);
+  const [scheduleCreateSubmitting, setScheduleCreateSubmitting] = useState(false);
+  const [scheduleCreateError, setScheduleCreateError] = useState("");
+  const [scheduleCreateForm, setScheduleCreateForm] = useState({
+    branchId: "",
+    serviceId: "",
+    staffId: "",
+    dayOfWeek: [1],
+    startTime: "09:00",
+    endTime: "17:00",
+  });
 
   const [companyAuditLogs, setCompanyAuditLogs] = useState([]);
   const [companyAuditLoading, setCompanyAuditLoading] = useState(false);
@@ -62,6 +260,26 @@ const CompanyPanel = () => {
   const [addUserFormError, setAddUserFormError] = useState("");
   const [addUserFormSubmitting, setAddUserFormSubmitting] = useState(false);
 
+  const [staffBreaks, setStaffBreaks] = useState([]);
+  const [staffBreaksLoading, setStaffBreaksLoading] = useState(false);
+  const [staffBreaksError, setStaffBreaksError] = useState("");
+  const [staffBreakFilters, setStaffBreakFilters] = useState({
+    branchId: "",
+    staffId: "",
+    dayOfWeek: [0, 1, 2, 3, 4, 5, 6],
+  });
+  const [staffBreakForm, setStaffBreakForm] = useState({
+    startTime: "12:00",
+    endTime: "13:00",
+  });
+  const [staffBreakFormError, setStaffBreakFormError] = useState("");
+  const [staffBreakSubmitting, setStaffBreakSubmitting] = useState(false);
+
+  const [staffBreaksPageSize, setStaffBreaksPageSize] = useState(10);
+  const [staffBreaksPage, setStaffBreaksPage] = useState(1);
+  const [staffBreaksSortKey, setStaffBreaksSortKey] = useState("staff");
+  const [staffBreaksSortDir, setStaffBreaksSortDir] = useState("asc");
+
   const companyId = tokenManager.getUser()?.companyId;
   const companyRole = tokenManager.getUser()?.companyRole;
   const currentUserId = tokenManager.getUser()?.userId;
@@ -76,6 +294,15 @@ const CompanyPanel = () => {
   const canManageEmployeesActions = isAdmin || isOwner || isManager;
   const canTransferOwnership = isAdmin || isOwner;
   const canManageCompanyCatalog = isAdmin || isOwner || isManager;
+
+  const getHttpErrorMessage = (err, fallback) => {
+    const msg =
+      err?.response?.data?.message ||
+      (typeof err?.response?.data === "string" ? err.response.data : "") ||
+      (err?.response?.status ? `HTTP ${err.response.status}` : "") ||
+      fallback;
+    return String(msg);
+  };
 
   useEffect(() => {
     if (!panelSuccess) return undefined;
@@ -92,9 +319,9 @@ const CompanyPanel = () => {
   useEffect(() => {
     const allowedTabs = [];
     if (canEditCompany) {
-      allowedTabs.push("reservations", "details", "branches", "services", "employees", "audit", "settings");
+      allowedTabs.push("reservations", "schedules", "details", "branches", "services", "employees", "audit", "settings");
     } else if (canManageEmployees) {
-      allowedTabs.push("reservations", "branches", "services", "employees");
+      allowedTabs.push("reservations", "schedules", "branches", "services", "employees");
     } else if (canViewReservations) {
       allowedTabs.push("reservations");
     }
@@ -104,15 +331,1570 @@ const CompanyPanel = () => {
     }
   }, [activeTab, canEditCompany, canManageEmployees, canViewReservations]);
 
+  const loadCompanyAppointments = useCallback(async () => {
+    if (!companyId) return;
+
+    setAppointmentsLoading(true);
+    setAppointmentsError("");
+    try {
+      const res = await appointmentsAPI.getByCompany(companyId, 200);
+      const items = Array.isArray(res.data) ? res.data : [];
+      items.sort((a, b) => new Date(b.dateStart).getTime() - new Date(a.dateStart).getTime());
+      setAppointments(items);
+      setSelectedAppointmentId((prev) => {
+        if (prev && items.some((x) => x.id === prev)) return prev;
+        return items.length > 0 ? items[0].id : null;
+      });
+    } catch (err) {
+      console.error("Failed to load appointments", err);
+      setAppointmentsError("Nie udało się załadować rezerwacji.");
+      setAppointments([]);
+      setSelectedAppointmentId(null);
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  }, [companyId]);
+
+  const loadSchedules = useCallback(async () => {
+    if (!companyId) return;
+    setSchedulesLoading(true);
+    setSchedulesError("");
+    try {
+      const res = await schedulesAPI.getByCompany(companyId);
+      setSchedules(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load schedules", err);
+      setSchedulesError("Nie udało się załadować harmonogramów.");
+      setSchedules([]);
+    } finally {
+      setSchedulesLoading(false);
+    }
+  }, [companyId]);
+
+  const loadAppointmentEvents = useCallback(async (appointmentId) => {
+    if (!appointmentId) {
+      setAppointmentEvents([]);
+      return;
+    }
+
+    setAppointmentEventsLoading(true);
+    setAppointmentEventsError("");
+    try {
+      const res = await appointmentsAPI.getEvents(appointmentId, 200);
+      const items = Array.isArray(res.data) ? res.data : [];
+      items.sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
+      setAppointmentEvents(items);
+    } catch (err) {
+      console.error("Failed to load appointment events", err);
+      setAppointmentEventsError("Nie udało się załadować historii zmian rezerwacji.");
+      setAppointmentEvents([]);
+    } finally {
+      setAppointmentEventsLoading(false);
+    }
+  }, []);
+
+  const loadStaffBreaks = useCallback(async () => {
+    if (!companyId) return;
+    setStaffBreaksLoading(true);
+    setStaffBreaksError("");
+    try {
+      const res = await staffBreaksAPI.getByCompany(companyId, {});
+      setStaffBreaks(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error("Failed to load staff breaks", err);
+      setStaffBreaks([]);
+      setStaffBreaksError(getHttpErrorMessage(err, "Nie udało się załadować przerw."));
+    } finally {
+      setStaffBreaksLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!staffBreakFilters.branchId && branches.length > 0) {
+      setStaffBreakFilters((prev) => ({ ...prev, branchId: String(branches[0].id) }));
+    }
+  }, [branches, staffBreakFilters.branchId]);
+
+  useEffect(() => {
+    if (!staffBreakFilters.staffId && employees.length > 0) {
+      setStaffBreakFilters((prev) => ({ ...prev, staffId: String(employees[0].id) }));
+    }
+  }, [employees, staffBreakFilters.staffId]);
+
+  useEffect(() => {
+    if (activeTab !== "employees" || !canManageEmployees) return;
+    loadSchedules();
+    loadStaffBreaks();
+  }, [activeTab, canManageEmployees, loadSchedules, loadStaffBreaks]);
+
+  const handleStaffBreakFilterChange = (e) => {
+    const { name, value } = e.target;
+    setStaffBreakFilters((prev) => ({ ...prev, [name]: value }));
+    setStaffBreakFormError("");
+  };
+
+  const handleStaffBreakFormChange = (e) => {
+    const { name, value } = e.target;
+    setStaffBreakForm((prev) => ({ ...prev, [name]: value }));
+    setStaffBreakFormError("");
+  };
+
+  const handleCreateStaffBreak = async (e) => {
+    e.preventDefault();
+    setStaffBreakFormError("");
+    setStaffBreakSubmitting(true);
+    try {
+      if (!companyId) {
+        setStaffBreakFormError("Brak CompanyId.");
+        return;
+      }
+      const branchId = Number(staffBreakFilters.branchId);
+      if (!branchId) {
+        setStaffBreakFormError("Wybierz oddział.");
+        return;
+      }
+      const staffId = String(staffBreakFilters.staffId || "").trim();
+      if (!staffId) {
+        setStaffBreakFormError("Wybierz pracownika.");
+        return;
+      }
+
+      const dayValuesRaw = Array.isArray(staffBreakFilters.dayOfWeek) ? staffBreakFilters.dayOfWeek : [];
+      const daysToCreate = Array.from(
+        new Set(dayValuesRaw.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)),
+      );
+      if (daysToCreate.length === 0) {
+        setStaffBreakFormError("Wybierz dzień tygodnia.");
+        return;
+      }
+
+      const startTime = String(staffBreakForm.startTime || "").trim();
+      const endTime = String(staffBreakForm.endTime || "").trim();
+      if (!startTime || !endTime) {
+        setStaffBreakFormError("Podaj start i koniec przerwy.");
+        return;
+      }
+      if (endTime <= startTime) {
+        setStaffBreakFormError("Koniec przerwy musi być później niż start.");
+        return;
+      }
+
+      const startMin = parseTimeToMinutes(startTime);
+      const endMin = parseTimeToMinutes(endTime);
+      if (startMin === null || endMin === null) {
+        setStaffBreakFormError("Niepoprawny format godziny.");
+        return;
+      }
+
+      const selectedBranch = branches.find((b) => String(b.id) === String(branchId));
+      const openRaw = selectedBranch?.openingHour || company?.openingHour;
+      const closeRaw = selectedBranch?.closingHour || company?.closingHour;
+      const openMin = parseTimeToMinutes(openRaw);
+      const closeMin = parseTimeToMinutes(closeRaw);
+      const hasOpenHours = openMin !== null && closeMin !== null && closeMin > openMin;
+
+      if (hasOpenHours && (startMin < openMin || endMin > closeMin)) {
+        setStaffBreakFormError(
+          `Przerwa musi mieścić się w godzinach otwarcia (${openRaw} - ${closeRaw}).`,
+        );
+        return;
+      }
+
+      const schedulesList = Array.isArray(schedules) ? schedules : [];
+
+      for (const d of daysToCreate) {
+        const daySchedules = schedulesList.filter((s) =>
+          Number(s?.branchId) === Number(branchId)
+          && String(s?.staffId || "") === String(staffId)
+          && Number(s?.dayOfWeek) === Number(d)
+          && Boolean(s?.isActive),
+        );
+
+        if (daySchedules.length === 0) {
+          setStaffBreakFormError(
+            `Brak harmonogramu dla pracownika w ${dayLabels[d] || d}. Najpierw dodaj harmonogram.`,
+          );
+          return;
+        }
+
+        let minStart = Infinity;
+        let maxEnd = -Infinity;
+        let ok = false;
+        for (const s of daySchedules) {
+          const sStart = parseTimeToMinutes(String(s?.startTime || ""));
+          const sEnd = parseTimeToMinutes(String(s?.endTime || ""));
+          if (sStart === null || sEnd === null) continue;
+          minStart = Math.min(minStart, sStart);
+          maxEnd = Math.max(maxEnd, sEnd);
+          let allowedStart = sStart;
+          let allowedEnd = sEnd;
+          if (hasOpenHours) {
+            allowedStart = Math.max(allowedStart, openMin);
+            allowedEnd = Math.min(allowedEnd, closeMin);
+          }
+          if (allowedEnd <= allowedStart) continue;
+          if (startMin >= allowedStart && endMin <= allowedEnd) {
+            ok = true;
+            break;
+          }
+        }
+
+        if (!ok) {
+          const effStart = hasOpenHours ? Math.max(minStart, openMin) : minStart;
+          const effEnd = hasOpenHours ? Math.min(maxEnd, closeMin) : maxEnd;
+          setStaffBreakFormError(
+            `Przerwa musi mieścić się w godzinach pracy (${minutesToTime(effStart)} - ${minutesToTime(effEnd)}) dla ${dayLabels[d] || d}.`,
+          );
+          return;
+        }
+      }
+
+      await Promise.all(
+        daysToCreate.map((d) =>
+          staffBreaksAPI.create({
+            companyId,
+            branchId,
+            staffId,
+            dayOfWeek: d,
+            startTime,
+            endTime,
+          }),
+        ),
+      );
+
+      await loadStaffBreaks();
+    } catch (err) {
+      console.error("Failed to create staff break", err);
+      setStaffBreakFormError(getHttpErrorMessage(err, "Nie udało się dodać przerwy."));
+    } finally {
+      setStaffBreakSubmitting(false);
+    }
+  };
+
+  const handleDeleteSchedule = async (schedule) => {
+    if (!schedule?.id) return;
+    if (!window.confirm("Usunąć ten harmonogram na stałe?")) return;
+    try {
+      await schedulesAPI.delete(schedule.id);
+      setPanelSuccess("Harmonogram usunięty.");
+      await loadSchedules();
+    } catch (err) {
+      console.error("Failed to delete schedule", err);
+      alert(err.response?.data?.message || "Nie udało się usunąć harmonogramu.");
+    }
+  };
+
+  const handleToggleStaffBreak = async (b) => {
+    if (!b?.id) return;
+    try {
+      await staffBreaksAPI.update(b.id, {
+        dayOfWeek: b.dayOfWeek,
+        startTime: String(b.startTime),
+        endTime: String(b.endTime),
+        isActive: !b.isActive,
+      });
+      await loadStaffBreaks();
+    } catch (err) {
+      console.error("Failed to toggle staff break", err);
+      alert(getHttpErrorMessage(err, "Nie udało się zmienić statusu przerwy."));
+    }
+  };
+
+  const handleDeleteStaffBreak = async (b) => {
+    if (!b?.id) return;
+    if (!window.confirm("Usunąć tę przerwę?")) return;
+    try {
+      await staffBreaksAPI.delete(b.id);
+      await loadStaffBreaks();
+    } catch (err) {
+      console.error("Failed to delete staff break", err);
+      alert(getHttpErrorMessage(err, "Nie udało się usunąć przerwy."));
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "reservations" && canViewReservations) {
+      loadCompanyAppointments();
+    }
+    if (activeTab === "schedules" && canManageCompanyCatalog) {
+      loadSchedules();
+    }
+  }, [activeTab, canManageCompanyCatalog, canViewReservations, loadCompanyAppointments, loadSchedules]);
+
+  useEffect(() => {
+    if (activeTab !== "reservations" || !canViewReservations) return;
+    loadAppointmentEvents(selectedAppointmentId);
+  }, [activeTab, canViewReservations, loadAppointmentEvents, selectedAppointmentId]);
+
+  useEffect(() => {
+    const pageSize = 10;
+    const totalPages = Math.max(1, Math.ceil((appointments?.length || 0) / pageSize));
+    setAppointmentsListPage((prev) => Math.min(Math.max(1, prev), totalPages));
+  }, [appointments.length]);
+
+  const selectedAppointment = appointments.find((a) => a.id === selectedAppointmentId) || null;
+
+  const employeeOptions = Array.isArray(employees) ? employees : [];
+  const formatEmployeeLabel = (u) => {
+    if (!u) return "—";
+    const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+    if (name) {
+      return name;
+    }
+    return u.id || "—";
+  };
+
+  const formatEmployeeShortLabel = (u) => {
+    if (!u) return "—";
+    const first = (u.firstName || "").trim();
+    const last = (u.lastName || "").trim();
+    if (first || last) {
+      return `${first} ${last}`.trim();
+    }
+    return u.id || "—";
+  };
+
+  const employeeHasId = (id) => employeeOptions.some((u) => u.id === id);
+
+  const getEmployeeLabelById = (id) => {
+    if (!id) return "—";
+    const match = employeeOptions.find((u) => u.id === id);
+    return match ? formatEmployeeLabel(match) : id;
+  };
+
+  const getEmployeeShortLabelById = (id) => {
+    if (!id) return "—";
+    const match = employeeOptions.find((u) => u.id === id);
+    return match ? formatEmployeeShortLabel(match) : id;
+  };
+
+  const staffBreakItems = Array.isArray(staffBreaks) ? staffBreaks : [];
+
+  const getStaffBreakBranchName = (branchId) => {
+    const match = branches.find((b) => String(b.id) === String(branchId));
+    return String(match?.branchName || branchId || "");
+  };
+
+  const getStaffBreakStaffName = (staffId) => {
+    const match = employeeOptions.find((u) => String(u.id) === String(staffId));
+    return String(formatEmployeeShortLabel(match) || staffId || "");
+  };
+
+  const getStaffBreakSortValue = (b, key) => {
+    if (!b) return "";
+    if (key === "branch") return getStaffBreakBranchName(b.branchId);
+    if (key === "staff") return getStaffBreakStaffName(b.staffId);
+    if (key === "day") return Number(b.dayOfWeek) || 0;
+    if (key === "start") return String(b.startTime || "").slice(0, 5);
+    if (key === "end") return String(b.endTime || "").slice(0, 5);
+    if (key === "status") return b.isActive ? 1 : 0;
+    return "";
+  };
+
+  const staffBreaksSorted = [...staffBreakItems].sort((a, b) => {
+    const dir = staffBreaksSortDir === "desc" ? -1 : 1;
+    const av = getStaffBreakSortValue(a, staffBreaksSortKey);
+    const bv = getStaffBreakSortValue(b, staffBreaksSortKey);
+
+    if (typeof av === "number" && typeof bv === "number") {
+      return (av - bv) * dir;
+    }
+    return String(av).localeCompare(String(bv), "pl", { sensitivity: "base" }) * dir;
+  });
+
+  const staffBreaksPageCount = Math.max(1, Math.ceil(staffBreaksSorted.length / staffBreaksPageSize));
+  const staffBreaksCurrentPage = Math.min(staffBreaksPage, staffBreaksPageCount);
+  const staffBreaksStart = (staffBreaksCurrentPage - 1) * staffBreaksPageSize;
+  const visibleStaffBreaks = staffBreaksSorted.slice(staffBreaksStart, staffBreaksStart + staffBreaksPageSize);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil((staffBreaks?.length || 0) / staffBreaksPageSize));
+    setStaffBreaksPage((prev) => Math.min(Math.max(1, prev), totalPages));
+  }, [staffBreaks.length, staffBreaksPageSize]);
+
+  const handleStaffBreaksPageSizeChange = (e) => {
+    setStaffBreaksPageSize(Number(e.target.value));
+    setStaffBreaksPage(1);
+  };
+
+  const handleStaffBreaksSort = (key) => {
+    setStaffBreaksPage(1);
+    setStaffBreaksSortKey((prevKey) => {
+      if (prevKey === key) {
+        setStaffBreaksSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+        return prevKey;
+      }
+      setStaffBreaksSortDir("asc");
+      return key;
+    });
+  };
+
+  const getStaffBreaksHeaderLabel = (label, key) => {
+    if (staffBreaksSortKey !== key) return label;
+    return `${label} ${staffBreaksSortDir === "asc" ? "↑" : "↓"}`;
+  };
+
+  const filteredAvailableSlots = (Array.isArray(availableSlots) ? availableSlots : []).filter((slot) => {
+    const staffId = (createAppointmentForm.staffId || "").trim();
+    if (!staffId) return true;
+    return String(slot?.staffId || "") === staffId;
+  });
+
+  const parseTimeToMinutes = (timeValue) => {
+    if (!timeValue || typeof timeValue !== "string") return null;
+    const parts = timeValue.split(":");
+    if (parts.length < 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  };
+
+  const minutesToTime = (minutes) => {
+    if (!Number.isFinite(minutes)) return "";
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(h)}:${pad(m)}`;
+  };
+
+  const toDateTimeLocalValue = (isoValue) => {
+    if (!isoValue) return "";
+    const d = new Date(isoValue);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  };
+
+  const fromDateTimeLocalValue = (localValue) => {
+    if (!localValue) return "";
+    const d = new Date(localValue);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toISOString();
+  };
+
+  const getScheduleHoursLabel = (s) => {
+    if (!s) return "—";
+    const start = String(s.startTime);
+    const end = String(s.endTime);
+    const open = s.branch?.openingHour;
+    const close = s.branch?.closingHour;
+
+    const openMin = parseTimeToMinutes(open);
+    const closeMin = parseTimeToMinutes(close);
+    const startMin = parseTimeToMinutes(start);
+    const endMin = parseTimeToMinutes(end);
+
+    if (openMin !== null && closeMin !== null && startMin !== null && endMin !== null) {
+      if (startMin < openMin || endMin > closeMin) {
+        return `${start} - ${end} (poza godzinami oddziału ${open} - ${close})`;
+      }
+    }
+
+    return `${start} - ${end}`;
+  };
+
+  const openCreateSchedule = () => {
+    if (branches.length === 0 || services.length === 0) {
+      setSchedulesError(
+        branches.length === 0 && services.length === 0
+          ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+          : branches.length === 0
+            ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
+            : "Brak usług. Dodaj usługę w zakładce Usługi."
+      );
+      return;
+    }
+
+    if (employeeOptions.length === 0 && !currentUserId) {
+      setSchedulesError("Brak pracowników. Dodaj pracownika w zakładce Pracownicy.");
+      return;
+    }
+
+    const defaultBranchId = branches.length > 0 ? String(branches[0].id) : "";
+    const defaultService = services.find((s) => String(s.branchId) === defaultBranchId) || services[0];
+    const defaultServiceId = defaultService ? String(defaultService.id) : "";
+    const defaultStaffId = currentUserId || employeeOptions[0]?.id || "";
+    setScheduleCreateError("");
+    setScheduleCreateForm({
+      branchId: defaultBranchId,
+      serviceId: defaultServiceId,
+      staffId: defaultStaffId,
+      dayOfWeek: [1],
+      startTime: "09:00",
+      endTime: "17:00",
+    });
+    setScheduleCreateVisible(true);
+  };
+
+  const closeCreateSchedule = () => {
+    setScheduleCreateVisible(false);
+  };
+
+  const handleScheduleCreateChange = (e) => {
+    const { name, value } = e.target;
+    setScheduleCreateForm((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === "branchId") {
+        const svc = services.find((s) => String(s.branchId) === String(value));
+        next.serviceId = svc ? String(svc.id) : "";
+
+        const b = branches.find((x) => String(x.id) === String(value));
+        if (b?.openingHour && b?.closingHour) {
+          next.startTime = b.openingHour;
+          next.endTime = b.closingHour;
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleScheduleCreateSubmit = async (e) => {
+    e.preventDefault();
+    if (!companyId) return;
+
+    setScheduleCreateSubmitting(true);
+    setScheduleCreateError("");
+    try {
+      const staffId = (scheduleCreateForm.staffId || "").trim();
+
+      const dayValuesRaw = Array.isArray(scheduleCreateForm.dayOfWeek) ? scheduleCreateForm.dayOfWeek : [];
+      const daysToCreate = Array.from(
+        new Set(dayValuesRaw.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)),
+      );
+      if (daysToCreate.length === 0) {
+        setScheduleCreateError("Wybierz dzień tygodnia.");
+        return;
+      }
+
+      const payloadBase = {
+        companyId,
+        branchId: Number(scheduleCreateForm.branchId),
+        serviceId: Number(scheduleCreateForm.serviceId),
+        staffId,
+        startTime: scheduleCreateForm.startTime,
+        endTime: scheduleCreateForm.endTime,
+      };
+
+      if (!payloadBase.branchId || !payloadBase.serviceId) {
+        setScheduleCreateError("Wybierz oddział i usługę.");
+        return;
+      }
+
+      if (!payloadBase.startTime || !payloadBase.endTime || payloadBase.endTime <= payloadBase.startTime) {
+        setScheduleCreateError("Nieprawidłowe godziny (koniec musi być później niż start).");
+        return;
+      }
+
+      const selectedBranch = branches.find((b) => String(b.id) === String(payloadBase.branchId));
+      const branchOpen = selectedBranch?.openingHour;
+      const branchClose = selectedBranch?.closingHour;
+      const openMin = parseTimeToMinutes(branchOpen);
+      const closeMin = parseTimeToMinutes(branchClose);
+      const startMin = parseTimeToMinutes(payloadBase.startTime);
+      const endMin = parseTimeToMinutes(payloadBase.endTime);
+
+      if (openMin !== null && closeMin !== null && startMin !== null && endMin !== null) {
+        if (startMin < openMin || endMin > closeMin) {
+          setScheduleCreateError(
+            `Harmonogram musi mieścić się w godzinach otwarcia oddziału (${branchOpen} - ${branchClose}).`
+          );
+          return;
+        }
+      }
+
+      if (!payloadBase.staffId) {
+        setScheduleCreateError("Wybierz pracownika.");
+        return;
+      }
+
+      for (const d of daysToCreate) {
+        try {
+          await schedulesAPI.create({
+            ...payloadBase,
+            dayOfWeek: d,
+          });
+        } catch (err) {
+          const msg =
+            err?.response?.data?.message ||
+            (typeof err?.response?.data === "string" ? err.response.data : "") ||
+            String(err?.response?.data || "Nie udało się dodać harmonogramu.");
+          setScheduleCreateError(`Nie udało się dodać harmonogramu dla ${dayLabels[d] || d}. ${msg}`);
+          return;
+        }
+      }
+      setPanelSuccess("Harmonogram dodany.");
+      setScheduleCreateVisible(false);
+      await loadSchedules();
+    } catch (err) {
+      console.error("Failed to create schedule", err);
+      setScheduleCreateError(err.response?.data?.message || String(err.response?.data || "Nie udało się dodać harmonogramu."));
+    } finally {
+      setScheduleCreateSubmitting(false);
+    }
+  };
+
+  const handleDeactivateSchedule = async (scheduleId) => {
+    if (!window.confirm("Wyłączyć ten harmonogram?")) return;
+    try {
+      await schedulesAPI.delete(scheduleId);
+      setPanelSuccess("Harmonogram wyłączony.");
+      await loadSchedules();
+    } catch (err) {
+      console.error("Failed to delete schedule", err);
+      alert(err.response?.data?.message || "Nie udało się wyłączyć harmonogramu.");
+    }
+  };
+
+  const handleToggleSchedule = async (schedule) => {
+    if (!schedule) return;
+    const nextIsActive = !schedule.isActive;
+    const confirmText = nextIsActive ? "Włączyć ten harmonogram?" : "Wyłączyć ten harmonogram?";
+    if (!window.confirm(confirmText)) return;
+
+    try {
+      await schedulesAPI.update(schedule.id, {
+        dayOfWeek: schedule.dayOfWeek,
+        startTime: String(schedule.startTime),
+        endTime: String(schedule.endTime),
+        isActive: nextIsActive,
+      });
+
+      setPanelSuccess(nextIsActive ? "Harmonogram włączony." : "Harmonogram wyłączony.");
+      await loadSchedules();
+    } catch (err) {
+      console.error("Failed to toggle schedule", err);
+      alert(err.response?.data?.message || "Nie udało się zmienić statusu harmonogramu.");
+    }
+  };
+
+  const openCreateAppointment = () => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const defaultDate = `${yyyy}-${mm}-${dd}`;
+
+    const defaultServiceId = services.length > 0 ? String(services[0].id) : "";
+    const defaultStaffId = currentUserId || employeeOptions[0]?.id || "";
+
+    setCreateAppointmentError("");
+    setAvailableSlots([]);
+    setAvailableSlotsError("");
+    setCreateAppointmentForm({
+      serviceId: defaultServiceId,
+      date: defaultDate,
+      slotIndex: "",
+      dateStart: "",
+      dateEnd: "",
+      customerId: "",
+      staffId: defaultStaffId,
+    });
+    setCreateAppointmentVisible(true);
+  };
+
+  const closeCreateAppointment = () => {
+    setCreateAppointmentVisible(false);
+  };
+
+  const handleCreateAppointmentFormChange = (e) => {
+    const { name, value } = e.target;
+    if (name === "staffId") {
+      setCreateAppointmentForm((prev) => ({
+        ...prev,
+        staffId: value,
+        slotIndex: "",
+        dateStart: "",
+        dateEnd: "",
+      }));
+      return;
+    }
+    setCreateAppointmentForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  useEffect(() => {
+    const serviceId = Number(createAppointmentForm.serviceId);
+    const date = createAppointmentForm.date;
+
+    if (!createAppointmentVisible || !serviceId || !date) {
+      return;
+    }
+
+    setCreateAppointmentForm((prev) => ({
+      ...prev,
+      slotIndex: "",
+      dateStart: "",
+      dateEnd: "",
+    }));
+
+    let cancelled = false;
+    const load = async () => {
+      setAvailableSlotsLoading(true);
+      setAvailableSlotsError("");
+      try {
+        const res = await appointmentsAPI.getAvailableSlots(serviceId, date);
+        const items = Array.isArray(res.data) ? res.data : [];
+        if (!cancelled) {
+          setAvailableSlots(items);
+        }
+      } catch (err) {
+        console.error("Failed to load available slots", err);
+        if (!cancelled) {
+          setAvailableSlots([]);
+          const msg =
+            err?.response?.data?.message ||
+            (typeof err?.response?.data === "string" ? err.response.data : "") ||
+            (err?.response?.status ? `HTTP ${err.response.status}` : "") ||
+            "Nie udało się załadować dostępnych slotów.";
+          setAvailableSlotsError(String(msg));
+        }
+      } finally {
+        if (!cancelled) {
+          setAvailableSlotsLoading(false);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [createAppointmentForm.date, createAppointmentForm.serviceId, createAppointmentVisible]);
+
+  useEffect(() => {
+    if (!createAppointmentVisible) return;
+
+    const idx = createAppointmentForm.slotIndex;
+    if (idx === "") return;
+
+    const slot = filteredAvailableSlots[Number(idx)];
+    if (!slot) return;
+
+    setCreateAppointmentForm((prev) => ({
+      ...prev,
+      dateStart: slot.start || "",
+      dateEnd: slot.end || "",
+      staffId: slot.staffId || prev.staffId,
+    }));
+  }, [filteredAvailableSlots, createAppointmentForm.slotIndex, createAppointmentVisible]);
+
+  useEffect(() => {
+    if (!createAppointmentVisible) return;
+
+    const serviceId = Number(createAppointmentForm.serviceId);
+    if (!serviceId) return;
+
+    const svc = services.find((s) => Number(s.id) === serviceId);
+    if (!svc || !svc.durationMinutes) return;
+
+    const startIso = createAppointmentForm.dateStart;
+    if (!startIso) return;
+
+    const start = new Date(startIso);
+    if (Number.isNaN(start.getTime())) return;
+
+    const end = new Date(start.getTime() + Number(svc.durationMinutes) * 60000);
+    const endIso = end.toISOString();
+
+    if (createAppointmentForm.dateEnd !== endIso) {
+      setCreateAppointmentForm((prev) => ({ ...prev, dateEnd: endIso }));
+    }
+  }, [createAppointmentForm.dateStart, createAppointmentForm.serviceId, createAppointmentVisible, services]);
+
+  const handleCreateAppointmentSubmit = async (e) => {
+    e.preventDefault();
+    setCreateAppointmentSubmitting(true);
+    setCreateAppointmentError("");
+
+    try {
+      const serviceId = Number(createAppointmentForm.serviceId);
+      if (!serviceId) {
+        setCreateAppointmentError("Wybierz usługę.");
+        return;
+      }
+
+      const staffId = (createAppointmentForm.staffId || "").trim();
+      if (!staffId) {
+        setCreateAppointmentError("Wybierz pracownika.");
+        return;
+      }
+
+      const customerId = (createAppointmentForm.customerId || "").trim();
+      if (!customerId) {
+        setCreateAppointmentError("Podaj identyfikator klienta (np. email/telefon).");
+        return;
+      }
+
+      const sanitizePhone = (value) => String(value || "").replace(/[^0-9+]/g, "");
+      const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+      const isValidPhone = (value) => {
+        const v = sanitizePhone(value);
+        if (!v) return false;
+        return /^\+\d{1,3}(\s?\d{3}){3}$/.test(v);
+      };
+
+      if (!isValidEmail(customerId) && !isValidPhone(customerId)) {
+        setCreateAppointmentError("Klient musi być poprawnym adresem email lub numerem telefonu.");
+        return;
+      }
+
+      const dateStart = createAppointmentForm.dateStart;
+      const dateEnd = createAppointmentForm.dateEnd;
+      if (!dateStart) {
+        setCreateAppointmentError("Wybierz dostępny slot.");
+        return;
+      }
+
+      const res = await appointmentsAPI.create({
+        serviceId,
+        staffId,
+        customerId,
+        dateStart,
+        dateEnd,
+      });
+
+      const createdId = res?.data?.id;
+      setPanelSuccess("Rezerwacja została utworzona.");
+      setCreateAppointmentVisible(false);
+      await loadCompanyAppointments();
+      if (createdId) {
+        setSelectedAppointmentId(createdId);
+        await loadAppointmentEvents(createdId);
+      }
+    } catch (err) {
+      console.error("Failed to create appointment", err);
+      setCreateAppointmentError(err.response?.data || err.response?.data?.message || "Nie udało się utworzyć rezerwacji.");
+    } finally {
+      setCreateAppointmentSubmitting(false);
+    }
+  };
+
+  const handleConfirmSelectedAppointment = async () => {
+    if (!selectedAppointmentId) return;
+    try {
+      await appointmentsAPI.confirm(selectedAppointmentId);
+      setPanelSuccess("Rezerwacja potwierdzona.");
+      await loadCompanyAppointments();
+      await loadAppointmentEvents(selectedAppointmentId);
+    } catch (err) {
+      console.error("Failed to confirm appointment", err);
+      alert(err.response?.data?.message || "Nie udało się potwierdzić rezerwacji.");
+    }
+  };
+
+  const handleCancelSelectedAppointment = async () => {
+    if (!selectedAppointmentId) return;
+    if (!window.confirm("Na pewno anulować rezerwację?")) return;
+    try {
+      await appointmentsAPI.cancel(selectedAppointmentId);
+      setPanelSuccess("Rezerwacja anulowana.");
+      await loadCompanyAppointments();
+      await loadAppointmentEvents(selectedAppointmentId);
+    } catch (err) {
+      console.error("Failed to cancel appointment", err);
+      alert(err.response?.data?.message || "Nie udało się anulować rezerwacji.");
+    }
+  };
+
+  const handleDeleteSelectedAppointment = async () => {
+    if (!selectedAppointmentId) return;
+    if (!window.confirm("Usunąć rezerwację? (operacja nieodwracalna)")) return;
+    try {
+      await appointmentsAPI.delete(selectedAppointmentId);
+      setPanelSuccess("Rezerwacja usunięta.");
+      await loadCompanyAppointments();
+      setAppointmentEvents([]);
+    } catch (err) {
+      console.error("Failed to delete appointment", err);
+      alert(err.response?.data?.message || "Nie udało się usunąć rezerwacji.");
+    }
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return date.toLocaleString(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  const formatAppointmentLabel = (appointment) => {
+    if (!appointment) return "";
+
+    const parts = [];
+    if (appointment.service?.serviceName) parts.push(appointment.service.serviceName);
+    if (appointment.branch?.branchName) parts.push(appointment.branch.branchName);
+    if (appointment.dateStart) parts.push(formatDateTime(appointment.dateStart));
+
+    return parts.join(" | ");
+  };
+
+  const formatEventLabel = (evt) => {
+    if (!evt) return "—";
+    const type = evt.eventType || "";
+    if (type === "AppointmentCreatedEvent") return "Utworzono";
+    if (type === "AppointmentConfirmedEvent") return "Potwierdzono";
+    if (type === "AppointmentCancelledEvent") return "Anulowano";
+    if (type === "AppointmentRescheduledEvent") return "Zmieniono termin";
+    if (type === "AppointmentDeletedEvent") return "Usunięto";
+    return type;
+  };
+
+  const tryParseJson = (value) => {
+    if (!value) return null;
+    if (typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const formatEventDetails = (evt) => {
+    const payload = tryParseJson(evt?.eventData);
+    if (!payload) return "—";
+
+    if (evt?.eventType === "AppointmentCreatedEvent") {
+      const start = payload.dateStart || payload.DateStart;
+      const end = payload.dateEnd || payload.DateEnd;
+      const staffId = payload.staffId || payload.StaffId;
+      const customerId = payload.customerId || payload.CustomerId;
+      const staffLabel = staffId ? getEmployeeShortLabelById(String(staffId)) : "";
+      return [
+        start ? `Start: ${formatDateTime(start)}` : null,
+        end ? `Koniec: ${formatDateTime(end)}` : null,
+        staffId ? `Pracownik: ${staffLabel || staffId}` : null,
+        customerId ? `Klient: ${customerId}` : null,
+      ].filter(Boolean).join(" | ") || "—";
+    }
+
+    if (evt?.eventType === "AppointmentRescheduledEvent") {
+      const oldStart = payload.oldDateStart || payload.OldDateStart;
+      const newStart = payload.newDateStart || payload.NewDateStart;
+      return [
+        oldStart ? `Stary termin: ${formatDateTime(oldStart)}` : null,
+        newStart ? `Nowy termin: ${formatDateTime(newStart)}` : null,
+      ].filter(Boolean).join(" | ") || "—";
+    }
+
+    if (evt?.eventType === "AppointmentCancelledEvent") {
+      return payload.reason || payload.Reason || "—";
+    }
+
+    return "—";
+  };
+
   const renderReservationsTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
         <h2 className="admin-section__title">Rezerwacje</h2>
+        <div className="admin-section__actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={openCreateAppointment}
+            disabled={appointmentsLoading || services.length === 0}
+          >
+            Dodaj rezerwację
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={loadCompanyAppointments}
+            disabled={appointmentsLoading}
+          >
+            Odśwież
+          </button>
+        </div>
       </div>
-      <div className="admin-card">
-        <p>Wkrótce: lista rezerwacji do potwierdzenia/odrzucenia.</p>
+
+      {appointmentsError ? (
+        <div className="admin-alert admin-alert--error">{appointmentsError}</div>
+      ) : null}
+
+      {branches.length === 0 ? (
+        <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
+          Brak oddziałów. Dodaj oddział w zakładce Oddziały.
+        </div>
+      ) : null}
+
+      {services.length === 0 ? (
+        <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
+          Brak usług. Dodaj usługę w zakładce Usługi.
+        </div>
+      ) : null}
+
+      {canManageCompanyCatalog ? (
+        <div className="admin-alert admin-alert--info" style={{ marginBottom: 12 }}>
+          Jeśli nie widzisz dostępnych slotów w modalu dodawania rezerwacji, sprawdź zakładkę Harmonogram.
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              onClick={() => setActiveTab("schedules")}
+            >
+              Przejdź do Harmonogramu
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="admin-card" style={{ padding: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(260px, 1fr) minmax(360px, 2fr)",
+            gap: 16,
+            padding: 16,
+          }}
+        >
+          <div>
+            <h4 style={{ marginTop: 0 }}>Wizyty</h4>
+            {appointmentsLoading ? (
+              <p>Ładowanie...</p>
+            ) : appointments.length === 0 ? (
+              <p>Brak rezerwacji.</p>
+            ) : (
+              <div>
+                {(() => {
+                  const pageSize = 10;
+                  const totalPages = Math.max(1, Math.ceil(appointments.length / pageSize));
+                  const safePage = Math.min(Math.max(1, appointmentsListPage), totalPages);
+                  const startIndex = (safePage - 1) * pageSize;
+                  const pageItems = appointments.slice(startIndex, startIndex + pageSize);
+
+                  return (
+                    <>
+                <select
+                  className="admin-input"
+                  value={selectedAppointmentId ?? ""}
+                  onChange={(e) => setSelectedAppointmentId(Number(e.target.value))}
+                >
+                  {appointments.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {formatAppointmentLabel(a)}
+                    </option>
+                  ))}
+                </select>
+
+                <div style={{ marginTop: 12 }}>
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Data</th>
+                        <th>Usługa</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageItems.map((a) => (
+                        <tr
+                          key={a.id}
+                          style={{
+                            cursor: "pointer",
+                            background:
+                              a.id === selectedAppointmentId ? "rgba(59,130,246,0.08)" : undefined,
+                          }}
+                          onClick={() => setSelectedAppointmentId(a.id)}
+                        >
+                          <td>{formatDateTime(a.dateStart)}</td>
+                          <td>{a.service?.serviceName || "—"}</td>
+                          <td>{a.status || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
+                    <span className="admin-muted">
+                      Strona {safePage} / {totalPages}
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => setAppointmentsListPage((p) => Math.max(1, p - 1))}
+                        disabled={safePage <= 1}
+                      >
+                        Poprzednia
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => setAppointmentsListPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={safePage >= totalPages}
+                      >
+                        Następna
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <h4 style={{ marginTop: 0, marginBottom: 0 }}>Timeline</h4>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleConfirmSelectedAppointment}
+                  disabled={!selectedAppointmentId || selectedAppointment?.status === "confirmed"}
+                >
+                  Potwierdź
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleCancelSelectedAppointment}
+                  disabled={!selectedAppointmentId || selectedAppointment?.status === "cancelled"}
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleDeleteSelectedAppointment}
+                  disabled={!selectedAppointmentId}
+                >
+                  Usuń
+                </button>
+              </div>
+            </div>
+            {appointmentEventsError ? (
+              <div className="admin-alert admin-alert--error">{appointmentEventsError}</div>
+            ) : null}
+
+            {!selectedAppointmentId ? (
+              <p>Wybierz rezerwację, aby zobaczyć historię zdarzeń.</p>
+            ) : appointmentEventsLoading ? (
+              <p>Ładowanie...</p>
+            ) : appointmentEvents.length === 0 ? (
+              <p>Brak zdarzeń dla tej rezerwacji.</p>
+            ) : (
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Wersja</th>
+                    <th>Data</th>
+                    <th>Zdarzenie</th>
+                    <th>Szczegóły</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appointmentEvents.map((evt) => (
+                    <tr key={evt.eventId || `${evt.occurredAt}-${evt.version}`}>
+                      <td>{evt.version ?? "—"}</td>
+                      <td>{formatDateTime(evt.occurredAt)}</td>
+                      <td>{formatEventLabel(evt)}</td>
+                      <td
+                        style={{
+                          maxWidth: 520,
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                        }}
+                        title={formatEventDetails(evt)}
+                      >
+                        {formatEventDetails(evt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       </div>
+
     </section>
+  );
+
+  const renderSchedulesTab = () => (
+    <section className="admin-section">
+      <div className="admin-section__header">
+        <h2 className="admin-section__title">Harmonogram</h2>
+        <div className="admin-section__actions">
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={loadSchedules}
+            disabled={schedulesLoading}
+          >
+            Odśwież
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={openCreateSchedule}
+            disabled={branches.length === 0 || services.length === 0}
+          >
+            Dodaj harmonogram
+          </button>
+        </div>
+      </div>
+
+      {branches.length === 0 || services.length === 0 ? (
+        <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
+          {branches.length === 0 && services.length === 0
+            ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+            : branches.length === 0
+              ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
+              : "Brak usług. Dodaj usługę w zakładce Usługi."}
+        </div>
+      ) : null}
+
+      {schedulesError ? (
+        <div className="admin-alert admin-alert--error">{schedulesError}</div>
+      ) : null}
+
+      <div className="admin-card">
+        {schedulesLoading ? (
+          <p>Ładowanie...</p>
+        ) : schedules.length === 0 ? (
+          <p>
+            Brak harmonogramu. Dodaj harmonogram dla usługi i dnia tygodnia, aby pojawiły się sloty.
+          </p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Dzień</th>
+                <th>Oddział</th>
+                <th>Usługa</th>
+                <th>Pracownik</th>
+                <th>Godziny</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.map((s) => (
+                <tr key={s.id}>
+                  <td>{dayLabels[s.dayOfWeek] || s.dayOfWeek}</td>
+                  <td>{s.branch?.branchName || s.branchId}</td>
+                  <td>{s.service?.serviceName || s.serviceId}</td>
+                  <td>{getEmployeeLabelById(s.staffId)}</td>
+                  <td>
+                    {getScheduleHoursLabel(s)}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => handleToggleSchedule(s)}
+                      >
+                        {s.isActive ? "Wyłącz" : "Włącz"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs admin-table__delete-btn"
+                        onClick={() => handleDeleteSchedule(s)}
+                      >
+                        Usuń
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+    </section>
+  );
+
+  const renderCreateScheduleForm = () => (
+    <div className="admin-card--form-container">
+      <div className="admin-card admin-card--form">
+        <div className="admin-form__header">
+          <h2>Dodaj harmonogram (MVP)</h2>
+          <button type="button" className="btn-close" onClick={closeCreateSchedule}></button>
+        </div>
+        <form onSubmit={handleScheduleCreateSubmit} className="admin-form">
+          {scheduleCreateError ? (
+            <div className="admin-alert admin-alert--error">{scheduleCreateError}</div>
+          ) : null}
+
+          <div className="admin-form__grid">
+            <div className="admin-form__field">
+              <label>Oddział</label>
+              <select
+                name="branchId"
+                value={scheduleCreateForm.branchId}
+                onChange={handleScheduleCreateChange}
+                className="admin-input"
+                required
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.branchName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Usługa</label>
+              <select
+                name="serviceId"
+                value={scheduleCreateForm.serviceId}
+                onChange={handleScheduleCreateChange}
+                className="admin-input"
+                required
+              >
+                {services
+                  .filter((s) => !scheduleCreateForm.branchId || String(s.branchId) === String(scheduleCreateForm.branchId))
+                  .map((s) => (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.serviceName}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Dzień tygodnia</label>
+              <DaysChecklistDropdown
+                value={scheduleCreateForm.dayOfWeek}
+                onChange={(days) => {
+                  setScheduleCreateError("");
+                  setScheduleCreateForm((prev) => ({ ...prev, dayOfWeek: days }));
+                }}
+                disabled={scheduleCreateSubmitting}
+              />
+            </div>
+
+            <div className="admin-form__field">
+              <label>Start</label>
+              <input
+                type="time"
+                name="startTime"
+                value={scheduleCreateForm.startTime}
+                onChange={handleScheduleCreateChange}
+                className="admin-input"
+                required
+              />
+            </div>
+
+            <div className="admin-form__field">
+              <label>Koniec</label>
+              <input
+                type="time"
+                name="endTime"
+                value={scheduleCreateForm.endTime}
+                onChange={handleScheduleCreateChange}
+                className="admin-input"
+                required
+              />
+            </div>
+
+            {(() => {
+              const b = branches.find((x) => String(x.id) === String(scheduleCreateForm.branchId));
+              if (!b?.openingHour || !b?.closingHour) return null;
+              return (
+                <div className="admin-form__field admin-form__field--full">
+                  <div className="admin-muted">
+                    Godziny otwarcia oddziału: {b.openingHour} - {b.closingHour}
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="admin-form__field admin-form__field--full">
+              <label>Pracownik</label>
+              {employeeOptions.length === 0 && !employeesLoading ? (
+                currentUserId ? (
+                  <div className="admin-alert admin-alert--info" style={{ marginTop: 8 }}>
+                    Nie udało się pobrać listy pracowników lub nie ma jeszcze pracowników w firmie.
+                    Możesz tymczasowo wybrać tylko siebie.
+                  </div>
+                ) : (
+                  <div className="admin-alert admin-alert--error" style={{ marginTop: 8 }}>
+                    Brak pracowników w firmie. Dodaj pracownika w zakładce Pracownicy.
+                  </div>
+                )
+              ) : null}
+              <select
+                name="staffId"
+                value={scheduleCreateForm.staffId}
+                onChange={handleScheduleCreateChange}
+                className="admin-input"
+                required
+                disabled={employeesLoading || (employeeOptions.length === 0 && !currentUserId)}
+              >
+                {employeesLoading ? <option value="">Ładowanie...</option> : null}
+                {employeeOptions.length > 0 ? (
+                  employeeOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {formatEmployeeLabel(u)}
+                    </option>
+                  ))
+                ) : currentUserId ? (
+                  <option value={currentUserId}>Ja (moje UserId)</option>
+                ) : (
+                  <option value="">Brak pracowników</option>
+                )}
+              </select>
+              <div className="admin-muted" style={{ marginTop: 6 }}>
+                W harmonogramie wybierasz konkretnego pracownika. Pod spodem zapisujemy jego `UserId` jako `StaffId`.
+              </div>
+            </div>
+          </div>
+
+          <div className="admin-form__actions">
+            <button type="button" className="btn btn-outline" onClick={closeCreateSchedule}>
+              Anuluj
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={scheduleCreateSubmitting}>
+              {scheduleCreateSubmitting ? "Zapisywanie..." : "Dodaj"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const renderCreateAppointmentForm = () => (
+    <div className="admin-card--form-container">
+      <div className="admin-card admin-card--form">
+        <div className="admin-form__header">
+          <h2>Dodaj rezerwację (MVP)</h2>
+          <button type="button" className="btn-close" onClick={closeCreateAppointment}></button>
+        </div>
+        <form onSubmit={handleCreateAppointmentSubmit} className="admin-form">
+          {createAppointmentError ? (
+            <div className="admin-alert admin-alert--error">{String(createAppointmentError)}</div>
+          ) : null}
+
+          <div className="admin-form__grid">
+            <div className="admin-form__field admin-form__field--full">
+              <label>Usługa</label>
+              <select
+                name="serviceId"
+                value={createAppointmentForm.serviceId}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+                required
+              >
+                {services.map((s) => {
+                  const branch = branches.find((b) => b.id === s.branchId);
+                  const branchLabel = branch?.branchName ? ` (${branch.branchName})` : "";
+                  return (
+                    <option key={s.id} value={String(s.id)}>
+                      {s.serviceName}{branchLabel}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Data (do slotów)</label>
+              <input
+                type="date"
+                name="date"
+                value={createAppointmentForm.date}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+              />
+              {availableSlotsError ? (
+                <div className="admin-muted" style={{ marginTop: 6 }}>
+                  {availableSlotsError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="admin-form__field">
+              <label>Pracownik</label>
+              <select
+                name="staffId"
+                value={createAppointmentForm.staffId}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+                required
+                disabled={employeesLoading || (employeeOptions.length === 0 && !currentUserId)}
+              >
+                {employeesLoading ? <option value="">Ładowanie...</option> : null}
+                {employeeOptions.length > 0 ? (
+                  employeeOptions.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {formatEmployeeLabel(u)}
+                    </option>
+                  ))
+                ) : currentUserId ? (
+                  <option value={currentUserId}>Ja (moje UserId)</option>
+                ) : (
+                  <option value="">Brak pracowników</option>
+                )}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Dostępny slot</label>
+              <select
+                name="slotIndex"
+                value={createAppointmentForm.slotIndex}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+                disabled={availableSlotsLoading}
+              >
+                <option value="">(wybierz)</option>
+                {filteredAvailableSlots.map((slot, idx) => (
+                  <option key={`${slot.start}-${slot.staffId}-${idx}`} value={String(idx)}>
+                    {formatDateTime(slot.start)} - {formatDateTime(slot.end)} | {getEmployeeShortLabelById(slot.staffId)}
+                  </option>
+                ))}
+              </select>
+              {!availableSlotsLoading && createAppointmentForm.serviceId && filteredAvailableSlots.length === 0 ? (
+                <div className="admin-muted" style={{ marginTop: 6 }}>
+                  Brak slotów. Dodaj harmonogram dla tej usługi w zakładce Harmonogram (oraz przerwy pracownika, jeśli dotyczy).
+                </div>
+              ) : null}
+            </div>
+
+            <div className="admin-form__field">
+              <label>Klient (ID/email/telefon)</label>
+              <input
+                type="text"
+                name="customerId"
+                value={createAppointmentForm.customerId}
+                onChange={handleCreateAppointmentFormChange}
+                className="admin-input"
+                placeholder="np. email:jan@x.pl lub tel:+48111222333"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="admin-form__actions">
+            <button type="button" className="btn btn-outline" onClick={closeCreateAppointment}>
+              Anuluj
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={createAppointmentSubmitting}>
+              {createAppointmentSubmitting ? "Zapisywanie..." : "Utwórz"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 
   const loadCompanyAudit = useCallback(async () => {
@@ -463,6 +2245,7 @@ const CompanyPanel = () => {
       serviceName: "",
       description: "",
       durationMinutes: 30,
+      bufferMinutesAfter: 0,
       price: 50,
       branchId: defaultBranchId,
     });
@@ -486,7 +2269,9 @@ const CompanyPanel = () => {
       ...prev,
       [name]:
         type === "number"
-          ? parseFloat(value)
+          ? name === "price"
+            ? parseFloat(value)
+            : parseInt(value, 10)
           : name === "branchId"
             ? parseInt(value, 10)
             : value,
@@ -846,6 +2631,7 @@ const CompanyPanel = () => {
                 <th>Nazwa usługi</th>
                 <th>Oddział</th>
                 <th>Czas trwania (min)</th>
+                <th>Bufor po (min)</th>
                 <th>Cena (PLN)</th>
                 <th>Akcje</th>
               </tr>
@@ -862,6 +2648,7 @@ const CompanyPanel = () => {
                     })()}
                   </td>
                   <td>{service.durationMinutes}</td>
+                  <td>{service.bufferMinutesAfter ?? 0}</td>
                   <td>{service.price.toFixed(2)}</td>
                   <td>
                     {canManageCompanyCatalog ? (
@@ -1085,6 +2872,253 @@ const CompanyPanel = () => {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="admin-card" style={{ marginTop: 16 }}>
+        <div className="admin-card__body">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <h3 style={{ marginTop: 0, marginBottom: 0 }}>Przerwy pracowników</h3>
+          </div>
+
+          {branches.length === 0 ? (
+            <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
+              Brak oddziałów. Dodaj oddział w zakładce Oddziały.
+            </div>
+          ) : null}
+
+          {employees.length === 0 ? (
+            <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
+              Brak pracowników. Dodaj pracownika lub przypisz go do firmy.
+            </div>
+          ) : null}
+
+          {staffBreaksError ? (
+            <div className="admin-alert admin-alert--error">{staffBreaksError}</div>
+          ) : null}
+
+          <div className="admin-form__grid" style={{ marginBottom: 12 }}>
+            <div className="admin-form__field">
+              <label>Oddział</label>
+              <select
+                name="branchId"
+                value={staffBreakFilters.branchId}
+                onChange={handleStaffBreakFilterChange}
+                className="admin-input"
+                disabled={branches.length === 0 || employees.length === 0}
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.branchName || b.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Pracownik</label>
+              <select
+                name="staffId"
+                value={staffBreakFilters.staffId}
+                onChange={handleStaffBreakFilterChange}
+                className="admin-input"
+                disabled={branches.length === 0 || employees.length === 0}
+              >
+                {employees.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {formatEmployeeShortLabel(u)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-form__field">
+              <label>Dzień tygodnia</label>
+              <DaysChecklistDropdown
+                value={staffBreakFilters.dayOfWeek}
+                onChange={(days) => {
+                  setStaffBreakFormError("");
+                  setStaffBreakFilters((prev) => ({ ...prev, dayOfWeek: days }));
+                }}
+                disabled={branches.length === 0 || employees.length === 0}
+              />
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateStaffBreak} className="admin-form">
+            {staffBreakFormError ? (
+              <div className="admin-alert admin-alert--error">{staffBreakFormError}</div>
+            ) : null}
+
+            <div className="admin-form__grid">
+              <div className="admin-form__field">
+                <label>Start</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  value={staffBreakForm.startTime}
+                  onChange={handleStaffBreakFormChange}
+                  className="admin-input"
+                  required
+                />
+              </div>
+
+              <div className="admin-form__field">
+                <label>Koniec</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  value={staffBreakForm.endTime}
+                  onChange={handleStaffBreakFormChange}
+                  className="admin-input"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="admin-form__actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={loadStaffBreaks}
+                disabled={staffBreaksLoading || branches.length === 0 || employees.length === 0}
+              >
+                Odśwież
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={staffBreakSubmitting || branches.length === 0 || employees.length === 0}
+              >
+                {staffBreakSubmitting ? "Dodawanie..." : "Dodaj przerwę"}
+              </button>
+            </div>
+          </form>
+
+          {staffBreaksLoading ? (
+            <p>Ładowanie...</p>
+          ) : staffBreaks.length === 0 ? (
+            <p>Brak przerw.</p>
+          ) : (
+            <table className="admin-table" style={{ marginTop: 12 }}>
+              <thead>
+                <tr>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("branch")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Oddział", "branch")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("staff")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Pracownik", "staff")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("day")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Dzień", "day")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("start")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Start", "start")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("end")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Koniec", "end")}
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      type="button"
+                      onClick={() => handleStaffBreaksSort("status")}
+                      style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
+                    >
+                      {getStaffBreaksHeaderLabel("Status", "status")}
+                    </button>
+                  </th>
+                  <th>Akcje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleStaffBreaks.map((b) => (
+                  <tr key={b.id}>
+                    <td>{branches.find((x) => x.id === b.branchId)?.branchName || b.branchId}</td>
+                    <td>{getEmployeeShortLabelById(b.staffId)}</td>
+                    <td>{dayLabels[b.dayOfWeek] || b.dayOfWeek}</td>
+                    <td>{String(b.startTime || "").slice(0, 5)}</td>
+                    <td>{String(b.endTime || "").slice(0, 5)}</td>
+                    <td>{b.isActive ? "Aktywna" : "Wyłączona"}</td>
+                    <td>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button type="button" className="btn btn-outline btn-xs" onClick={() => handleToggleStaffBreak(b)}>
+                          {b.isActive ? "Wyłącz" : "Włącz"}
+                        </button>
+                        <button type="button" className="btn btn-outline btn-xs" onClick={() => handleDeleteStaffBreak(b)}>
+                          Usuń
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {!staffBreaksLoading && staffBreaks.length > 0 ? (
+            <div className="list-pagination" style={{ marginTop: 12 }}>
+              <div className="list-page-size">
+                <span>Na stronie:</span>
+                <select value={staffBreaksPageSize} onChange={handleStaffBreaksPageSizeChange}>
+                  <option value={10}>10</option>
+                  <option value={15}>15</option>
+                  <option value={20}>20</option>
+                </select>
+              </div>
+
+              <div className="list-page-controls">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={staffBreaksCurrentPage === 1}
+                  onClick={() => setStaffBreaksPage((p) => Math.max(1, p - 1))}
+                >
+                  Poprzednia
+                </button>
+                <span>
+                  Strona {staffBreaksCurrentPage} z {staffBreaksPageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  disabled={staffBreaksCurrentPage === staffBreaksPageCount}
+                  onClick={() => setStaffBreaksPage((p) => Math.min(staffBreaksPageCount, p + 1))}
+                >
+                  Następna
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   );
@@ -1482,6 +3516,18 @@ const CompanyPanel = () => {
                 min="1"
               />
             </div>
+
+            <div className="admin-form__field">
+              <label>Bufor po wizycie (w minutach)</label>
+              <input
+                name="bufferMinutesAfter"
+                type="number"
+                value={editingService?.bufferMinutesAfter ?? 0}
+                onChange={handleServiceFormChange}
+                className="admin-input"
+                min="0"
+              />
+            </div>
             <div className="admin-form__field">
               <label>Cena (PLN)</label>
               <input
@@ -1529,6 +3575,8 @@ const CompanyPanel = () => {
 
   return (
     <div className="admin-page">
+      {scheduleCreateVisible && renderCreateScheduleForm()}
+      {createAppointmentVisible && renderCreateAppointmentForm()}
       {serviceFormVisible && renderServiceForm()}
       {branchFormVisible && renderBranchForm()}
       {addUserFormVisible && renderAddUserForm()}
@@ -1555,6 +3603,15 @@ const CompanyPanel = () => {
             onClick={() => setActiveTab("reservations")}
           >
             Rezerwacje
+          </button>
+        )}
+        {canManageCompanyCatalog && (
+          <button
+            type="button"
+            className={`admin-tab ${activeTab === "schedules" ? "admin-tab--active" : ""}`}
+            onClick={() => setActiveTab("schedules")}
+          >
+            Harmonogram
           </button>
         )}
         {canEditCompany && (
@@ -1615,6 +3672,7 @@ const CompanyPanel = () => {
 
       <div className="admin-page__content">
         {activeTab === "reservations" && canViewReservations && renderReservationsTab()}
+        {activeTab === "schedules" && canManageCompanyCatalog && renderSchedulesTab()}
         {activeTab === "details" && canEditCompany && renderCompanyDetailsTab()}
         {activeTab === "branches" && canManageCompanyCatalog && renderBranchesTab()}
         {activeTab === "services" && canManageCompanyCatalog && renderServicesTab()}

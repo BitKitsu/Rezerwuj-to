@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using ReservationService.Data;
 using ReservationService.Models;
+using System.Net.Http.Json;
 
 namespace ReservationService.Services;
 
@@ -17,11 +19,19 @@ public class ScheduleService : IScheduleService
 {
     private readonly ReservationDbContext _context;
     private readonly ILogger<ScheduleService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMemoryCache _cache;
     
-    public ScheduleService(ReservationDbContext context, ILogger<ScheduleService> logger)
+    public ScheduleService(
+        ReservationDbContext context,
+        ILogger<ScheduleService> logger,
+        IHttpClientFactory httpClientFactory,
+        IMemoryCache cache)
     {
         _context = context;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
+        _cache = cache;
     }
     
     public async Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int branchId, int serviceId, DateTime date)
@@ -198,8 +208,11 @@ public class ScheduleService : IScheduleService
         var staffIds = schedules
             .Select(s => s.StaffId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct()
+            .Select(id => id!)
+            .Distinct(StringComparer.Ordinal)
             .ToList();
+
+        var staffNameById = await ResolveStaffNamesAsync(companyId, staffIds);
 
         var breaks = await _context.StaffBreaks
             .AsNoTracking()
@@ -302,12 +315,19 @@ public class ScheduleService : IScheduleService
                 var overlap = FindOverlap(current, candidateEnd, blocks);
                 if (overlap == null)
                 {
+                    if (!staffNameById.TryGetValue(schedule.StaffId, out var staffName)
+                        || string.IsNullOrWhiteSpace(staffName))
+                    {
+                        current = current.Add(step);
+                        continue;
+                    }
+
                     result.Add(new AvailableSlot
                     {
                         Start = current,
                         End = candidateEnd,
                         StaffId = schedule.StaffId,
-                        StaffName = schedule.StaffId
+                        StaffName = staffName
                     });
 
                     current = current.Add(step);
@@ -324,6 +344,109 @@ public class ScheduleService : IScheduleService
             .OrderBy(x => x.Start)
             .ThenBy(x => x.StaffId)
             .ToList();
+    }
+
+    private async Task<Dictionary<string, string>> ResolveStaffNamesAsync(int companyId, List<string> staffIds)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var ids = (staffIds ?? new List<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (ids.Count == 0)
+        {
+            return result;
+        }
+
+        var toFetch = new List<string>();
+        foreach (var id in ids)
+        {
+            var cacheKey = $"staffName:{companyId}:{id}";
+            if (_cache.TryGetValue(cacheKey, out string? cachedName) && !string.IsNullOrWhiteSpace(cachedName))
+            {
+                result[id] = cachedName;
+            }
+            else
+            {
+                toFetch.Add(id);
+            }
+        }
+
+        if (toFetch.Count == 0)
+        {
+            return result;
+        }
+
+        try
+        {
+            var baseUrl = Environment.GetEnvironmentVariable("IDENTITY_SERVICE_BASE_URL");
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                var runningInContainer = string.Equals(
+                    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
+                    "true",
+                    StringComparison.OrdinalIgnoreCase);
+
+                baseUrl = runningInContainer ? "http://identity_api:8080" : "http://localhost:5001";
+            }
+
+            var client = _httpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(baseUrl);
+
+            var response = await client.PostAsJsonAsync(
+                $"/api/public/company/{companyId}/users/resolve",
+                new ResolveCompanyUsersRequest { UserIds = toFetch });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "Identity resolve endpoint returned {StatusCode} for companyId={CompanyId}",
+                    (int)response.StatusCode,
+                    companyId);
+                return result;
+            }
+
+            var users = await response.Content.ReadFromJsonAsync<List<PublicUserDto>>()
+                ?? new List<PublicUserDto>();
+
+            foreach (var user in users)
+            {
+                var id = (user.Id ?? string.Empty).Trim();
+                if (string.IsNullOrWhiteSpace(id)) continue;
+
+                var name = string.Join(" ", new[] { user.FirstName, user.LastName }
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x!.Trim())).Trim();
+
+                if (!string.IsNullOrWhiteSpace(name))
+                {
+                    result[id] = name;
+                    var cacheKey = $"staffName:{companyId}:{id}";
+                    _cache.Set(cacheKey, name, TimeSpan.FromHours(12));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve staff names from IdentityService.");
+        }
+
+        return result;
+    }
+
+    private sealed class ResolveCompanyUsersRequest
+    {
+        public List<string> UserIds { get; set; } = new();
+    }
+
+    private sealed class PublicUserDto
+    {
+        public string? Id { get; set; }
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
     }
 
     private static TimeInterval? FindOverlap(DateTime start, DateTime end, List<TimeInterval> blocks)

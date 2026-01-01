@@ -110,61 +110,25 @@ function BookingPage() {
 
   const filteredAvailableSlots = useMemo(() => {
     if (!form.date) return [];
-    if (!form.staffId) return availableSlots;
+    if (!form.staffId) return [];
     return availableSlots.filter((s) => String(s.staffId || "") === String(form.staffId));
   }, [availableSlots, form.date, form.staffId]);
 
-  const staffIdList = useMemo(() => {
-    const ids = Array.from(
-      new Set(
-        (Array.isArray(availableSlots) ? availableSlots : [])
-          .map((s) => String(s?.staffId || "").trim())
-          .filter(Boolean),
-      ),
-    );
-    ids.sort((a, b) => a.localeCompare(b, "pl"));
-    return ids;
-  }, [availableSlots]);
-
-  const staffLabelById = useMemo(() => {
-    const result = new Map();
-
-    for (const id of staffIdList) {
-      result.set(id, "");
-    }
-
+  const staffOptions = useMemo(() => {
+    const map = new Map();
     for (const slot of availableSlots) {
       const staffId = String(slot?.staffId || "").trim();
-      if (!staffId) continue;
       const staffName = String(slot?.staffName || "").trim();
-      if (staffName) {
-        result.set(staffId, staffName);
+      if (!staffId || !staffName) continue;
+      if (!map.has(staffId)) {
+        map.set(staffId, staffName);
       }
     }
-
-    let counter = 1;
-    for (const id of staffIdList) {
-      const current = String(result.get(id) || "").trim();
-      if (!current) {
-        result.set(id, `Pracownik ${counter}`);
-      }
-      counter += 1;
-    }
-
-    return result;
-  }, [availableSlots, staffIdList]);
-
-  const getStaffLabel = (staffId) => {
-    const key = String(staffId || "").trim();
-    return String(staffLabelById.get(key) || "").trim();
-  };
-
-  const staffOptions = useMemo(() => {
-    return staffIdList
-      .map((id) => ({ id, name: getStaffLabel(id) || "Pracownik" }))
+    return Array.from(map.entries())
+      .map(([staffId, staffName]) => ({ id: staffId, name: staffName }))
       .sort((a, b) => String(a.name).localeCompare(String(b.name), "pl"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffIdList, staffLabelById]);
+  }, [availableSlots]);
 
   useEffect(() => {
     if (!serviceId || !form.date) {
@@ -430,7 +394,7 @@ function BookingPage() {
                 {filteredAvailableSlots.map((slot, idx) => (
                   <option key={`${slot.start}-${slot.staffId}-${idx}`} value={String(idx)}>
                     {new Date(slot.start).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} - {new Date(slot.end).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
-                    {slot.staffId ? ` | ${getStaffLabel(slot.staffId) || "Pracownik"}` : ""}
+                    {slot.staffName ? ` | ${slot.staffName}` : ""}
                   </option>
                 ))}
               </select>

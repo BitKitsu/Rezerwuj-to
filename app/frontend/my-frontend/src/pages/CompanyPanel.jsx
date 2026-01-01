@@ -215,7 +215,7 @@ const CompanyPanel = () => {
     branchId: "",
     serviceId: "",
     staffId: "",
-    dayOfWeek: [1],
+    dayOfWeek: workdays,
     startTime: "09:00",
     endTime: "17:00",
   });
@@ -266,7 +266,7 @@ const CompanyPanel = () => {
   const [staffBreakFilters, setStaffBreakFilters] = useState({
     branchId: "",
     staffId: "",
-    dayOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    dayOfWeek: workdays,
   });
   const [staffBreakForm, setStaffBreakForm] = useState({
     startTime: "12:00",
@@ -825,7 +825,7 @@ const CompanyPanel = () => {
       branchId: defaultBranchId,
       serviceId: defaultServiceId,
       staffId: defaultStaffId,
-      dayOfWeek: [1],
+      dayOfWeek: workdays,
       startTime: "09:00",
       endTime: "17:00",
     });
@@ -1753,9 +1753,6 @@ const CompanyPanel = () => {
                   <option value="">Brak pracowników</option>
                 )}
               </select>
-              <div className="admin-muted" style={{ marginTop: 6 }}>
-                W harmonogramie wybierasz konkretnego pracownika. Pod spodem zapisujemy jego `UserId` jako `StaffId`.
-              </div>
             </div>
           </div>
 

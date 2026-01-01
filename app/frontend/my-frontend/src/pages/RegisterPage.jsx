@@ -6,6 +6,31 @@ const normalizeHumanNameInput = (value) => {
   return String(value || '').trim().replace(/\s+/g, ' ');
 };
 
+const sanitizePhoneNumberInput = (value) => {
+  const sanitized = String(value || '').replace(/[^0-9+]/g, '');
+  if (!sanitized) return '';
+  const plus = sanitized.startsWith('+') ? '+' : '';
+  const digits = sanitized.replace(/\+/g, '');
+  return plus + digits;
+};
+
+const formatPhoneDisplay = (value) => {
+  const sanitized = sanitizePhoneNumberInput(value);
+  if (!sanitized) return '';
+  const plus = sanitized.startsWith('+') ? '+' : '';
+  const digits = sanitized.replace(/^\+/, '');
+  if (!digits) return plus;
+
+  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const country = digits.slice(0, inferredCountryLen);
+  const rest = digits.slice(inferredCountryLen);
+
+  const groups = rest.match(/.{1,3}/g) || [];
+  const grouped = groups.join('-');
+
+  return plus + country + (grouped ? ` ${grouped}` : '');
+};
+
 function RegisterPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -30,6 +55,9 @@ function RegisterPage() {
     if (name === 'email') {
       nextValue = String(value || '').replace(/\s+/g, '');
     }
+    if (name === 'phone') {
+      nextValue = formatPhoneDisplay(value);
+    }
     setFormData({
       ...formData,
       [name]: nextValue
@@ -44,7 +72,7 @@ function RegisterPage() {
     const username = String(formData.username || '').replace(/\s+/g, '');
     const firstName = normalizeHumanNameInput(formData.firstName);
     const lastName = normalizeHumanNameInput(formData.lastName);
-    const phone = String(formData.phone || '').trim();
+    const phone = sanitizePhoneNumberInput(formData.phone);
 
     if (!email) {
       setError('Email jest wymagany!');
@@ -243,13 +271,13 @@ function RegisterPage() {
               onChange={handleChange}
               required
               className="form-input"
-              placeholder="+48 123 456 789"
+              placeholder="+48 111-222-333"
             />
           </div>
 
           <div className="form-field">
             <label className="form-label" htmlFor="password">
-              Hasło:
+              Hasło: *
             </label>
             <input
               id="password"

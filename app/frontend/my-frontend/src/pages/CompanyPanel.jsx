@@ -63,6 +63,31 @@ const stripAllWhitespace = (value) => {
   return String(value || "").replace(/\s+/g, "");
 };
 
+const sanitizePhoneNumberInput = (value) => {
+  const sanitized = String(value || "").replace(/[^0-9+]/g, "");
+  if (!sanitized) return "";
+  const plus = sanitized.startsWith("+") ? "+" : "";
+  const digits = sanitized.replace(/\+/g, "");
+  return plus + digits;
+};
+
+const formatPhoneDisplay = (value) => {
+  const sanitized = sanitizePhoneNumberInput(value);
+  if (!sanitized) return "";
+  const plus = sanitized.startsWith("+") ? "+" : "";
+  const digits = sanitized.replace(/^\+/, "");
+  if (!digits) return plus;
+
+  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const country = digits.slice(0, inferredCountryLen);
+  const rest = digits.slice(inferredCountryLen);
+
+  const groups = rest.match(/.{1,3}/g) || [];
+  const grouped = groups.join("-");
+
+  return plus + country + (grouped ? ` ${grouped}` : "");
+};
+
 const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -1028,6 +1053,10 @@ const CompanyPanel = () => {
       }));
       return;
     }
+    if (name === "customerPhone") {
+      setCreateAppointmentForm((prev) => ({ ...prev, [name]: formatPhoneDisplay(value) }));
+      return;
+    }
     setCreateAppointmentForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -1142,13 +1171,13 @@ const CompanyPanel = () => {
       const sanitizePhone = (value) => String(value || "").replace(/[^0-9+]/g, "");
       const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
       const isValidPhone = (value) => {
-        const v = sanitizePhone(value);
+        const v = sanitizePhoneNumberInput(value);
         if (!v) return false;
         return /^\+\d{1,3}(\s?\d{3}){3}$/.test(v);
       };
 
       const email = String(createAppointmentForm.customerEmail || "").trim();
-      const phone = sanitizePhone(createAppointmentForm.customerPhone || "");
+      const phone = sanitizePhoneNumberInput(createAppointmentForm.customerPhone || "");
 
       const hasEmail = Boolean(email);
       const hasPhone = Boolean(phone);
@@ -1978,6 +2007,7 @@ const CompanyPanel = () => {
       // dlatego ustawiamy sensowne wartości domyślne, jeśli nie istnieją w odpowiedzi.
       const formWithDefaults = {
         ...backendCompany,
+        phone: formatPhoneDisplay(backendCompany.phone || ""),
         openingHour:
           (companyForm && companyForm.openingHour) ||
           backendCompany.openingHour ||
@@ -2147,6 +2177,9 @@ const CompanyPanel = () => {
     if (name === "streetNumber" || name === "apartmentNumber") {
       nextValue = stripAllWhitespace(value);
     }
+    if (name === "phone") {
+      nextValue = formatPhoneDisplay(value);
+    }
     setCompanyForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
@@ -2167,7 +2200,11 @@ const CompanyPanel = () => {
       return;
     }
     try {
-      await companiesAPI.update(companyId, companyForm);
+      const payload = {
+        ...companyForm,
+        phone: sanitizePhoneNumberInput(companyForm?.phone || ""),
+      };
+      await companiesAPI.update(companyId, payload);
       setCompanyFormSuccess("Dane firmy zostały zaktualizowane.");
       // Nie przeładowuj danych z backendu, aby nie nadpisywać lokalnych pól front-endowych
       // (np. godzin otwarcia/zamknięcia, które backend na razie ignoruje).
@@ -2191,13 +2228,13 @@ const CompanyPanel = () => {
   const resetBranchForm = () => {
     setEditingBranch({
       branchName: "",
-      phone: companyForm?.phone || "",
+      phone: formatPhoneDisplay(companyForm?.phone || ""),
       streetName: companyForm?.streetName || "",
       streetNumber: companyForm?.streetNumber || "",
       apartmentNumber: companyForm?.apartmentNumber || "",
       city: companyForm?.city || "",
       postalCode: companyForm?.postalCode || "",
-      country: companyForm?.country || "Polska",
+      country: companyForm?.country || "",
       openingHour: companyForm?.openingHour || "",
       closingHour: companyForm?.closingHour || "",
     });
@@ -2212,8 +2249,9 @@ const CompanyPanel = () => {
   const handleOpenEditBranch = (branch) => {
     setEditingBranch({
       ...branch,
-      openingHour: branch.openingHour || "",
-      closingHour: branch.closingHour || "",
+      phone: formatPhoneDisplay(branch?.phone || ""),
+      openingHour: branch?.openingHour || "",
+      closingHour: branch?.closingHour || "",
     });
     setBranchFormError("");
     setBranchFormVisible(true);
@@ -2228,6 +2266,9 @@ const CompanyPanel = () => {
     if (name === "streetNumber" || name === "apartmentNumber") {
       nextValue = stripAllWhitespace(value);
     }
+    if (name === "phone") {
+      nextValue = formatPhoneDisplay(value);
+    }
     setEditingBranch((prev) => ({
       ...prev,
       [name]: nextValue,
@@ -2239,9 +2280,20 @@ const CompanyPanel = () => {
     setBranchFormSubmitting(true);
     setBranchFormError("");
     try {
+      if (!companyId) {
+        setBranchFormError("Brak ID firmy.");
+        return;
+      }
+
+      if (!editingBranch) {
+        setBranchFormError("Brak danych oddziału.");
+        return;
+      }
+
       const payload = {
         ...editingBranch,
         companyId,
+        phone: sanitizePhoneNumberInput(editingBranch?.phone || "") || null,
       };
 
       if (editingBranch.id) {
@@ -2813,7 +2865,7 @@ const CompanyPanel = () => {
                     {(branch.streetName || "") +
                       (branch.streetNumber ? ` ${branch.streetNumber}` : "")}
                   </td>
-                  <td>{branch.phone || "—"}</td>
+                  <td>{formatPhoneDisplay(branch.phone || "") || "—"}</td>
                   <td>
                     {formatBranchReviewSummary(branchReviewSummaries[branch.id])}
                   </td>

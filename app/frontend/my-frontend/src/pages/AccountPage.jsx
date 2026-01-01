@@ -18,6 +18,31 @@ const normalizeHumanNameInput = (value) => {
   return String(value || '').trim().replace(/\s+/g, ' ');
 };
 
+const sanitizePhoneNumberInput = (value) => {
+  const sanitized = String(value || '').replace(/[^0-9+]/g, '');
+  if (!sanitized) return '';
+  const plus = sanitized.startsWith('+') ? '+' : '';
+  const digits = sanitized.replace(/\+/g, '');
+  return plus + digits;
+};
+
+const formatPhoneDisplay = (value) => {
+  const sanitized = sanitizePhoneNumberInput(value);
+  if (!sanitized) return '';
+  const plus = sanitized.startsWith('+') ? '+' : '';
+  const digits = sanitized.replace(/^\+/, '');
+  if (!digits) return plus;
+
+  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const country = digits.slice(0, inferredCountryLen);
+  const rest = digits.slice(inferredCountryLen);
+
+  const groups = rest.match(/.{1,3}/g) || [];
+  const grouped = groups.join('-');
+
+  return plus + country + (grouped ? ` ${grouped}` : '');
+};
+
 function AccountPage() {
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -102,7 +127,7 @@ function AccountPage() {
           username: data.username || '',
           firstName: data.firstName || '',
           lastName: data.lastName || '',
-          phone: data.phone || '',
+          phone: formatPhoneDisplay(data.phone || ''),
         });
       } catch (err) {
         console.error('Profile load error:', err);
@@ -122,6 +147,9 @@ function AccountPage() {
     if (name === 'username') {
       nextValue = String(value || '').replace(/\s+/g, '');
     }
+    if (name === 'phone') {
+      nextValue = formatPhoneDisplay(value);
+    }
     setProfileForm((prev) => ({
       ...prev,
       [name]: nextValue,
@@ -139,7 +167,7 @@ function AccountPage() {
         username: String(profileForm.username || '').replace(/\s+/g, ''),
         firstName: normalizeHumanNameInput(profileForm.firstName),
         lastName: normalizeHumanNameInput(profileForm.lastName),
-        phone: String(profileForm.phone || '').trim(),
+        phone: sanitizePhoneNumberInput(profileForm.phone),
       };
 
       if (!payload.firstName || !payload.lastName) {

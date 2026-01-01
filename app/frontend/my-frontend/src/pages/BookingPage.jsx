@@ -2,6 +2,31 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { appointmentsAPI, authAPI, servicesAPI, tokenManager } from "../services/api";
 
+const sanitizePhoneNumberInput = (value) => {
+  const sanitized = String(value || "").replace(/[^0-9+]/g, "");
+  if (!sanitized) return "";
+  const plus = sanitized.startsWith("+") ? "+" : "";
+  const digits = sanitized.replace(/\+/g, "");
+  return plus + digits;
+};
+
+const formatPhoneDisplay = (value) => {
+  const sanitized = sanitizePhoneNumberInput(value);
+  if (!sanitized) return "";
+  const plus = sanitized.startsWith("+") ? "+" : "";
+  const digits = sanitized.replace(/^\+/, "");
+  if (!digits) return plus;
+
+  const inferredCountryLen = digits.length > 9 ? digits.length - 9 : Math.min(3, digits.length);
+  const country = digits.slice(0, inferredCountryLen);
+  const rest = digits.slice(inferredCountryLen);
+
+  const groups = rest.match(/.{1,3}/g) || [];
+  const grouped = groups.join("-");
+
+  return plus + country + (grouped ? ` ${grouped}` : "");
+};
+
 function BookingPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -85,7 +110,7 @@ function BookingPage() {
         setForm((prev) => ({
           ...prev,
           customerEmail: prev.customerEmail || profileEmail || email,
-          customerPhone: prev.customerPhone || phone,
+          customerPhone: prev.customerPhone || formatPhoneDisplay(phone),
         }));
       } catch (err) {
         if (!cancelled) {
@@ -207,10 +232,14 @@ function BookingPage() {
     const { name, value } = e.target;
     setSubmitError("");
     setSubmitSuccess("");
+    if (name === "customerPhone") {
+      setForm((prev) => ({ ...prev, [name]: formatPhoneDisplay(value) }));
+      return;
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const sanitizePhone = (value) => String(value || "").replace(/[^0-9+]/g, "");
+  const sanitizePhone = (value) => sanitizePhoneNumberInput(value);
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
   const isValidPhone = (value) => {
     const v = sanitizePhone(value);
@@ -240,7 +269,7 @@ function BookingPage() {
       }
 
       const email = String(form.customerEmail || "").trim();
-      const phone = String(form.customerPhone || "").trim();
+      const phone = sanitizePhoneNumberInput(form.customerPhone);
 
       const hasEmail = email.length > 0;
       const hasPhone = phone.length > 0;

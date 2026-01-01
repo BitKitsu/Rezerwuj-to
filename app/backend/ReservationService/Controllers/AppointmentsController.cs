@@ -5,6 +5,7 @@ using ReservationService.Data;
 using ReservationService.Models;
 using ReservationService.Services;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace ReservationService.Controllers;
 
@@ -120,6 +121,27 @@ public class AppointmentsController : ControllerBase
         return Ok(slots);
     }
 
+    [HttpGet("public/available-slots")]
+    [AllowAnonymous]
+    public async Task<ActionResult<List<AvailableSlot>>> GetPublicAvailableSlots(
+        [FromQuery] int serviceId,
+        [FromQuery] DateTime date)
+    {
+        var service = await _context.Services.FindAsync(serviceId);
+        if (service == null)
+        {
+            return NotFound("Service not found");
+        }
+
+        var slots = await _scheduleService.GetAvailableSlotsAsync(
+            service.CompanyId,
+            service.BranchId,
+            service.Id,
+            date);
+
+        return Ok(slots);
+    }
+
     // POST: api/appointments
     [HttpPost]
     [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
@@ -222,6 +244,119 @@ public class AppointmentsController : ControllerBase
 
         _logger.LogInformation("Utworzono rezerwację ID: {Id} dla klienta: {CustomerId}", 
             appointment.Id, appointment.CustomerId);
+
+        return CreatedAtAction(nameof(GetAppointment), new { id = appointment.Id }, appointment);
+    }
+
+    [HttpPost("public")]
+    [AllowAnonymous]
+    public async Task<ActionResult<Appointment>> CreatePublicAppointment(PublicAppointmentCreateDto dto)
+    {
+        var service = await _context.Services.FindAsync(dto.ServiceId);
+        if (service == null)
+        {
+            return BadRequest("Invalid service ID");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.StaffId))
+        {
+            return BadRequest("StaffId is required");
+        }
+
+        if (dto.DateStart == default)
+        {
+            return BadRequest("DateStart is required");
+        }
+
+        var email = (dto.CustomerEmail ?? string.Empty).Trim();
+        var phone = SanitizePhoneNumber(dto.CustomerPhone ?? string.Empty);
+
+        var hasEmail = !string.IsNullOrWhiteSpace(email);
+        var hasPhone = !string.IsNullOrWhiteSpace(phone);
+
+        if (!hasEmail && !hasPhone)
+        {
+            return BadRequest("CustomerEmail or CustomerPhone is required");
+        }
+
+        if (hasEmail && !IsValidEmail(email))
+        {
+            return BadRequest("Invalid CustomerEmail");
+        }
+
+        if (hasPhone && !IsValidPhone(phone))
+        {
+            return BadRequest("Invalid CustomerPhone");
+        }
+
+        var customerId = hasEmail ? email : phone;
+
+        var computedEnd = dto.DateStart.AddMinutes(service.DurationMinutes);
+
+        var daySlots = await _scheduleService.GetAvailableSlotsAsync(
+            service.CompanyId,
+            service.BranchId,
+            service.Id,
+            dto.DateStart);
+
+        var isAllowed = daySlots.Any(s => s.StaffId == dto.StaffId && s.Start == dto.DateStart);
+        if (!isAllowed)
+        {
+            return BadRequest("Selected start time is not available");
+        }
+
+        var newBlockedEnd = computedEnd.AddMinutes(service.BufferMinutesAfter);
+
+        var existingAppointments = await _context.Appointments
+            .AsNoTracking()
+            .Include(a => a.Service)
+            .Where(a => a.CompanyId == service.CompanyId
+                && a.BranchId == service.BranchId
+                && a.StaffId == dto.StaffId
+                && a.Status != "cancelled")
+            .ToListAsync();
+
+        var conflictingAppointment = existingAppointments.Any(a =>
+        {
+            var buffer = a.Service?.BufferMinutesAfter ?? 0;
+            var aBlockedEnd = a.DateEnd.AddMinutes(buffer);
+            return dto.DateStart < aBlockedEnd && newBlockedEnd > a.DateStart;
+        });
+
+        if (conflictingAppointment)
+        {
+            return BadRequest("This time slot is already booked");
+        }
+
+        var appointment = new Appointment
+        {
+            CompanyId = service.CompanyId,
+            BranchId = service.BranchId,
+            ServiceId = dto.ServiceId,
+            CustomerId = customerId,
+            StaffId = dto.StaffId,
+            DateStart = dto.DateStart,
+            DateEnd = computedEnd,
+            Status = "pending",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Appointments.Add(appointment);
+        await _context.SaveChangesAsync();
+
+        await TryStoreEventAsync(new AppointmentCreatedEvent
+        {
+            AggregateId = GetAppointmentAggregateId(appointment.Id),
+            AppointmentId = appointment.Id,
+            CompanyId = appointment.CompanyId,
+            BranchId = appointment.BranchId,
+            ServiceId = appointment.ServiceId,
+            CustomerId = appointment.CustomerId,
+            StaffId = appointment.StaffId,
+            DateStart = appointment.DateStart,
+            DateEnd = appointment.DateEnd,
+            UserId = GetUserId(User)
+        });
 
         return CreatedAtAction(nameof(GetAppointment), new { id = appointment.Id }, appointment);
     }
@@ -384,6 +519,22 @@ public class AppointmentsController : ControllerBase
             ?? user.FindFirst("userId")?.Value;
     }
 
+    private static string SanitizePhoneNumber(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return string.Empty;
+        return Regex.Replace(value, "[^0-9+]", string.Empty);
+    }
+
+    private static bool IsValidEmail(string value)
+    {
+        return Regex.IsMatch(value.Trim(), "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", RegexOptions.CultureInvariant);
+    }
+
+    private static bool IsValidPhone(string value)
+    {
+        return Regex.IsMatch(value.Trim(), "^\\+\\d{1,3}(\\s?\\d{3}){3}$", RegexOptions.CultureInvariant);
+    }
+
     private async Task TryStoreEventAsync(DomainEvent domainEvent)
     {
         try
@@ -414,4 +565,13 @@ public class AppointmentCreateDto
     public string StaffId { get; set; } = string.Empty;
     public DateTime DateStart { get; set; }
     public DateTime DateEnd { get; set; }
+}
+
+public class PublicAppointmentCreateDto
+{
+    public int ServiceId { get; set; }
+    public string StaffId { get; set; } = string.Empty;
+    public DateTime DateStart { get; set; }
+    public string? CustomerEmail { get; set; }
+    public string? CustomerPhone { get; set; }
 }

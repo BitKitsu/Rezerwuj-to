@@ -226,6 +226,15 @@
   gap: 0.5rem;
 }
 
+.admin-user-actions--nowrap {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.admin-table--auto {
+  table-layout: auto;
+}
+
 .admin-table th:nth-child(5),
 .admin-table th:nth-child(6),
 .admin-table td:nth-child(5),

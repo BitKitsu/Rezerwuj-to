@@ -1628,7 +1628,7 @@ const CompanyPanel = () => {
             Brak harmonogramu. Dodaj harmonogram dla usługi i dnia tygodnia, aby pojawiły się sloty.
           </p>
         ) : (
-          <table className="admin-table">
+          <table className="admin-table admin-table--auto">
             <thead>
               <tr>
                 <th>Dzień</th>
@@ -1650,7 +1650,7 @@ const CompanyPanel = () => {
                     {getScheduleHoursLabel(s)}
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                       <button
                         type="button"
                         className="btn btn-outline btn-xs"
@@ -2770,7 +2770,7 @@ const CompanyPanel = () => {
         ) : services.length === 0 ? (
           <p>Brak zdefiniowanych usług.</p>
         ) : (
-          <table className="admin-table">
+          <table className="admin-table admin-table--auto">
             <thead>
               <tr>
                 <th>Nazwa usługi</th>
@@ -2797,7 +2797,7 @@ const CompanyPanel = () => {
                   <td>{service.price.toFixed(2)}</td>
                   <td>
                     {canManageCompanyCatalog ? (
-                      <>
+                      <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                         <button
                           type="button"
                           className="btn btn-outline btn-xs"
@@ -2812,7 +2812,7 @@ const CompanyPanel = () => {
                         >
                           Usuń
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <span className="admin-muted">Brak uprawnień</span>
                     )}
@@ -2846,7 +2846,7 @@ const CompanyPanel = () => {
         {branches.length === 0 ? (
           <p>Brak zdefiniowanych oddziałów.</p>
         ) : (
-          <table className="admin-table">
+          <table className="admin-table admin-table--auto">
             <thead>
               <tr>
                 <th>Nazwa</th>
@@ -2872,7 +2872,7 @@ const CompanyPanel = () => {
                   </td>
                   <td>
                     {canManageCompanyCatalog ? (
-                      <>
+                      <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                         <button
                           type="button"
                           className="btn btn-outline btn-xs"
@@ -2887,7 +2887,7 @@ const CompanyPanel = () => {
                         >
                           Usuń
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <span className="admin-muted">Brak uprawnień</span>
                     )}
@@ -2950,7 +2950,7 @@ const CompanyPanel = () => {
         {employeesLoading ? (
           <p>Ładowanie...</p>
         ) : (
-          <table className="admin-table">
+          <table className="admin-table admin-table--auto">
             <thead>
               <tr>
                 <th>Email</th>
@@ -2987,7 +2987,7 @@ const CompanyPanel = () => {
                     </select>
                   </td>
                   <td>
-                    <div className="admin-user-actions admin-user-actions--center">
+                    <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                       <button
                         type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
@@ -3144,7 +3144,7 @@ const CompanyPanel = () => {
           ) : staffBreaks.length === 0 ? (
             <p>Brak przerw.</p>
           ) : (
-            <table className="admin-table" style={{ marginTop: 12 }}>
+            <table className="admin-table admin-table--auto" style={{ marginTop: 12 }}>
               <thead>
                 <tr>
                   <th>
@@ -3214,7 +3214,7 @@ const CompanyPanel = () => {
                     <td>{String(b.endTime || "").slice(0, 5)}</td>
                     <td>{b.isActive ? "Aktywna" : "Wyłączona"}</td>
                     <td>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                         <button type="button" className="btn btn-outline btn-xs" onClick={() => handleToggleStaffBreak(b)}>
                           {b.isActive ? "Wyłącz" : "Włącz"}
                         </button>

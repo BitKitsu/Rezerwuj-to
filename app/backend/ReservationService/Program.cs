@@ -19,6 +19,7 @@ builder.Services.AddDbContext<ReservationDbContext>(options =>
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
 builder.Services.AddScoped<IEventSourcingService, EventSourcingService>();
 builder.Services.AddScoped<ICompanyAuditService, CompanyAuditService>();
+builder.Services.AddSingleton<IRabbitMqEventPublisher, RabbitMqEventPublisher>();
 
 // Add services to the container.
 builder.Services.AddControllers().AddJsonOptions(options =>

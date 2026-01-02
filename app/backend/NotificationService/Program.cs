@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Data;
 using NotificationService.Hubs;
+using NotificationService.Models;
 using NotificationService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,8 +16,10 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 // Rejestracja serwisów
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.AddScoped<INotificationSender, NotificationSender>();
 builder.Services.AddHostedService<RabbitMQConsumer>();
+builder.Services.AddHttpClient();
 
 // Dodanie kontrolerów
 builder.Services.AddControllers();

@@ -13,6 +13,10 @@ public class RabbitMQConsumer : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private IConnection? _connection;
     private IModel? _channel;
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
     
     public RabbitMQConsumer(
         ILogger<RabbitMQConsumer> logger,
@@ -47,10 +51,16 @@ public class RabbitMQConsumer : BackgroundService
         {
             var factory = new ConnectionFactory
             {
-                HostName = Environment.GetEnvironmentVariable("RABBITMQ_HOST") ?? "localhost",
+                HostName = Environment.GetEnvironmentVariable("RABBITMQ_HOST")
+                    ?? Environment.GetEnvironmentVariable("RabbitMQ__Host")
+                    ?? "localhost",
                 Port = 5672,
-                UserName = Environment.GetEnvironmentVariable("RABBITMQ_USER") ?? "guest",
-                Password = Environment.GetEnvironmentVariable("RABBITMQ_PASS") ?? "guest"
+                UserName = Environment.GetEnvironmentVariable("RABBITMQ_USER")
+                    ?? Environment.GetEnvironmentVariable("RabbitMQ__Username")
+                    ?? "guest",
+                Password = Environment.GetEnvironmentVariable("RABBITMQ_PASS")
+                    ?? Environment.GetEnvironmentVariable("RabbitMQ__Password")
+                    ?? "guest"
             };
 
             _connection = factory.CreateConnection();
@@ -136,8 +146,17 @@ public class RabbitMQConsumer : BackgroundService
 
     private async Task HandleAppointmentCreated(string message, Data.NotificationDbContext context, INotificationSender sender)
     {
-        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message);
+        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
+
+        var metadata = JsonSerializer.Serialize(new
+        {
+            routingKey = "appointment.created",
+            recipientEmail = appointmentData.RecipientEmail,
+            companyName = appointmentData.CompanyName,
+            serviceName = appointmentData.ServiceName,
+            appointmentId = appointmentData.AppointmentId
+        });
 
         var notification = new Notification
         {
@@ -146,7 +165,8 @@ public class RabbitMQConsumer : BackgroundService
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} o godz. {appointmentData.AppointmentDate:HH:mm} została potwierdzona.",
             Type = NotificationType.AppointmentConfirmation,
             Channel = NotificationChannel.Email,
-            RelatedAppointmentId = appointmentData.AppointmentId
+            RelatedAppointmentId = appointmentData.AppointmentId,
+            Metadata = metadata
         };
 
         context.Notifications.Add(notification);
@@ -158,8 +178,17 @@ public class RabbitMQConsumer : BackgroundService
 
     private async Task HandleAppointmentCancelled(string message, Data.NotificationDbContext context, INotificationSender sender)
     {
-        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message);
+        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
+
+        var metadata = JsonSerializer.Serialize(new
+        {
+            routingKey = "appointment.cancelled",
+            recipientEmail = appointmentData.RecipientEmail,
+            companyName = appointmentData.CompanyName,
+            serviceName = appointmentData.ServiceName,
+            appointmentId = appointmentData.AppointmentId
+        });
 
         var notification = new Notification
         {
@@ -168,7 +197,8 @@ public class RabbitMQConsumer : BackgroundService
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} została anulowana.",
             Type = NotificationType.AppointmentCancellation,
             Channel = NotificationChannel.Email,
-            RelatedAppointmentId = appointmentData.AppointmentId
+            RelatedAppointmentId = appointmentData.AppointmentId,
+            Metadata = metadata
         };
 
         context.Notifications.Add(notification);
@@ -180,7 +210,7 @@ public class RabbitMQConsumer : BackgroundService
 
     private async Task HandleAppointmentReminder(string message, Data.NotificationDbContext context, INotificationSender sender)
     {
-        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message);
+        var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
         var notification = new Notification
@@ -215,4 +245,5 @@ public class AppointmentEventData
     public DateTime AppointmentDate { get; set; }
     public string ServiceName { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
+    public string? RecipientEmail { get; set; }
 }

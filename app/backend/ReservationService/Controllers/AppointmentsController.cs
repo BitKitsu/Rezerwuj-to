@@ -16,17 +16,20 @@ public class AppointmentsController : ControllerBase
     private readonly ReservationDbContext _context;
     private readonly IScheduleService _scheduleService;
     private readonly IEventSourcingService _eventSourcing;
+    private readonly IRabbitMqEventPublisher _eventPublisher;
     private readonly ILogger<AppointmentsController> _logger;
 
     public AppointmentsController(
         ReservationDbContext context,
         IScheduleService scheduleService,
         IEventSourcingService eventSourcing,
+        IRabbitMqEventPublisher eventPublisher,
         ILogger<AppointmentsController> logger)
     {
         _context = context;
         _scheduleService = scheduleService;
         _eventSourcing = eventSourcing;
+        _eventPublisher = eventPublisher;
         _logger = logger;
     }
 
@@ -272,6 +275,24 @@ public class AppointmentsController : ControllerBase
             UserId = GetUserId(User)
         });
 
+        var companyName = await _context.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == appointment.CompanyId)
+            .Select(c => c.CompanyName)
+            .FirstOrDefaultAsync();
+
+        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        _eventPublisher.Publish("appointment.created", new
+        {
+            appointmentId = appointment.Id,
+            userId = GetUserId(User) ?? string.Empty,
+            appointmentDate = appointment.DateStart,
+            serviceName = service.ServiceName,
+            companyName = companyName ?? string.Empty,
+            recipientEmail = recipientEmail
+        });
+
         _logger.LogInformation("Utworzono rezerwację ID: {Id} dla klienta: {CustomerId}", 
             appointment.Id, appointment.CustomerId);
 
@@ -388,6 +409,22 @@ public class AppointmentsController : ControllerBase
             UserId = GetUserId(User)
         });
 
+        var companyName = await _context.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == appointment.CompanyId)
+            .Select(c => c.CompanyName)
+            .FirstOrDefaultAsync();
+
+        _eventPublisher.Publish("appointment.created", new
+        {
+            appointmentId = appointment.Id,
+            userId = GetUserId(User) ?? string.Empty,
+            appointmentDate = appointment.DateStart,
+            serviceName = service.ServiceName,
+            companyName = companyName ?? string.Empty,
+            recipientEmail = hasEmail ? email : null
+        });
+
         return CreatedAtAction(nameof(GetAppointment), new { id = appointment.Id }, appointment);
     }
 
@@ -427,7 +464,10 @@ public class AppointmentsController : ControllerBase
     [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
     public async Task<IActionResult> CancelAppointment(int id)
     {
-        var appointment = await _context.Appointments.FindAsync(id);
+        var appointment = await _context.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Company)
+            .FirstOrDefaultAsync(a => a.Id == id);
         if (appointment == null)
         {
             return NotFound();
@@ -450,6 +490,18 @@ public class AppointmentsController : ControllerBase
             UserId = GetUserId(User)
         });
 
+        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        _eventPublisher.Publish("appointment.cancelled", new
+        {
+            appointmentId = appointment.Id,
+            userId = GetUserId(User) ?? string.Empty,
+            appointmentDate = appointment.DateStart,
+            serviceName = appointment.Service?.ServiceName ?? string.Empty,
+            companyName = appointment.Company?.CompanyName ?? string.Empty,
+            recipientEmail = recipientEmail
+        });
+
         _logger.LogInformation("Anulowano rezerwację ID: {Id}", id);
         return NoContent();
     }
@@ -458,7 +510,10 @@ public class AppointmentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> CancelMyAppointment(int id)
     {
-        var appointment = await _context.Appointments.FindAsync(id);
+        var appointment = await _context.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Company)
+            .FirstOrDefaultAsync(a => a.Id == id);
         if (appointment == null)
         {
             return NotFound();
@@ -491,6 +546,18 @@ public class AppointmentsController : ControllerBase
             CompanyId = appointment.CompanyId,
             Reason = "cancelled",
             UserId = GetUserId(User)
+        });
+
+        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        _eventPublisher.Publish("appointment.cancelled", new
+        {
+            appointmentId = appointment.Id,
+            userId = GetUserId(User) ?? string.Empty,
+            appointmentDate = appointment.DateStart,
+            serviceName = appointment.Service?.ServiceName ?? string.Empty,
+            companyName = appointment.Company?.CompanyName ?? string.Empty,
+            recipientEmail = recipientEmail
         });
 
         _logger.LogInformation("Anulowano (self-service) rezerwację ID: {Id}", id);

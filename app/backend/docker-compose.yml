@@ -70,9 +70,14 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     environment:
       ConnectionStrings__ReservationConnection: "Host=postgres_db;Port=5432;Database=reservationdb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: guest
+      RABBITMQ_PASS: guest
 
   # Kontener mikroserwisu Notification
   notification_api:
@@ -86,12 +91,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     environment:
       ConnectionStrings__NotificationConnection: "Host=postgres_db;Port=5432;Database=notificationdb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
+      EmailSettings__SmtpHost: mailhog
+      EmailSettings__SmtpPort: 1025
+      EmailSettings__UseSsl: "false"
+      EmailSettings__UseStartTls: "false"
+      EmailSettings__FromEmail: "noreply@mikrosaas.local"
+      EmailSettings__FromName: "MikroSaaS"
 
   # Kontener RabbitMQ
   rabbitmq:
@@ -110,6 +123,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    restart: always
+    ports:
+      - "8025:8025" # UI
+      - "1025:1025" # SMTP
 
 volumes:
   postgres_data:

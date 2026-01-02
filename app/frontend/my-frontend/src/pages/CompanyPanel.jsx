@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   tokenManager,
   companiesAPI,
@@ -207,7 +208,9 @@ const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
 };
 
 const CompanyPanel = () => {
-  const [activeTab, setActiveTab] = useState("details");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(() => tabFromUrl || "details");
   const [company, setCompany] = useState(null);
   const [services, setServices] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -342,6 +345,21 @@ const CompanyPanel = () => {
     return String(msg);
   };
 
+  const setTab = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", tab);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   useEffect(() => {
     if (!panelSuccess) return undefined;
 
@@ -365,9 +383,9 @@ const CompanyPanel = () => {
     }
 
     if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
-      setActiveTab(allowedTabs[0]);
+      setTab(allowedTabs[0]);
     }
-  }, [activeTab, canEditCompany, canManageEmployees, canViewReservations]);
+  }, [activeTab, canEditCompany, canManageEmployees, canViewReservations, setTab]);
 
   const loadCompanyAppointments = useCallback(async () => {
     if (!companyId) return;
@@ -1380,30 +1398,13 @@ const CompanyPanel = () => {
         <div className="admin-alert admin-alert--error">{appointmentsError}</div>
       ) : null}
 
-      {branches.length === 0 ? (
+      {branches.length === 0 || services.length === 0 ? (
         <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
-          Brak oddziałów. Dodaj oddział w zakładce Oddziały.
-        </div>
-      ) : null}
-
-      {services.length === 0 ? (
-        <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
-          Brak usług. Dodaj usługę w zakładce Usługi.
-        </div>
-      ) : null}
-
-      {canManageCompanyCatalog ? (
-        <div className="admin-alert admin-alert--info" style={{ marginBottom: 12 }}>
-          Jeśli nie widzisz dostępnych slotów w modalu dodawania rezerwacji, sprawdź zakładkę Harmonogram.
-          <div style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => setActiveTab("schedules")}
-            >
-              Przejdź do Harmonogramu
-            </button>
-          </div>
+          {branches.length === 0 && services.length === 0
+            ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+            : branches.length === 0
+              ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
+              : "Brak usług. Dodaj usługę w zakładce Usługi."}
         </div>
       ) : null}
 
@@ -3747,7 +3748,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "reservations" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("reservations")}
+            onClick={() => setTab("reservations")}
           >
             Rezerwacje
           </button>
@@ -3756,7 +3757,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "schedules" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("schedules")}
+            onClick={() => setTab("schedules")}
           >
             Harmonogram
           </button>
@@ -3765,7 +3766,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "details" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("details")}
+            onClick={() => setTab("details")}
           >
             Dane Firmy
           </button>
@@ -3774,7 +3775,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("branches")}
+            onClick={() => setTab("branches")}
           >
             Oddziały
           </button>
@@ -3783,7 +3784,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "services" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("services")}
+            onClick={() => setTab("services")}
           >
             Usługi
           </button>
@@ -3792,7 +3793,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "employees" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("employees")}
+            onClick={() => setTab("employees")}
           >
             Pracownicy
           </button>
@@ -3801,7 +3802,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "audit" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("audit")}
+            onClick={() => setTab("audit")}
           >
             Audyt
           </button>
@@ -3810,7 +3811,7 @@ const CompanyPanel = () => {
           <button
             type="button"
             className={`admin-tab ${activeTab === "settings" ? "admin-tab--active" : ""}`}
-            onClick={() => setActiveTab("settings")}
+            onClick={() => setTab("settings")}
           >
             Ustawienia
           </button>

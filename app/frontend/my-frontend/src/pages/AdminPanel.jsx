@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import "../admin.css";
 import { adminAPI, companiesAPI, tokenManager } from "../services/api";
 
@@ -15,8 +16,32 @@ const stripAllWhitespace = (value) => {
 };
 
 const AdminPanel = () => {
-  const [activeTab, setActiveTab] = useState("users");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(() => tabFromUrl || "users");
   const currentUser = tokenManager.getUser();
+
+  const setTab = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("tab", tab);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  useEffect(() => {
+    const allowedTabs = ["users", "companies"];
+    if (!allowedTabs.includes(activeTab)) {
+      setTab("users");
+    }
+  }, [activeTab, setTab]);
 
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -770,7 +795,7 @@ const AdminPanel = () => {
           className={
             activeTab === "users" ? "admin-tab admin-tab--active" : "admin-tab"
           }
-          onClick={() => setActiveTab("users")}
+          onClick={() => setTab("users")}
         >
           Użytkownicy
         </button>
@@ -781,7 +806,7 @@ const AdminPanel = () => {
               ? "admin-tab admin-tab--active"
               : "admin-tab"
           }
-          onClick={() => setActiveTab("companies")}
+          onClick={() => setTab("companies")}
         >
           Firmy
         </button>

@@ -32,14 +32,49 @@ check_port() {
     return $?
 }
 
+DOCKER_CONFIG_TEMP_DIR=""
+
+cleanup_docker_config_workaround() {
+    if [ -n "$DOCKER_CONFIG_TEMP_DIR" ] && [ -d "$DOCKER_CONFIG_TEMP_DIR" ]; then
+        rm -rf "$DOCKER_CONFIG_TEMP_DIR"
+    fi
+}
+
+init_docker_config_workaround() {
+    if [ -n "$DOCKER_CONFIG_TEMP_DIR" ]; then
+        return 0
+    fi
+
+    local docker_cfg="$HOME/.docker/config.json"
+    if [ -f "$docker_cfg" ] \
+        && grep -q '"credsStore"[[:space:]]*:[[:space:]]*"desktop"' "$docker_cfg" \
+        && ! command -v docker-credential-desktop >/dev/null 2>&1; then
+
+        DOCKER_CONFIG_TEMP_DIR="$(mktemp -d)"
+        export DOCKER_CONFIG="$DOCKER_CONFIG_TEMP_DIR"
+        echo '{}' > "$DOCKER_CONFIG_TEMP_DIR/config.json"
+        trap cleanup_docker_config_workaround EXIT
+
+        print_info "Wykryto docker credsStore=desktop bez docker-credential-desktop. Używam tymczasowej konfiguracji Dockera dla tego skryptu."
+    fi
+}
+
 # Funkcje główne
 start_backend() {
     print_header "URUCHAMIANIE BACKEND"
+
+    init_docker_config_workaround
     
     cd app/backend
     
     print_info "Uruchamianie Docker Compose..."
     docker-compose up -d
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose nie wystartował poprawnie."
+        print_info "Sprawdź: docker-compose logs"
+        cd ../..
+        return 1
+    fi
     
     print_info "Czekanie na inicjalizację baz danych (20 sekund)..."
     sleep 20
@@ -72,12 +107,21 @@ start_backend() {
         print_error "NotificationService nie odpowiada!"
         print_info "Sprawdź logi: docker-compose logs notification_api"
     fi
+
+    if check_port 8025; then
+        print_success "MailHog UI działa na http://localhost:8025"
+    else
+        print_error "MailHog UI nie odpowiada na http://localhost:8025"
+        print_info "Sprawdź logi: docker-compose logs mailhog"
+    fi
     
     cd ../..
 }
 
 reset_backend() {
     print_header "RESET SYSTEMU (USUNIE DANE!)"
+
+    init_docker_config_workaround
 
     print_error "UWAGA: Ta komenda usunie kontenery i wolumeny Docker (baza danych) oraz wszystkie dane."
     print_info "Aby kontynuowac, wpisz RESET i nacisnij Enter."
@@ -92,6 +136,11 @@ reset_backend() {
 
     print_info "Zatrzymywanie kontenerow i usuwanie wolumenow..."
     docker-compose down -v
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose down nie powiódł się."
+        cd ../..
+        return 1
+    fi
 
     cd ../..
 
@@ -100,23 +149,43 @@ reset_backend() {
 
 stop_backend() {
     print_header "ZATRZYMYWANIE BACKEND"
+
+    init_docker_config_workaround
     
     cd app/backend
     docker-compose down
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose down nie powiódł się."
+        cd ../..
+        return 1
+    fi
     print_success "Backend zatrzymany"
     cd ../..
 }
 
 restart_backend() {
     print_header "RESTART BACKEND"
+
+    init_docker_config_workaround
     
     cd app/backend
     
     print_info "Zatrzymywanie kontenerów..."
     docker-compose down
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose down nie powiódł się."
+        cd ../..
+        return 1
+    fi
     
     print_info "Budowanie i uruchamianie..."
     docker-compose up --build -d
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose up nie wystartował poprawnie."
+        print_info "Sprawdź: docker-compose logs"
+        cd ../..
+        return 1
+    fi
     
     print_info "Czekanie na inicjalizację (25 sekund)..."
     sleep 25
@@ -171,6 +240,7 @@ run_all() {
     echo "Reservation API:    http://localhost:5002/swagger"
     echo "Notification API:   http://localhost:5003/swagger"
     echo "RabbitMQ UI:        http://localhost:15672 (guest/guest)"
+    echo "MailHog UI:         http://localhost:8025"
     echo "PostgreSQL:         localhost:5433"
     echo ""
     echo "Dane testowe (automatycznie utworzone):"
@@ -228,6 +298,13 @@ test_system() {
         echo -e "RabbitMQ: ${GREEN}Management UI działa${NC}"
     else
         echo -e "RabbitMQ: ${RED}Management UI niedostępne${NC}"
+    fi
+
+    # Test MailHog
+    if curl -s -f http://localhost:8025 > /dev/null 2>&1; then
+        echo -e "MailHog: ${GREEN}UI działa${NC}"
+    else
+        echo -e "MailHog: ${RED}UI niedostępne${NC}"
     fi
     
     # Test API Gateway routing
@@ -332,6 +409,7 @@ test_system() {
 }
 
 show_logs() {
+    init_docker_config_workaround
     service=$1
     if [ -z "$service" ]; then
         print_header "LOGI WSZYSTKICH SERWISÓW"
@@ -347,6 +425,8 @@ show_logs() {
 
 show_status() {
     print_header "STATUS SYSTEMU"
+
+    init_docker_config_workaround
     
     cd app/backend
     docker-compose ps
@@ -358,10 +438,13 @@ show_status() {
     check_port 5002 && echo -e "5002: ReservationService ${GREEN}${NC}" || echo -e "5002: ReservationService ${RED}${NC}"
     check_port 5173 && echo -e "5173: Frontend React ${GREEN}${NC}" || echo -e "5173: Frontend React ${RED}${NC}"
     check_port 5433 && echo -e "5433: PostgreSQL ${GREEN}${NC}" || echo -e "5433: PostgreSQL ${RED}${NC}"
+    check_port 8025 && echo -e "8025: MailHog UI ${GREEN}${NC}" || echo -e "8025: MailHog UI ${RED}${NC}"
 }
 
 ci_test() {
     print_header "TEST CI/CD LOKALNIE (SYMULACJA GITHUB ACTIONS)"
+
+    init_docker_config_workaround
     
     # 1. Sprawdzanie formatu ostatniego commita
     echo ""
@@ -558,6 +641,7 @@ show_help() {
     echo "  identity_api   - Serwis autoryzacji"
     echo "  reservation_api - Serwis rezerwacji"
     echo "  notification_api - Serwis powiadomień"
+    echo "  mailhog        - SMTP + UI do testów email"
     echo "  api_gateway    - API Gateway"
 }
 

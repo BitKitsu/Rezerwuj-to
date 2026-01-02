@@ -61,6 +61,7 @@ echo   postgres_db      - Baza danych PostgreSQL
 echo   identity_api     - Serwis autoryzacji
 echo   reservation_api  - Serwis rezerwacji
 echo   notification_api - Serwis powiadomien
+echo   mailhog          - SMTP + UI do testow email
 echo   api_gateway      - API Gateway
 echo.
 exit /b 0
@@ -105,8 +106,16 @@ curl -s -f http://localhost:5003/health >nul 2>&1 && (
     echo Sprawdz logi: docker-compose logs notification_api
 )
 
+curl -s -f http://localhost:8025 >nul 2>&1 && (
+    echo %GREEN%MailHog UI dziala na http://localhost:8025%NC%
+) || (
+    echo %RED%MailHog UI nie odpowiada!%NC%
+    echo Sprawdz logi: docker-compose logs mailhog
+)
+
 echo.
 echo RabbitMQ UI:     http://localhost:15672 (guest/guest)
+echo MailHog UI:      http://localhost:8025
 echo PostgreSQL:      localhost:5433
 cd ..\..
 exit /b 0
@@ -184,6 +193,8 @@ curl -s -f http://localhost:5001/health >nul 2>&1 && (echo 5001: IdentityService
 curl -s -f http://localhost:5002/health >nul 2>&1 && (echo 5002: ReservationService %GREEN%%NC%) || (echo 5002: ReservationService %RED%%NC%)
 curl -s -f http://localhost:5173 >nul 2>&1 && (echo 5173: Frontend React %GREEN%%NC%) || (echo 5173: Frontend React %RED%%NC%)
 
+curl -s -f http://localhost:8025 >nul 2>&1 && (echo 8025: MailHog UI %GREEN%%NC%) || (echo 8025: MailHog UI %RED%%NC%)
+
 for /f "delims=" %%i in ('powershell -NoProfile -Command "[bool](Test-NetConnection localhost -Port 5433 -InformationLevel Quiet)"') do set "PG_OK=%%i"
 if /i "!PG_OK!"=="True" (echo 5433: PostgreSQL %GREEN%%NC%) else (echo 5433: PostgreSQL %RED%%NC%)
 exit /b 0
@@ -224,6 +235,12 @@ curl -s -f http://guest:guest@localhost:15672/api/overview >nul 2>&1 && (
     echo RabbitMQ: %GREEN%Management UI dziala%NC%
 ) || (
     echo RabbitMQ: %RED%Management UI niedostepne%NC%
+)
+
+curl -s -f http://localhost:8025 >nul 2>&1 && (
+    echo MailHog: %GREEN%UI dziala%NC%
+) || (
+    echo MailHog: %RED%UI niedostepne%NC%
 )
 echo.
 echo 2. Test routingu przez API Gateway:
@@ -329,6 +346,7 @@ echo Identity API:       http://localhost:5001/swagger
 echo Reservation API:    http://localhost:5002/swagger
 echo Notification API:   http://localhost:5003/swagger
 echo RabbitMQ UI:        http://localhost:15672 (guest/guest)
+echo MailHog UI:         http://localhost:8025
 echo PostgreSQL:         localhost:5433
 echo.
 echo Dane testowe:

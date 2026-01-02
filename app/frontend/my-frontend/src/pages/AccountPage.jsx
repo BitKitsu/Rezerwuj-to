@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { authAPI, auditAPI, companiesAPI, tokenManager } from '../services/api';
 import '../admin.css'; // Reuse some admin styles for the form
 
@@ -44,6 +45,7 @@ const formatPhoneDisplay = (value) => {
 };
 
 function AccountPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState('');
@@ -289,6 +291,18 @@ function AccountPage() {
     setCompanyForm((prev) => ({ ...prev, [name]: nextValue }));
   };
 
+  const closeCompanyForm = () => {
+    setShowCompanyForm(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('openCompanyForm');
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const handleCompanyFormSubmit = async (e) => {
     e.preventDefault();
     setCompanyFormError('');
@@ -317,7 +331,7 @@ function AccountPage() {
       // Step 2: Assign the new company to the user in IdentityService
       await authAPI.assignCompany(newCompanyId);
 
-      setShowCompanyForm(false);
+      closeCompanyForm();
       // The user's state is updated by assignCompany, no need to reload page
     } catch (err) {
       console.error('Create company error:', err);
@@ -403,6 +417,13 @@ function AccountPage() {
 
   const currentUser = tokenManager.getUser();
   const hasCompany = currentUser && currentUser.companyId;
+
+  useEffect(() => {
+    const shouldOpenCompanyForm = searchParams.get('openCompanyForm') === '1';
+    if (shouldOpenCompanyForm && !hasCompany) {
+      setShowCompanyForm(true);
+    }
+  }, [searchParams, hasCompany]);
 
   const formatAuditDate = (value) => {
     if (!value) return '';
@@ -613,7 +634,7 @@ function AccountPage() {
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
           <h2>Zarejestruj swoją firmę</h2>
-          <button type="button" className="btn-close" onClick={() => setShowCompanyForm(false)} aria-label="Close"></button>
+          <button type="button" className="btn-close" onClick={closeCompanyForm} aria-label="Close"></button>
         </div>
         <form onSubmit={handleCompanyFormSubmit} className="admin-form">
           {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
@@ -739,7 +760,7 @@ function AccountPage() {
             </div>
           </div>
           <div className="admin-form__actions">
-            <button type="button" className="btn btn-outline" onClick={() => setShowCompanyForm(false)}>Anuluj</button>
+            <button type="button" className="btn btn-outline" onClick={closeCompanyForm}>Anuluj</button>
             <button type="submit" className="btn btn-primary" disabled={companyFormLoading}>
               {companyFormLoading ? 'Tworzenie firmy...' : 'Utwórz firmę'}
             </button>
@@ -760,22 +781,6 @@ function AccountPage() {
           </p>
         </div>
       </header>
-
-      {!hasCompany && (
-        <section className="dashboard-card">
-          <h2>Zostań partnerem REZERWUJ.TO</h2>
-          <p>
-            Chcesz dotrzeć do nowych klientów i usprawnić zarządzanie rezerwacjami w swojej firmie? Zarejestruj swój biznes na naszej platformie.
-          </p>
-          <button
-            type="button"
-            className="btn btn-primary form-button"
-            onClick={() => setShowCompanyForm(true)}
-          >
-            Dodaj swoją firmę
-          </button>
-        </section>
-      )}
 
       <section className="dashboard-card">
         <h2>Dane profilu</h2>

@@ -7,6 +7,12 @@ import { useEffect, useState } from 'react';
 function MainLayout({ children, theme, toggleTheme }) {
   const location = useLocation();
 
+  const [language, setLanguage] = useState(() => {
+    if (typeof window === 'undefined') return 'PL';
+    const stored = localStorage.getItem('language');
+    return stored === 'EN' ? 'EN' : 'PL';
+  });
+
   const [authState, setAuthState] = useState(() => ({
     isAuthenticated: tokenManager.isAuthenticated(),
     user: tokenManager.getUser(),
@@ -45,6 +51,25 @@ function MainLayout({ children, theme, toggleTheme }) {
   }${user?.lastName && user.lastName[0] ? user.lastName[0] : ''}`;
 
   const initials = initialsSource.toUpperCase().slice(0, 2);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('language', language);
+  }, [language]);
+
+  const toggleLanguage = () => {
+    setLanguage((prev) => (prev === 'PL' ? 'EN' : 'PL'));
+  };
+
+  const headerAuthLabel = language === 'PL' ? 'Zaloguj / Rejestruj' : 'Log in / Sign Up';
+  const headerBusinessLabel = language === 'PL' ? 'Dodaj firmę' : 'List your business';
+
+  const showListYourBusiness = !isAuthenticated || !user?.companyId;
+  const listYourBusinessTo = !isAuthenticated
+    ? '/login'
+    : user?.companyId
+      ? '/company-panel'
+      : '/account?openCompanyForm=1';
 
   const navLinkClass = (path) => {
     const isActive = location.pathname === path;
@@ -102,15 +127,64 @@ function MainLayout({ children, theme, toggleTheme }) {
           <div className="app-header-actions">
             {!isAuthenticated ? (
               <>
-                <Link to="/login" className="btn btn-outline header-login-btn">
-                  Logowanie
-                </Link>
-                <button type="button" className="theme-toggle" onClick={toggleTheme}>
-                  <span className="theme-toggle-icon" aria-hidden="true">
-                    {theme === 'light' ? <IconMoon filled={false} /> : <IconSun filled={false} />}
+                <Link to="/login" className="header-auth-btn">
+                  <span className="header-auth-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5Zm0 2c-4.418 0-8 2.015-8 4.5V21h16v-2.5c0-2.485-3.582-4.5-8-4.5Z"
+                        fill="currentColor"
+                      />
+                    </svg>
                   </span>
-                  <span className="theme-toggle-label">
-                    {theme === 'light' ? 'Tryb ciemny' : 'Tryb jasny'}
+                  <span className="header-auth-text">{headerAuthLabel}</span>
+                </Link>
+
+                <button
+                  type="button"
+                  className="header-lang-btn"
+                  aria-label="Wybór języka (placeholder)"
+                  onClick={toggleLanguage}
+                >
+                  {language}
+                </button>
+
+                {showListYourBusiness && (
+                  <Link to={listYourBusinessTo} className="header-business-link">
+                    {headerBusinessLabel}
+                  </Link>
+                )}
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={theme !== 'light'}
+                  className={
+                    theme === 'light'
+                      ? 'theme-toggle theme-toggle--icon'
+                      : 'theme-toggle theme-toggle--icon theme-toggle--dark'
+                  }
+                  onClick={toggleTheme}
+                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                >
+                  <span
+                    className={
+                      theme === 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconSun filled={false} />
+                  </span>
+                  <span
+                    className={
+                      theme !== 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconMoon filled={false} />
                   </span>
                 </button>
               </>
@@ -127,6 +201,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                     <span className="header-user-name">{displayName}</span>
                   </div>
                 </Link>
+
                 <button
                   type="button"
                   className="btn btn-outline header-login-btn"
@@ -134,12 +209,53 @@ function MainLayout({ children, theme, toggleTheme }) {
                 >
                   Wyloguj
                 </button>
-                <button type="button" className="theme-toggle" onClick={toggleTheme}>
-                  <span className="theme-toggle-icon" aria-hidden="true">
-                    {theme === 'light' ? <IconMoon filled={false} /> : <IconSun filled={false} />}
+
+                <button
+                  type="button"
+                  className="header-lang-btn"
+                  aria-label="Wybór języka (placeholder)"
+                  onClick={toggleLanguage}
+                >
+                  {language}
+                </button>
+
+                {showListYourBusiness && (
+                  <Link to={listYourBusinessTo} className="header-business-link">
+                    {headerBusinessLabel}
+                  </Link>
+                )}
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={theme !== 'light'}
+                  className={
+                    theme === 'light'
+                      ? 'theme-toggle theme-toggle--icon'
+                      : 'theme-toggle theme-toggle--icon theme-toggle--dark'
+                  }
+                  onClick={toggleTheme}
+                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                >
+                  <span
+                    className={
+                      theme === 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconSun filled={false} />
                   </span>
-                  <span className="theme-toggle-label">
-                    {theme === 'light' ? 'Tryb ciemny' : 'Tryb jasny'}
+                  <span
+                    className={
+                      theme !== 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconMoon filled={false} />
                   </span>
                 </button>
               </>

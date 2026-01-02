@@ -207,6 +207,24 @@ public class AppointmentsController : ControllerBase
             return BadRequest("DateStart is required");
         }
 
+        if (dto.DateStart < DateTime.UtcNow)
+        {
+            return BadRequest("Cannot book in the past");
+        }
+
+        var email = (dto.CustomerEmail ?? string.Empty).Trim();
+        var phone = SanitizePhoneNumber(dto.CustomerPhone ?? string.Empty);
+
+        if (!string.IsNullOrWhiteSpace(email) && !IsValidEmail(email))
+        {
+            return BadRequest("Invalid CustomerEmail");
+        }
+
+        if (!string.IsNullOrWhiteSpace(phone) && !IsValidPhone(phone))
+        {
+            return BadRequest("Invalid CustomerPhone");
+        }
+
         var computedEnd = dto.DateStart.AddMinutes(service.DurationMinutes);
 
         var daySlots = await _scheduleService.GetAvailableSlotsAsync(
@@ -275,16 +293,70 @@ public class AppointmentsController : ControllerBase
             UserId = GetUserId(User)
         });
 
-        var companyName = await _context.Companies
+        var companyInfo = await _context.Companies
             .AsNoTracking()
             .Where(c => c.Id == appointment.CompanyId)
-            .Select(c => c.CompanyName)
+            .Select(c => new
+            {
+                c.CompanyName,
+                c.Email,
+                c.Phone,
+                c.StreetName,
+                c.StreetNumber,
+                c.ApartmentNumber,
+                c.PostalCode,
+                c.City,
+                c.Country
+            })
             .FirstOrDefaultAsync();
 
-        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
-        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+        var branchInfo = await _context.Branches
+            .AsNoTracking()
+            .Where(b => b.Id == appointment.BranchId && b.CompanyId == appointment.CompanyId)
+            .Select(b => new
+            {
+                b.BranchName,
+                b.Phone,
+                b.StreetName,
+                b.StreetNumber,
+                b.ApartmentNumber,
+                b.PostalCode,
+                b.City,
+                b.Country
+            })
+            .FirstOrDefaultAsync();
 
-        var userIdForEvent = GetUserId(User)
+        var addressFull = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetName : companyInfo?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetNumber : companyInfo?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.ApartmentNumber : companyInfo?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.PostalCode : companyInfo?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(branchInfo?.City) ? branchInfo!.City : companyInfo?.City,
+            country: !string.IsNullOrWhiteSpace(branchInfo?.Country) ? branchInfo!.Country : companyInfo?.Country);
+
+        var addressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(branchInfo?.City) ? branchInfo!.City : companyInfo?.City,
+            streetName: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetName : companyInfo?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetNumber : companyInfo?.StreetNumber);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(branchInfo?.Phone) ? branchInfo!.Phone : companyInfo?.Phone;
+
+        var recipientEmail = !string.IsNullOrWhiteSpace(email)
+            ? email
+            : (IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null);
+
+        var customerIdPhone = SanitizePhoneNumber(appointment.CustomerId);
+        var recipientPhone = !string.IsNullOrWhiteSpace(phone)
+            ? phone
+            : (IsValidPhone(customerIdPhone) ? customerIdPhone : null);
+
+        var customerUserId = (!string.IsNullOrWhiteSpace(appointment.CustomerId)
+            && !appointment.CustomerId.Contains('@')
+            && !appointment.CustomerId.StartsWith("+"))
+            ? appointment.CustomerId
+            : null;
+
+        var userIdForEvent = customerUserId
             ?? recipientEmail
             ?? recipientPhone
             ?? string.Empty;
@@ -295,7 +367,12 @@ public class AppointmentsController : ControllerBase
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = service.ServiceName,
-            companyName = companyName ?? string.Empty,
+            companyName = companyInfo?.CompanyName ?? string.Empty,
+            branchName = branchInfo?.BranchName,
+            companyEmail = companyInfo?.Email,
+            companyPhone = companyPhone,
+            companyAddress = addressFull,
+            companyAddressShort = addressShort,
             recipientEmail = recipientEmail,
             recipientPhone = recipientPhone
         });
@@ -326,11 +403,25 @@ public class AppointmentsController : ControllerBase
             return BadRequest("DateStart is required");
         }
 
+        if (dto.DateStart < DateTime.UtcNow)
+        {
+            return BadRequest("Cannot book in the past");
+        }
+
         var email = (dto.CustomerEmail ?? string.Empty).Trim();
         var phone = SanitizePhoneNumber(dto.CustomerPhone ?? string.Empty);
 
         var hasEmail = !string.IsNullOrWhiteSpace(email);
         var hasPhone = !string.IsNullOrWhiteSpace(phone);
+
+        var phoneClaim = User.FindFirst("phone")?.Value ?? User.FindFirst(ClaimTypes.MobilePhone)?.Value;
+        phoneClaim = SanitizePhoneNumber(phoneClaim ?? string.Empty);
+
+        if (!hasPhone && !string.IsNullOrWhiteSpace(phoneClaim) && IsValidPhone(phoneClaim))
+        {
+            phone = phoneClaim;
+            hasPhone = true;
+        }
 
         if (!hasEmail && !hasPhone)
         {
@@ -416,11 +507,53 @@ public class AppointmentsController : ControllerBase
             UserId = GetUserId(User)
         });
 
-        var companyName = await _context.Companies
+        var companyInfo = await _context.Companies
             .AsNoTracking()
             .Where(c => c.Id == appointment.CompanyId)
-            .Select(c => c.CompanyName)
+            .Select(c => new
+            {
+                c.CompanyName,
+                c.Email,
+                c.Phone,
+                c.StreetName,
+                c.StreetNumber,
+                c.ApartmentNumber,
+                c.PostalCode,
+                c.City,
+                c.Country
+            })
             .FirstOrDefaultAsync();
+
+        var branchInfo = await _context.Branches
+            .AsNoTracking()
+            .Where(b => b.Id == appointment.BranchId && b.CompanyId == appointment.CompanyId)
+            .Select(b => new
+            {
+                b.BranchName,
+                b.Phone,
+                b.StreetName,
+                b.StreetNumber,
+                b.ApartmentNumber,
+                b.PostalCode,
+                b.City,
+                b.Country
+            })
+            .FirstOrDefaultAsync();
+
+        var addressFull = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetName : companyInfo?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetNumber : companyInfo?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.ApartmentNumber : companyInfo?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.PostalCode : companyInfo?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(branchInfo?.City) ? branchInfo!.City : companyInfo?.City,
+            country: !string.IsNullOrWhiteSpace(branchInfo?.Country) ? branchInfo!.Country : companyInfo?.Country);
+
+        var addressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(branchInfo?.City) ? branchInfo!.City : companyInfo?.City,
+            streetName: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetName : companyInfo?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(branchInfo?.StreetName) ? branchInfo!.StreetNumber : companyInfo?.StreetNumber);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(branchInfo?.Phone) ? branchInfo!.Phone : companyInfo?.Phone;
 
         var recipientEmail = hasEmail ? email : null;
         var recipientPhone = hasPhone ? phone : null;
@@ -436,7 +569,12 @@ public class AppointmentsController : ControllerBase
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = service.ServiceName,
-            companyName = companyName ?? string.Empty,
+            companyName = companyInfo?.CompanyName ?? string.Empty,
+            branchName = branchInfo?.BranchName,
+            companyEmail = companyInfo?.Email,
+            companyPhone = companyPhone,
+            companyAddress = addressFull,
+            companyAddressShort = addressShort,
             recipientEmail = recipientEmail,
             recipientPhone = recipientPhone
         });
@@ -483,6 +621,7 @@ public class AppointmentsController : ControllerBase
         var appointment = await _context.Appointments
             .Include(a => a.Service)
             .Include(a => a.Company)
+            .Include(a => a.Branch)
             .FirstOrDefaultAsync(a => a.Id == id);
         if (appointment == null)
         {
@@ -507,12 +646,36 @@ public class AppointmentsController : ControllerBase
         });
 
         var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
-        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+        var customerIdPhone = SanitizePhoneNumber(appointment.CustomerId);
+        var recipientPhone = IsValidPhone(customerIdPhone) ? customerIdPhone : null;
 
-        var userIdForEvent = GetUserId(User)
+        var customerUserId = (!string.IsNullOrWhiteSpace(appointment.CustomerId)
+            && !appointment.CustomerId.Contains('@')
+            && !appointment.CustomerId.StartsWith("+"))
+            ? appointment.CustomerId
+            : null;
+
+        var userIdForEvent = customerUserId
             ?? recipientEmail
             ?? recipientPhone
             ?? string.Empty;
+
+        var addressFull = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.ApartmentNumber : appointment.Company?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.PostalCode : appointment.Company?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            country: !string.IsNullOrWhiteSpace(appointment.Branch?.Country) ? appointment.Branch!.Country : appointment.Company?.Country);
+
+        var addressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(appointment.Branch?.Phone)
+            ? appointment.Branch!.Phone
+            : appointment.Company?.Phone;
 
         _eventPublisher.Publish("appointment.cancelled", new
         {
@@ -521,6 +684,11 @@ public class AppointmentsController : ControllerBase
             appointmentDate = appointment.DateStart,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
+            branchName = appointment.Branch?.BranchName,
+            companyEmail = appointment.Company?.Email,
+            companyPhone = companyPhone,
+            companyAddress = addressFull,
+            companyAddressShort = addressShort,
             recipientEmail = recipientEmail,
             recipientPhone = recipientPhone
         });
@@ -536,6 +704,7 @@ public class AppointmentsController : ControllerBase
         var appointment = await _context.Appointments
             .Include(a => a.Service)
             .Include(a => a.Company)
+            .Include(a => a.Branch)
             .FirstOrDefaultAsync(a => a.Id == id);
         if (appointment == null)
         {
@@ -546,8 +715,15 @@ public class AppointmentsController : ControllerBase
         var email = User.FindFirst("email")?.Value ?? User.FindFirst(ClaimTypes.Email)?.Value;
         email = email?.Trim();
 
+        var phone = User.FindFirst("phone")?.Value ?? User.FindFirst(ClaimTypes.MobilePhone)?.Value;
+        phone = SanitizePhoneNumber(phone ?? string.Empty);
+
+        var customerIdPhone = SanitizePhoneNumber(appointment.CustomerId);
+
         var isOwner = (!string.IsNullOrWhiteSpace(userId) && appointment.CustomerId == userId)
-            || (!string.IsNullOrWhiteSpace(email) && appointment.CustomerId == email);
+            || (!string.IsNullOrWhiteSpace(email) && appointment.CustomerId == email)
+            || (!string.IsNullOrWhiteSpace(phone) && !string.IsNullOrWhiteSpace(customerIdPhone)
+                && string.Equals(customerIdPhone, phone, StringComparison.Ordinal));
 
         if (!isOwner)
         {
@@ -572,12 +748,33 @@ public class AppointmentsController : ControllerBase
         });
 
         var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
-        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+        var recipientPhone = IsValidPhone(customerIdPhone) ? customerIdPhone : null;
+        if (string.IsNullOrWhiteSpace(recipientPhone) && !string.IsNullOrWhiteSpace(phone) && IsValidPhone(phone))
+        {
+            recipientPhone = phone;
+        }
 
         var userIdForEvent = GetUserId(User)
             ?? recipientEmail
             ?? recipientPhone
             ?? string.Empty;
+
+        var addressFull = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.ApartmentNumber : appointment.Company?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.PostalCode : appointment.Company?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            country: !string.IsNullOrWhiteSpace(appointment.Branch?.Country) ? appointment.Branch!.Country : appointment.Company?.Country);
+
+        var addressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(appointment.Branch?.Phone)
+            ? appointment.Branch!.Phone
+            : appointment.Company?.Phone;
 
         _eventPublisher.Publish("appointment.cancelled", new
         {
@@ -586,6 +783,11 @@ public class AppointmentsController : ControllerBase
             appointmentDate = appointment.DateStart,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
+            branchName = appointment.Branch?.BranchName,
+            companyEmail = appointment.Company?.Email,
+            companyPhone = companyPhone,
+            companyAddress = addressFull,
+            companyAddressShort = addressShort,
             recipientEmail = recipientEmail,
             recipientPhone = recipientPhone
         });
@@ -702,7 +904,60 @@ public class AppointmentsController : ControllerBase
 
     private static bool IsValidPhone(string value)
     {
-        return Regex.IsMatch(value.Trim(), "^\\+\\d{1,3}(\\s?\\d{3}){3}$", RegexOptions.CultureInvariant);
+        return Regex.IsMatch(value.Trim(), "^\\+\\d{8,15}$", RegexOptions.CultureInvariant);
+    }
+
+    private static string BuildAddress(
+        string? streetName,
+        string? streetNumber,
+        string? apartmentNumber,
+        string? postalCode,
+        string? city,
+        string? country)
+    {
+        var parts = new List<string>();
+
+        var street = string.Join(" ", new[] { streetName, streetNumber }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(street) && !string.IsNullOrWhiteSpace(apartmentNumber))
+        {
+            street = $"{street}/{apartmentNumber.Trim()}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(street))
+        {
+            parts.Add(street);
+        }
+
+        var cityLine = string.Join(" ", new[] { postalCode, city }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(cityLine))
+        {
+            parts.Add(cityLine);
+        }
+
+        if (!string.IsNullOrWhiteSpace(country))
+        {
+            parts.Add(country.Trim());
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    private static string BuildAddressShort(string? city, string? streetName, string? streetNumber)
+    {
+        var street = string.Join(" ", new[] { streetName, streetNumber }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(city)) parts.Add(city.Trim());
+        if (!string.IsNullOrWhiteSpace(street)) parts.Add(street);
+        return string.Join(", ", parts);
     }
 
     private async Task TryStoreEventAsync(DomainEvent domainEvent)
@@ -732,6 +987,8 @@ public class AppointmentCreateDto
 {
     public int ServiceId { get; set; }
     public string CustomerId { get; set; } = string.Empty;
+    public string? CustomerEmail { get; set; }
+    public string? CustomerPhone { get; set; }
     public string StaffId { get; set; } = string.Empty;
     public DateTime DateStart { get; set; }
     public DateTime DateEnd { get; set; }

@@ -158,6 +158,7 @@ public class RabbitMQConsumer : BackgroundService
         var channels = new List<NotificationChannel>();
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (AppointmentMessageBuilder.IsRealUserId(appointmentData.UserId)) channels.Add(NotificationChannel.InApp);
         if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
         var metadata = JsonSerializer.Serialize(new
@@ -167,14 +168,23 @@ public class RabbitMQConsumer : BackgroundService
             recipientPhone = appointmentData.RecipientPhone,
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
-            appointmentId = appointmentData.AppointmentId
+            appointmentId = appointmentData.AppointmentId,
+            branchName = appointmentData.BranchName,
+            companyEmail = appointmentData.CompanyEmail,
+            companyPhone = appointmentData.CompanyPhone,
+            companyAddress = appointmentData.CompanyAddress,
+            companyAddressShort = appointmentData.CompanyAddressShort
         }, MetadataSerializerOptions);
 
         var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
-            Title = "Potwierdzenie rezerwacji",
-            Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} o godz. {appointmentData.AppointmentDate:HH:mm} została potwierdzona.",
+            Title = ch == NotificationChannel.SMS ? "Rezerwacja" : "Potwierdzenie rezerwacji",
+            Message = ch == NotificationChannel.Email
+                ? AppointmentMessageBuilder.BuildEmailBodyCreated(appointmentData)
+                : ch == NotificationChannel.SMS
+                    ? AppointmentMessageBuilder.BuildSmsBodyCreated(appointmentData)
+                    : AppointmentMessageBuilder.BuildInAppBodyCreated(appointmentData),
             Type = NotificationType.AppointmentConfirmation,
             Channel = ch,
             RelatedAppointmentId = appointmentData.AppointmentId,
@@ -200,6 +210,7 @@ public class RabbitMQConsumer : BackgroundService
         var channels = new List<NotificationChannel>();
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (AppointmentMessageBuilder.IsRealUserId(appointmentData.UserId)) channels.Add(NotificationChannel.InApp);
         if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
         var metadata = JsonSerializer.Serialize(new
@@ -209,14 +220,23 @@ public class RabbitMQConsumer : BackgroundService
             recipientPhone = appointmentData.RecipientPhone,
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
-            appointmentId = appointmentData.AppointmentId
+            appointmentId = appointmentData.AppointmentId,
+            branchName = appointmentData.BranchName,
+            companyEmail = appointmentData.CompanyEmail,
+            companyPhone = appointmentData.CompanyPhone,
+            companyAddress = appointmentData.CompanyAddress,
+            companyAddressShort = appointmentData.CompanyAddressShort
         }, MetadataSerializerOptions);
 
         var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
-            Title = "Anulowanie rezerwacji",
-            Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} została anulowana.",
+            Title = ch == NotificationChannel.SMS ? "Rezerwacja" : "Anulowanie rezerwacji",
+            Message = ch == NotificationChannel.Email
+                ? AppointmentMessageBuilder.BuildEmailBodyCancelled(appointmentData)
+                : ch == NotificationChannel.SMS
+                    ? AppointmentMessageBuilder.BuildSmsBodyCancelled(appointmentData)
+                    : AppointmentMessageBuilder.BuildInAppBodyCancelled(appointmentData),
             Type = NotificationType.AppointmentCancellation,
             Channel = ch,
             RelatedAppointmentId = appointmentData.AppointmentId,
@@ -242,6 +262,7 @@ public class RabbitMQConsumer : BackgroundService
         var channels = new List<NotificationChannel>();
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
         if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (AppointmentMessageBuilder.IsRealUserId(appointmentData.UserId)) channels.Add(NotificationChannel.InApp);
         if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
         var metadata = JsonSerializer.Serialize(new
@@ -251,14 +272,23 @@ public class RabbitMQConsumer : BackgroundService
             recipientPhone = appointmentData.RecipientPhone,
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
-            appointmentId = appointmentData.AppointmentId
+            appointmentId = appointmentData.AppointmentId,
+            branchName = appointmentData.BranchName,
+            companyEmail = appointmentData.CompanyEmail,
+            companyPhone = appointmentData.CompanyPhone,
+            companyAddress = appointmentData.CompanyAddress,
+            companyAddressShort = appointmentData.CompanyAddressShort
         }, MetadataSerializerOptions);
 
         var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
             Title = "Przypomnienie o wizycie",
-            Message = $"Przypominamy o wizycie na {appointmentData.ServiceName} jutro o godz. {appointmentData.AppointmentDate:HH:mm}.",
+            Message = ch == NotificationChannel.Email
+                ? AppointmentMessageBuilder.BuildEmailBodyReminder(appointmentData)
+                : ch == NotificationChannel.SMS
+                    ? AppointmentMessageBuilder.BuildSmsBodyReminder(appointmentData)
+                    : AppointmentMessageBuilder.BuildInAppBodyReminder(appointmentData),
             Type = NotificationType.AppointmentReminder,
             Channel = ch,
             RelatedAppointmentId = appointmentData.AppointmentId,
@@ -293,4 +323,146 @@ public class AppointmentEventData
     public string CompanyName { get; set; } = string.Empty;
     public string? RecipientEmail { get; set; }
     public string? RecipientPhone { get; set; }
+    public string? BranchName { get; set; }
+    public string? CompanyEmail { get; set; }
+    public string? CompanyPhone { get; set; }
+    public string? CompanyAddress { get; set; }
+    public string? CompanyAddressShort { get; set; }
+}
+
+internal static class AppointmentMessageBuilder
+{
+    public static bool IsRealUserId(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return false;
+        var v = userId.Trim();
+        if (v.Contains('@')) return false;
+        if (v.StartsWith('+')) return false;
+        return true;
+    }
+
+    private static string LocationShort(AppointmentEventData d)
+    {
+        return string.IsNullOrWhiteSpace(d.CompanyAddressShort)
+            ? (string.IsNullOrWhiteSpace(d.CompanyName) ? "" : d.CompanyName)
+            : d.CompanyAddressShort;
+    }
+
+    private static string LocationFull(AppointmentEventData d)
+    {
+        return string.IsNullOrWhiteSpace(d.CompanyAddress)
+            ? LocationShort(d)
+            : d.CompanyAddress;
+    }
+
+    public static string BuildEmailBodyCreated(AppointmentEventData d)
+    {
+        var whenLine = d.AppointmentDate.ToString("dd.MM.yyyy HH:mm");
+        var location = LocationFull(d);
+        var contact = string.Join(" ", new[] { d.CompanyPhone, d.CompanyEmail }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        var lines = new List<string>
+        {
+            "Twoja rezerwacja została potwierdzona.",
+            "",
+            $"Usługa: {d.ServiceName}",
+            $"Firma: {d.CompanyName}",
+            string.IsNullOrWhiteSpace(d.BranchName) ? $"Lokalizacja: {location}" : $"Oddział: {d.BranchName} | Lokalizacja: {location}",
+            $"Termin: {whenLine}",
+            $"ID rezerwacji: {d.AppointmentId}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(contact))
+        {
+            lines.Add($"Kontakt: {contact}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    public static string BuildSmsBodyCreated(AppointmentEventData d)
+    {
+        return $"{d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildInAppBodyCreated(AppointmentEventData d)
+    {
+        return $"Potwierdzono: {d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildEmailBodyCancelled(AppointmentEventData d)
+    {
+        var whenLine = d.AppointmentDate.ToString("dd.MM.yyyy HH:mm");
+        var location = LocationFull(d);
+        var contact = string.Join(" ", new[] { d.CompanyPhone, d.CompanyEmail }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        var lines = new List<string>
+        {
+            "Twoja rezerwacja została anulowana.",
+            "",
+            $"Usługa: {d.ServiceName}",
+            $"Firma: {d.CompanyName}",
+            string.IsNullOrWhiteSpace(d.BranchName) ? $"Lokalizacja: {location}" : $"Oddział: {d.BranchName} | Lokalizacja: {location}",
+            $"Termin: {whenLine}",
+            $"ID rezerwacji: {d.AppointmentId}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(contact))
+        {
+            lines.Add($"Kontakt: {contact}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    public static string BuildSmsBodyCancelled(AppointmentEventData d)
+    {
+        return $"{d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildInAppBodyCancelled(AppointmentEventData d)
+    {
+        return $"Anulowano: {d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildEmailBodyReminder(AppointmentEventData d)
+    {
+        var whenLine = d.AppointmentDate.ToString("dd.MM.yyyy HH:mm");
+        var location = LocationFull(d);
+        var contact = string.Join(" ", new[] { d.CompanyPhone, d.CompanyEmail }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        var lines = new List<string>
+        {
+            "Przypomnienie o wizycie.",
+            "",
+            $"Usługa: {d.ServiceName}",
+            $"Firma: {d.CompanyName}",
+            string.IsNullOrWhiteSpace(d.BranchName) ? $"Lokalizacja: {location}" : $"Oddział: {d.BranchName} | Lokalizacja: {location}",
+            $"Termin: {whenLine}",
+            $"ID rezerwacji: {d.AppointmentId}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(contact))
+        {
+            lines.Add($"Kontakt: {contact}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    public static string BuildSmsBodyReminder(AppointmentEventData d)
+    {
+        return $"{d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildInAppBodyReminder(AppointmentEventData d)
+    {
+        return $"Przypomnienie: {d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
 }

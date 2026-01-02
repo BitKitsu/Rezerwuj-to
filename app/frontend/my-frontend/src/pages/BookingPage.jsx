@@ -54,6 +54,28 @@ function BookingPage() {
     customerPhone: "",
   });
 
+  const [contactErrors, setContactErrors] = useState({
+    customerEmail: "",
+    customerPhone: "",
+  });
+
+  const validateContact = (next) => {
+    const email = String(next.customerEmail || "").trim();
+    const phone = sanitizePhoneNumberInput(next.customerPhone);
+
+    const hasEmail = email.length > 0;
+    const hasPhone = phone.length > 0;
+
+    const emailOk = !hasEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const phoneOk = !hasPhone || /^\+\d{1,3}(\s?\d{3}){3}$/.test(phone);
+
+    return {
+      customerEmail: emailOk ? "" : "Niepoprawny email.",
+      customerPhone: phoneOk ? "" : "Niepoprawny numer telefonu.",
+      _bothMissing: !hasEmail && !hasPhone ? "Podaj email lub numer telefonu." : "",
+    };
+  };
+
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
@@ -233,10 +255,44 @@ function BookingPage() {
     setSubmitError("");
     setSubmitSuccess("");
     if (name === "customerPhone") {
-      setForm((prev) => ({ ...prev, [name]: formatPhoneDisplay(value) }));
+      setForm((prev) => {
+        const next = { ...prev, [name]: formatPhoneDisplay(value) };
+        const nextErrors = validateContact(next);
+        setContactErrors({
+          customerEmail: nextErrors.customerEmail,
+          customerPhone: nextErrors.customerPhone,
+        });
+        return next;
+      });
       return;
     }
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+      if (name === "customerEmail") {
+        const nextErrors = validateContact(next);
+        setContactErrors({
+          customerEmail: nextErrors.customerEmail,
+          customerPhone: nextErrors.customerPhone,
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    if (name !== "customerEmail") return;
+
+    const trimmed = String(value || "").trim();
+    setForm((prev) => {
+      const next = { ...prev, customerEmail: trimmed };
+      const nextErrors = validateContact(next);
+      setContactErrors({
+        customerEmail: nextErrors.customerEmail,
+        customerPhone: nextErrors.customerPhone,
+      });
+      return next;
+    });
   };
 
   const sanitizePhone = (value) => sanitizePhoneNumberInput(value);
@@ -311,6 +367,15 @@ function BookingPage() {
       setSubmitLoading(false);
     }
   };
+
+  useEffect(() => {
+    const nextErrors = validateContact(form);
+    setContactErrors({
+      customerEmail: nextErrors.customerEmail,
+      customerPhone: nextErrors.customerPhone,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (loading) {
     return <div className="list-page">Ładowanie...</div>;
@@ -439,10 +504,14 @@ function BookingPage() {
                 name="customerEmail"
                 value={form.customerEmail}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 className="list-filter-input"
                 placeholder="np. jan@x.pl"
                 disabled={profileLoading}
               />
+              {contactErrors.customerEmail ? (
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{contactErrors.customerEmail}</div>
+              ) : null}
             </div>
 
             <div>
@@ -456,6 +525,9 @@ function BookingPage() {
                 placeholder="np. +48 123 123 123"
                 disabled={profileLoading}
               />
+              {contactErrors.customerPhone ? (
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{contactErrors.customerPhone}</div>
+              ) : null}
             </div>
           </div>
 

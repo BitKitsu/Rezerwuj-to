@@ -11,14 +11,48 @@ function LoginPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const removeWhitespace = (value) => String(value ?? '').replace(/\s+/g, '');
+
   const handleClose = () => {
     navigate('/');
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    const nextValue = name === 'loginIdentifier' || name === 'password' ? value.trim() : value;
 
+    if (name === 'loginIdentifier' || name === 'password') {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: removeWhitespace(value)
+      }));
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleKeyDownNoWhitespace = (e) => {
+    if (e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+    }
+  };
+
+  const handlePasteNoWhitespace = (e) => {
+    const name = e.target?.name;
+    if (name !== 'loginIdentifier' && name !== 'password') return;
+
+    const pasted = e.clipboardData?.getData('text') ?? '';
+    const sanitized = removeWhitespace(pasted);
+
+    const target = e.target;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? target.value.length;
+    const nextValue = `${target.value.slice(0, start)}${sanitized}${target.value.slice(end)}`;
+
+    e.preventDefault();
     setFormData((prev) => ({
       ...prev,
       [name]: nextValue
@@ -31,10 +65,13 @@ function LoginPage() {
     setLoading(true);
 
     try {
+      const next = {
+        loginIdentifier: removeWhitespace(formData.loginIdentifier),
+        password: removeWhitespace(formData.password)
+      };
+
       await authAPI.login({
-        ...formData,
-        loginIdentifier: formData.loginIdentifier.trim(),
-        password: formData.password.trim()
+        ...next
       });
       
       // JWT tokeny są automatycznie zapisywane w authAPI.login()
@@ -57,6 +94,10 @@ function LoginPage() {
       setLoading(false);
     }
   };
+
+  const canSubmit = !loading
+    && String(formData.loginIdentifier || '').length > 0
+    && String(formData.password || '').length > 0;
 
   return (
     <div className="auth-modal-overlay" onClick={handleClose}>
@@ -85,6 +126,8 @@ function LoginPage() {
                 name="loginIdentifier"
                 value={formData.loginIdentifier}
                 onChange={handleChange}
+                onKeyDown={handleKeyDownNoWhitespace}
+                onPaste={handlePasteNoWhitespace}
                 required
                 className="form-input"
                 placeholder="jan@example.com"
@@ -102,6 +145,8 @@ function LoginPage() {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
+                onKeyDown={handleKeyDownNoWhitespace}
+                onPaste={handlePasteNoWhitespace}
                 required
                 className="form-input"
                 placeholder="••••••••"
@@ -111,7 +156,7 @@ function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={!canSubmit}
               className="btn btn-primary form-button"
             >
               {loading ? 'Logowanie...' : 'Zaloguj'}

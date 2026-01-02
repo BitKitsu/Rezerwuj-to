@@ -276,6 +276,11 @@ h2 {
 }
 
 .services-state-error {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text);
+}
+
+.services-state-danger {
   border-color: var(--color-danger);
   color: var(--color-danger);
 }
@@ -584,6 +589,12 @@ h2 {
 }
 
 .form-message-error {
+  background-color: var(--color-bg-soft);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text);
+}
+
+.form-message-danger {
   background-color: rgba(239, 68, 68, 0.08);
   border: 1px solid var(--color-danger);
   color: var(--color-danger);
@@ -692,6 +703,11 @@ h2 {
 }
 
 .list-state-error {
+  border-color: var(--color-border-subtle);
+  color: var(--color-text);
+}
+
+.list-state-danger {
   border-color: var(--color-danger);
   color: var(--color-danger);
 }

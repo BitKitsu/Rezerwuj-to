@@ -15,6 +15,34 @@ print_header() {
     echo -e "${BLUE}========================================${NC}"
 }
 
+ensure_frontend_deps() {
+    if [ ! -d "app/frontend/my-frontend" ]; then
+        return 1
+    fi
+
+    cd app/frontend/my-frontend
+
+    local rc=0
+
+    if [ -f "package-lock.json" ]; then
+        if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ] || [ "package-lock.json" -nt "node_modules/.package-lock.json" ]; then
+            print_info "Instalowanie pakietów npm (npm ci)..."
+            npm ci
+            rc=$?
+        fi
+    else
+        if [ ! -d "node_modules" ]; then
+            print_info "Instalowanie pakietów npm..."
+            npm install
+            rc=$?
+        fi
+    fi
+
+    cd ../../..
+
+    return $rc
+}
+
 print_success() {
     echo -e "${GREEN}$1${NC}"
 }
@@ -34,6 +62,8 @@ check_port() {
 
 DOCKER_CONFIG_TEMP_DIR=""
 
+ENDPOINTS_PRINTED=0
+
 cleanup_docker_config_workaround() {
     if [ -n "$DOCKER_CONFIG_TEMP_DIR" ] && [ -d "$DOCKER_CONFIG_TEMP_DIR" ]; then
         rm -rf "$DOCKER_CONFIG_TEMP_DIR"
@@ -41,6 +71,10 @@ cleanup_docker_config_workaround() {
 }
 
 print_endpoints() {
+    if [ "${ENDPOINTS_PRINTED:-0}" = "1" ]; then
+        return 0
+    fi
+    ENDPOINTS_PRINTED=1
     print_header "DOSTĘPNE ADRESY"
     echo "Aplikacja (Frontend): http://localhost:5173"
     echo "API Gateway:         http://localhost:5000"
@@ -130,7 +164,7 @@ start_backend() {
     fi
 
     print_endpoints
-    
+
     cd ../..
 }
 
@@ -186,25 +220,26 @@ restart_backend() {
     
     cd app/backend
     
-    print_info "Zatrzymywanie kontenerów..."
-    docker-compose down
-    if [ $? -ne 0 ]; then
-        print_error "Docker Compose down nie powiódł się."
-        cd ../..
-        return 1
-    fi
-    
-    print_info "Budowanie i uruchamianie..."
-    docker-compose up --build -d
+    print_info "Uruchamianie (jeśli nie działa)..."
+    docker-compose up -d
     if [ $? -ne 0 ]; then
         print_error "Docker Compose up nie wystartował poprawnie."
         print_info "Sprawdź: docker-compose logs"
         cd ../..
         return 1
     fi
+
+    print_info "Restartowanie kontenerów..."
+    docker-compose restart
+    if [ $? -ne 0 ]; then
+        print_error "Docker Compose restart nie powiódł się."
+        print_info "Sprawdź: docker-compose logs"
+        cd ../..
+        return 1
+    fi
     
-    print_info "Czekanie na inicjalizację (25 sekund)..."
-    sleep 25
+    print_info "Czekanie na inicjalizację (15 sekund)..."
+    sleep 15
     
     # Status
     docker-compose ps
@@ -217,8 +252,6 @@ restart_backend() {
     else
         print_error "Nie działa!"
     fi
-
-    print_endpoints
     
     cd ../..
 }
@@ -227,14 +260,10 @@ start_frontend() {
     print_header "URUCHAMIANIE FRONTEND"
 
     print_endpoints
-    
+
+    ensure_frontend_deps || return 1
+
     cd app/frontend/my-frontend
-    
-    # Sprawdź czy node_modules istnieje
-    if [ ! -d "node_modules" ]; then
-        print_info "Instalowanie pakietów npm..."
-        npm install
-    fi
     
     print_info "Uruchamianie React..."
     npm run dev
@@ -275,6 +304,8 @@ run_all() {
     echo ""
     echo "Aby zatrzymać: Ctrl+C, potem: ./manage.sh stop"
     echo ""
+
+    ENDPOINTS_PRINTED=1
     
     start_frontend
 }
@@ -427,7 +458,6 @@ test_system() {
         print_error "API nie zwraca poprawnych danych"
     fi
 
-    print_endpoints
 }
 
 show_logs() {
@@ -532,17 +562,13 @@ ci_test() {
     echo ""
     print_info "4. TEST FRONTEND (symulacja GitHub Actions)..."
     if [ -d "app/frontend/my-frontend" ]; then
-        cd app/frontend/my-frontend
-        
-        # Check if node_modules exists
-        if [ ! -d "node_modules" ]; then
-            print_info "   Installing dependencies (npm ci)..."
-            if npm ci > /dev/null 2>&1; then
-                echo -e "   ${GREEN}✓${NC} Dependencies installed"
-            else
-                echo -e "   ${RED}✗${NC} Failed to install dependencies"
-            fi
+        if ensure_frontend_deps > /dev/null 2>&1; then
+            echo -e "   ${GREEN}✓${NC} Dependencies installed"
+        else
+            echo -e "   ${RED}✗${NC} Failed to install dependencies"
         fi
+
+        cd app/frontend/my-frontend
         
         # Run linter
         print_info "   Running linter..."

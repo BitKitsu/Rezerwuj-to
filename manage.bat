@@ -7,6 +7,9 @@ setlocal enabledelayedexpansion
 set "COMMAND=%1"
 set "ARG2=%2"
 
+set "ENDPOINTS_PRINTED=0"
+set "FRONTEND_DEPS_INSTALLED=0"
+
 if "%COMMAND%"=="" (
     set COMMAND=help
 )
@@ -138,13 +141,13 @@ echo ========================================
 echo RESTART BACKEND
 echo ========================================
 cd app\backend
-echo Zatrzymywanie kontenerow...
-docker-compose down
-echo Budowanie i uruchamianie...
-docker-compose up --build -d
+echo Uruchamianie (jesli nie dziala)...
+docker-compose up -d
+echo Restartowanie kontenerow...
+docker-compose restart
 echo.
-echo Czekanie na inicjalizacje (25 sekund)...
-timeout /t 25 /nobreak >nul
+echo Czekanie na inicjalizacje (15 sekund)...
+timeout /t 15 /nobreak >nul
 
 docker-compose ps
 
@@ -157,7 +160,6 @@ curl -s http://localhost:5002/api/services >nul 2>&1 && (
 )
 cd ..\..
 echo %GREEN%System zrestartowany!%NC%
-call :print_endpoints
 exit /b 0
 
 :reset
@@ -311,11 +313,11 @@ curl -s http://localhost:5000/reservation/services | findstr /i "serviceName" >n
     echo %RED%API nie zwraca poprawnych danych%NC%
 )
 
-call :print_endpoints
-
 exit /b 0
 
 :print_endpoints
+if "%ENDPOINTS_PRINTED%"=="1" exit /b 0
+set "ENDPOINTS_PRINTED=1"
 echo.
 echo ========================================
 echo DOSTEPNE ADRESY
@@ -332,17 +334,48 @@ echo MailHog UI:          http://localhost:8025
 echo PostgreSQL:          localhost:5433
 exit /b 0
 
+:ensure_frontend_deps
+if "%FRONTEND_DEPS_INSTALLED%"=="1" exit /b 0
+set "FRONTEND_DEPS_INSTALLED=1"
+
+if not exist app\frontend\my-frontend exit /b 1
+
+:: prefer npm ci when package-lock.json exists and is newer than node_modules\.package-lock.json
+pushd app\frontend\my-frontend
+if exist package-lock.json (
+    if not exist node_modules (goto :do_npm_ci)
+    if not exist node_modules\.package-lock.json (goto :do_npm_ci)
+    powershell -NoProfile -Command "if((Get-Item 'package-lock.json').LastWriteTimeUtc -gt (Get-Item 'node_modules\\.package-lock.json').LastWriteTimeUtc){ exit 0 } else { exit 1 }" >nul 2>&1
+    if not errorlevel 1 (goto :do_npm_ci)
+    goto :deps_done
+)
+
+if not exist node_modules (
+    echo Instalowanie pakietow npm...
+    npm install
+    if errorlevel 1 (popd & exit /b 1)
+)
+goto :deps_done
+
+:do_npm_ci
+echo Instalowanie pakietow npm (npm ci)...
+npm ci
+if errorlevel 1 (popd & exit /b 1)
+copy /y package-lock.json node_modules\.package-lock.json >nul 2>&1
+goto :deps_done
+
+:deps_done
+popd
+exit /b 0
+
 :frontend
 echo.
 echo ========================================
 echo URUCHAMIANIE FRONTEND
 echo ========================================
 call :print_endpoints
+call :ensure_frontend_deps
 cd app\frontend\my-frontend
-if not exist node_modules (
-    echo Instalowanie pakietow npm...
-    npm install
-)
 echo Uruchamianie React...
 npm run dev
 cd ..\..\..
@@ -377,6 +410,7 @@ echo   Haslo: Test123!
 echo.
 echo Aby zatrzymac: Ctrl+C, potem: manage.bat stop
 echo.
+set "ENDPOINTS_PRINTED=1"
 call :frontend
 exit /b 0
 
@@ -482,15 +516,8 @@ cd ..\..
 echo.
 echo 4. TEST FRONTEND (symulacja GitHub Actions)...
 if exist app\frontend\my-frontend (
+    call :ensure_frontend_deps
     cd app\frontend\my-frontend
-    if not exist node_modules (
-        echo    Installing dependencies (npm ci)...
-        npm ci >nul 2>&1 && (
-            echo    %GREEN%[OK]%NC% Dependencies installed
-        ) || (
-            echo    %RED%[FAIL]%NC% Failed to install dependencies
-        )
-    )
     echo    Running linter...
     npm run lint >nul 2>&1 && (
         echo    %GREEN%[OK]%NC% Linting passed

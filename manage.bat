@@ -117,6 +117,7 @@ echo.
 echo RabbitMQ UI:     http://localhost:15672 (guest/guest)
 echo MailHog UI:      http://localhost:8025
 echo PostgreSQL:      localhost:5433
+call :print_endpoints
 cd ..\..
 exit /b 0
 
@@ -156,6 +157,7 @@ curl -s http://localhost:5002/api/services >nul 2>&1 && (
 )
 cd ..\..
 echo %GREEN%System zrestartowany!%NC%
+call :print_endpoints
 exit /b 0
 
 :reset
@@ -309,6 +311,25 @@ curl -s http://localhost:5000/reservation/services | findstr /i "serviceName" >n
     echo %RED%API nie zwraca poprawnych danych%NC%
 )
 
+call :print_endpoints
+
+exit /b 0
+
+:print_endpoints
+echo.
+echo ========================================
+echo DOSTEPNE ADRESY
+echo ========================================
+echo Aplikacja (Frontend): http://localhost:5173
+echo API Gateway:         http://localhost:5000
+echo API Gateway (health): http://localhost:5000/health
+echo Identity (Swagger):  http://localhost:5001/swagger
+echo Reservation (Swagger): http://localhost:5002/swagger
+echo Notification (Swagger): http://localhost:5003/swagger
+echo SMS Inbox (dev):     http://localhost:5003/sms-inbox
+echo RabbitMQ UI:         http://localhost:15672 (guest/guest)
+echo MailHog UI:          http://localhost:8025
+echo PostgreSQL:          localhost:5433
 exit /b 0
 
 :frontend
@@ -316,6 +337,7 @@ echo.
 echo ========================================
 echo URUCHAMIANIE FRONTEND
 echo ========================================
+call :print_endpoints
 cd app\frontend\my-frontend
 if not exist node_modules (
     echo Instalowanie pakietow npm...

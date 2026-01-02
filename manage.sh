@@ -40,6 +40,20 @@ cleanup_docker_config_workaround() {
     fi
 }
 
+print_endpoints() {
+    print_header "DOSTĘPNE ADRESY"
+    echo "Aplikacja (Frontend): http://localhost:5173"
+    echo "API Gateway:         http://localhost:5000"
+    echo "API Gateway (health): http://localhost:5000/health"
+    echo "Identity (Swagger):  http://localhost:5001/swagger"
+    echo "Reservation (Swagger): http://localhost:5002/swagger"
+    echo "Notification (Swagger): http://localhost:5003/swagger"
+    echo "SMS Inbox (dev):     http://localhost:5003/sms-inbox"
+    echo "RabbitMQ UI:         http://localhost:15672 (guest/guest)"
+    echo "MailHog UI:          http://localhost:8025"
+    echo "PostgreSQL:          localhost:5433"
+}
+
 init_docker_config_workaround() {
     if [ -n "$DOCKER_CONFIG_TEMP_DIR" ]; then
         return 0
@@ -114,6 +128,8 @@ start_backend() {
         print_error "MailHog UI nie odpowiada na http://localhost:8025"
         print_info "Sprawdź logi: docker-compose logs mailhog"
     fi
+
+    print_endpoints
     
     cd ../..
 }
@@ -201,12 +217,16 @@ restart_backend() {
     else
         print_error "Nie działa!"
     fi
+
+    print_endpoints
     
     cd ../..
 }
 
 start_frontend() {
     print_header "URUCHAMIANIE FRONTEND"
+
+    print_endpoints
     
     cd app/frontend/my-frontend
     
@@ -406,6 +426,8 @@ test_system() {
     else
         print_error "API nie zwraca poprawnych danych"
     fi
+
+    print_endpoints
 }
 
 show_logs() {

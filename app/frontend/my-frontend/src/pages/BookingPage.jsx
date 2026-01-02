@@ -67,7 +67,7 @@ function BookingPage() {
     const hasPhone = phone.length > 0;
 
     const emailOk = !hasEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    const phoneOk = !hasPhone || /^\+\d{1,3}(\s?\d{3}){3}$/.test(phone);
+    const phoneOk = !hasPhone || /^\+\d{8,15}$/.test(phone);
 
     return {
       customerEmail: emailOk ? "" : "Niepoprawny email.",
@@ -300,7 +300,7 @@ function BookingPage() {
   const isValidPhone = (value) => {
     const v = sanitizePhone(value);
     if (!v) return false;
-    return /^\+\d{1,3}(\s?\d{3}){3}$/.test(v);
+    return /^\+\d{8,15}$/.test(v);
   };
 
   const handleSubmit = async (e) => {
@@ -321,6 +321,17 @@ function BookingPage() {
 
       if (!dateStart || !staffId) {
         setSubmitError("Wybierz dostępny termin.");
+        return;
+      }
+
+      const startDate = new Date(dateStart);
+      if (Number.isNaN(startDate.getTime())) {
+        setSubmitError("Nieprawidłowa data rezerwacji.");
+        return;
+      }
+
+      if (startDate.getTime() < Date.now()) {
+        setSubmitError("Nie można zarezerwować terminu w przeszłości.");
         return;
       }
 

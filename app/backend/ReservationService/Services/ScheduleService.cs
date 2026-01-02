@@ -278,6 +278,8 @@ public class ScheduleService : IScheduleService
             step = duration;
         }
 
+        var nowUtc = DateTime.UtcNow;
+
         var result = new List<AvailableSlot>();
 
         foreach (var schedule in schedules)
@@ -315,6 +317,12 @@ public class ScheduleService : IScheduleService
                 var overlap = FindOverlap(current, candidateEnd, blocks);
                 if (overlap == null)
                 {
+                    if (current < nowUtc)
+                    {
+                        current = current.Add(step);
+                        continue;
+                    }
+
                     if (!staffNameById.TryGetValue(schedule.StaffId, out var staffName)
                         || string.IsNullOrWhiteSpace(staffName))
                     {

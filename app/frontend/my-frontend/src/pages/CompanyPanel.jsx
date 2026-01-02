@@ -1191,7 +1191,7 @@ const CompanyPanel = () => {
       const isValidPhone = (value) => {
         const v = sanitizePhoneNumberInput(value);
         if (!v) return false;
-        return /^\+\d{1,3}(\s?\d{3}){3}$/.test(v);
+        return /^\+\d{8,15}$/.test(v);
       };
 
       const email = String(createAppointmentForm.customerEmail || "").trim();
@@ -1228,6 +1228,8 @@ const CompanyPanel = () => {
         serviceId,
         staffId,
         customerId,
+        customerEmail: hasEmail ? email : null,
+        customerPhone: hasPhone ? phone : null,
         dateStart,
         dateEnd,
       });

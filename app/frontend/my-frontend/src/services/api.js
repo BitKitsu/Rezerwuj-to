@@ -4,6 +4,7 @@ import axios from 'axios';
 const API_GATEWAY_URL = 'http://localhost:5000';
 const API_BASE_URL = `${API_GATEWAY_URL}/reservation`;
 const IDENTITY_BASE_URL = `${API_GATEWAY_URL}/identity`;
+const NOTIFICATION_BASE_URL = `${API_GATEWAY_URL}/notification/notifications`;
 
 // Token Manager
 export const tokenManager = {
@@ -42,6 +43,14 @@ const identityAPI = axios.create({
   },
 });
 
+// Instancja dla NotificationService
+const notificationAPI = axios.create({
+  baseURL: NOTIFICATION_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 // Interceptor dla ReservationService - dodaj token
 reservationAPI.interceptors.request.use(
   (config) => {
@@ -59,6 +68,17 @@ identityAPI.interceptors.request.use(
   (config) => {
     const token = tokenManager.getAccessToken();
     if (token && !config.url.includes('/login') && !config.url.includes('/register')) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+notificationAPI.interceptors.request.use(
+  (config) => {
+    const token = tokenManager.getAccessToken();
+    if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -114,6 +134,11 @@ reservationAPI.interceptors.response.use(
 identityAPI.interceptors.response.use(
   (response) => response,
   (error) => handleTokenRefresh(error, identityAPI)
+);
+
+notificationAPI.interceptors.response.use(
+  (response) => response,
+  (error) => handleTokenRefresh(error, notificationAPI)
 );
 
 // ===== Identity Service =====
@@ -248,6 +273,13 @@ export const branchReviewsAPI = {
 
 export const auditAPI = {
   getMy: (take = 100) => identityAPI.get('/audit/my', { params: { take } }),
+};
+
+// ===== Notification Service =====
+export const notificationsAPI = {
+  getUserNotifications: (userId, unreadOnly = false) =>
+    notificationAPI.get(`/user/${userId}`, { params: { unreadOnly } }),
+  markAsRead: (id) => notificationAPI.put(`/${id}/read`),
 };
 
 export const geocodeAPI = {

@@ -624,7 +624,7 @@ namespace IdentityService.Controllers
         public required string LastName { get; set; }
 
         [Required(ErrorMessage = "Numer telefonu jest wymagany.")]
-        [RegularExpression(@"^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 111 222 333.")]
+        [RegularExpression(@"^\+\d{8,15}$", ErrorMessage = "Telefon musi być w formacie +48111222333.")]
         public required string Phone { get; set; }
     }
 
@@ -654,7 +654,7 @@ namespace IdentityService.Controllers
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
 
-        [RegularExpression(@"^$|^\+\d{1,3}(\s?\d{3}){3}$", ErrorMessage = "Telefon musi być w formacie +48 666 777 999.")]
+        [RegularExpression(@"^$|^\+\d{8,15}$", ErrorMessage = "Telefon musi być w formacie +48666777999.")]
         public string? Phone { get; set; }
     }
 

@@ -1,10 +1,12 @@
 using NotificationService.Models;
 using NotificationService.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 using MailKit.Net.Smtp;
 using MimeKit;
+using NotificationService.Hubs;
 
 namespace NotificationService.Services;
 
@@ -19,17 +21,20 @@ public class NotificationSender : INotificationSender
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly EmailSettings _emailSettings;
     private readonly SmsInboxStore _smsInbox;
+    private readonly IHubContext<NotificationHub> _hubContext;
 
     public NotificationSender(
         ILogger<NotificationSender> logger,
         IServiceScopeFactory scopeFactory,
         IOptions<EmailSettings> emailSettings,
-        SmsInboxStore smsInbox)
+        SmsInboxStore smsInbox,
+        IHubContext<NotificationHub> hubContext)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
         _emailSettings = emailSettings.Value;
         _smsInbox = smsInbox;
+        _hubContext = hubContext;
     }
 
     public async Task<bool> SendNotificationAsync(Notification notification)
@@ -149,13 +154,24 @@ public class NotificationSender : INotificationSender
 
     private async Task<(bool Success, string Details)> SendInAppNotificationAsync(Notification notification)
     {
-        _logger.LogInformation("Wysyłanie powiadomienia In-App do {UserId}: {Title}", notification.UserId, notification.Title);
-        
-        // TODO: Wysłanie przez SignalR do połączonego klienta
-        await Task.Delay(100);
-        
-        // In-app zawsze się udaje jeśli użytkownik jest online
-        return (true, "InApp sent (simulated)");
+        if (string.IsNullOrWhiteSpace(notification.UserId))
+        {
+            return (false, "Missing userId");
+        }
+
+        try
+        {
+            await _hubContext.Clients
+                .Group($"user-{notification.UserId}")
+                .SendAsync("ReceiveNotification", notification);
+
+            return (true, "InApp sent via SignalR");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Błąd SignalR przy wysyłce InApp notification {Id}", notification.Id);
+            return (false, $"SignalR error: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private string? TryResolveRecipientEmail(Notification notification)

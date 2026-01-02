@@ -147,6 +147,12 @@ public class JwtService : IJwtService
             new Claim("FirstName", user.FirstName),
             new Claim("LastName", user.LastName)
         };
+
+        if (!string.IsNullOrWhiteSpace(user.PhoneNumber))
+        {
+            claims.Add(new Claim("phone", user.PhoneNumber));
+            claims.Add(new Claim(ClaimTypes.MobilePhone, user.PhoneNumber));
+        }
         
         if (user.CompanyId.HasValue)
         {

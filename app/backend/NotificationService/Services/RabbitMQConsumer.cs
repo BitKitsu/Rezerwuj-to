@@ -1,6 +1,7 @@
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using NotificationService.Models;
 using NotificationService.Controllers;
@@ -16,6 +17,11 @@ public class RabbitMQConsumer : BackgroundService
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         PropertyNameCaseInsensitive = true
+    };
+
+    private static readonly JsonSerializerOptions MetadataSerializerOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     
     public RabbitMQConsumer(
@@ -149,11 +155,10 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
-        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
-            ? NotificationChannel.Email
-            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
-                ? NotificationChannel.SMS
-                : NotificationChannel.InApp;
+        var channels = new List<NotificationChannel>();
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
         var metadata = JsonSerializer.Serialize(new
         {
@@ -163,22 +168,26 @@ public class RabbitMQConsumer : BackgroundService
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
             appointmentId = appointmentData.AppointmentId
-        });
+        }, MetadataSerializerOptions);
 
-        var notification = new Notification
+        var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
             Title = "Potwierdzenie rezerwacji",
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} o godz. {appointmentData.AppointmentDate:HH:mm} została potwierdzona.",
             Type = NotificationType.AppointmentConfirmation,
-            Channel = channel,
+            Channel = ch,
             RelatedAppointmentId = appointmentData.AppointmentId,
             Metadata = metadata
-        };
+        }).ToList();
 
-        context.Notifications.Add(notification);
+        context.Notifications.AddRange(notifications);
         await context.SaveChangesAsync();
-        await sender.SendNotificationAsync(notification);
+
+        foreach (var n in notifications)
+        {
+            await sender.SendNotificationAsync(n);
+        }
         
         _logger.LogInformation("Utworzono powiadomienie o nowej rezerwacji dla użytkownika {UserId}", appointmentData.UserId);
     }
@@ -188,11 +197,10 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
-        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
-            ? NotificationChannel.Email
-            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
-                ? NotificationChannel.SMS
-                : NotificationChannel.InApp;
+        var channels = new List<NotificationChannel>();
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
         var metadata = JsonSerializer.Serialize(new
         {
@@ -202,22 +210,26 @@ public class RabbitMQConsumer : BackgroundService
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
             appointmentId = appointmentData.AppointmentId
-        });
+        }, MetadataSerializerOptions);
 
-        var notification = new Notification
+        var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
             Title = "Anulowanie rezerwacji",
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} została anulowana.",
             Type = NotificationType.AppointmentCancellation,
-            Channel = channel,
+            Channel = ch,
             RelatedAppointmentId = appointmentData.AppointmentId,
             Metadata = metadata
-        };
+        }).ToList();
 
-        context.Notifications.Add(notification);
+        context.Notifications.AddRange(notifications);
         await context.SaveChangesAsync();
-        await sender.SendNotificationAsync(notification);
+
+        foreach (var n in notifications)
+        {
+            await sender.SendNotificationAsync(n);
+        }
         
         _logger.LogInformation("Utworzono powiadomienie o anulowaniu dla użytkownika {UserId}", appointmentData.UserId);
     }
@@ -227,25 +239,39 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
-        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
-            ? NotificationChannel.Email
-            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
-                ? NotificationChannel.SMS
-                : NotificationChannel.InApp;
+        var channels = new List<NotificationChannel>();
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
 
-        var notification = new Notification
+        var metadata = JsonSerializer.Serialize(new
+        {
+            routingKey = "appointment.reminder",
+            recipientEmail = appointmentData.RecipientEmail,
+            recipientPhone = appointmentData.RecipientPhone,
+            companyName = appointmentData.CompanyName,
+            serviceName = appointmentData.ServiceName,
+            appointmentId = appointmentData.AppointmentId
+        }, MetadataSerializerOptions);
+
+        var notifications = channels.Select(ch => new Notification
         {
             UserId = appointmentData.UserId,
             Title = "Przypomnienie o wizycie",
             Message = $"Przypominamy o wizycie na {appointmentData.ServiceName} jutro o godz. {appointmentData.AppointmentDate:HH:mm}.",
             Type = NotificationType.AppointmentReminder,
-            Channel = channel,
-            RelatedAppointmentId = appointmentData.AppointmentId
-        };
+            Channel = ch,
+            RelatedAppointmentId = appointmentData.AppointmentId,
+            Metadata = metadata
+        }).ToList();
 
-        context.Notifications.Add(notification);
+        context.Notifications.AddRange(notifications);
         await context.SaveChangesAsync();
-        await sender.SendNotificationAsync(notification);
+
+        foreach (var n in notifications)
+        {
+            await sender.SendNotificationAsync(n);
+        }
         
         _logger.LogInformation("Utworzono przypomnienie dla użytkownika {UserId}", appointmentData.UserId);
     }

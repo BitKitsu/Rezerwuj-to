@@ -43,6 +43,36 @@ public class AppointmentsController : ControllerBase
             .ToListAsync();
     }
 
+    [HttpGet("my")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<Appointment>>> GetMyAppointments([FromQuery] int take = 200)
+    {
+        if (take <= 0) take = 200;
+        if (take > 500) take = 500;
+
+        var userId = GetUserId(User);
+        var email = User.FindFirst("email")?.Value ?? User.FindFirst(ClaimTypes.Email)?.Value;
+        email = email?.Trim();
+
+        if (string.IsNullOrWhiteSpace(userId) && string.IsNullOrWhiteSpace(email))
+        {
+            return Ok(new List<Appointment>());
+        }
+
+        var appointments = await _context.Appointments
+            .AsNoTracking()
+            .Where(a => (!string.IsNullOrWhiteSpace(userId) && a.CustomerId == userId)
+                || (!string.IsNullOrWhiteSpace(email) && a.CustomerId == email))
+            .Include(a => a.Company)
+            .Include(a => a.Branch)
+            .Include(a => a.Service)
+            .OrderByDescending(a => a.DateStart)
+            .Take(take)
+            .ToListAsync();
+
+        return Ok(appointments);
+    }
+
     // GET: api/appointments/company/1
     [HttpGet("company/{companyId}")]
     [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
@@ -421,6 +451,49 @@ public class AppointmentsController : ControllerBase
         });
 
         _logger.LogInformation("Anulowano rezerwację ID: {Id}", id);
+        return NoContent();
+    }
+
+    [HttpPut("{id}/cancel-my")]
+    [Authorize]
+    public async Task<IActionResult> CancelMyAppointment(int id)
+    {
+        var appointment = await _context.Appointments.FindAsync(id);
+        if (appointment == null)
+        {
+            return NotFound();
+        }
+
+        var userId = GetUserId(User);
+        var email = User.FindFirst("email")?.Value ?? User.FindFirst(ClaimTypes.Email)?.Value;
+        email = email?.Trim();
+
+        var isOwner = (!string.IsNullOrWhiteSpace(userId) && appointment.CustomerId == userId)
+            || (!string.IsNullOrWhiteSpace(email) && appointment.CustomerId == email);
+
+        if (!isOwner)
+        {
+            return Forbid();
+        }
+
+        if (appointment.Status == "cancelled")
+        {
+            return NoContent();
+        }
+
+        appointment.Status = "cancelled";
+        await _context.SaveChangesAsync();
+
+        await TryStoreEventAsync(new AppointmentCancelledEvent
+        {
+            AggregateId = GetAppointmentAggregateId(appointment.Id),
+            AppointmentId = appointment.Id,
+            CompanyId = appointment.CompanyId,
+            Reason = "cancelled",
+            UserId = GetUserId(User)
+        });
+
+        _logger.LogInformation("Anulowano (self-service) rezerwację ID: {Id}", id);
         return NoContent();
     }
 

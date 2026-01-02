@@ -73,16 +73,20 @@ function MainLayout({ children, theme, toggleTheme }) {
           </div>
 
           <nav className="app-nav">
-            <Link to="/" className={navLinkClass('/')}>Strona główna</Link>
+            <Link to="/" className={navLinkClass('/')}>
+              Strona główna
+            </Link>
             <Link to="/services" className={navLinkClass('/services')}>
               Usługi
             </Link>
             <Link to="/salons" className={navLinkClass('/salons')}>
               Firmy
             </Link>
-            <Link to="/dashboard" className={navLinkClass('/dashboard')}>
-              Panel rezerwacji
-            </Link>
+            {isAuthenticated && (
+              <Link to="/dashboard" className={navLinkClass('/dashboard')}>
+                Moje rezerwacje
+              </Link>
+            )}
             {isAuthenticated && user?.roles?.includes('Admin') && (
               <Link to="/admin" className={navLinkClass('/admin')}>
                 Panel administratora

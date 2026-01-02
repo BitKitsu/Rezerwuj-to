@@ -269,6 +269,7 @@ export const companyUsersAPI = {
 // ===== Appointments API ===== 
 export const appointmentsAPI = {
   getAll: () => reservationAPI.get('/appointments'),
+  getMy: (take = 200) => reservationAPI.get('/appointments/my', { params: { take } }),
   getByCompany: (companyId, take = 200) =>
     reservationAPI.get(`/appointments/company/${companyId}`, { params: { take } }),
   getById: (id) => reservationAPI.get(`/appointments/${id}`),
@@ -286,6 +287,7 @@ export const appointmentsAPI = {
   createPublic: (data) => reservationAPI.post('/appointments/public', data),
   confirm: (id) => reservationAPI.put(`/appointments/${id}/confirm`),
   cancel: (id) => reservationAPI.put(`/appointments/${id}/cancel`),
+  cancelMy: (id) => reservationAPI.put(`/appointments/${id}/cancel-my`),
   delete: (id) => reservationAPI.delete(`/appointments/${id}`),
 };
 

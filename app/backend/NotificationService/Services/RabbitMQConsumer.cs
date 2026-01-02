@@ -149,10 +149,17 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
+        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
+            ? NotificationChannel.Email
+            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
+                ? NotificationChannel.SMS
+                : NotificationChannel.InApp;
+
         var metadata = JsonSerializer.Serialize(new
         {
             routingKey = "appointment.created",
             recipientEmail = appointmentData.RecipientEmail,
+            recipientPhone = appointmentData.RecipientPhone,
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
             appointmentId = appointmentData.AppointmentId
@@ -164,7 +171,7 @@ public class RabbitMQConsumer : BackgroundService
             Title = "Potwierdzenie rezerwacji",
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} o godz. {appointmentData.AppointmentDate:HH:mm} została potwierdzona.",
             Type = NotificationType.AppointmentConfirmation,
-            Channel = NotificationChannel.Email,
+            Channel = channel,
             RelatedAppointmentId = appointmentData.AppointmentId,
             Metadata = metadata
         };
@@ -181,10 +188,17 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
+        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
+            ? NotificationChannel.Email
+            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
+                ? NotificationChannel.SMS
+                : NotificationChannel.InApp;
+
         var metadata = JsonSerializer.Serialize(new
         {
             routingKey = "appointment.cancelled",
             recipientEmail = appointmentData.RecipientEmail,
+            recipientPhone = appointmentData.RecipientPhone,
             companyName = appointmentData.CompanyName,
             serviceName = appointmentData.ServiceName,
             appointmentId = appointmentData.AppointmentId
@@ -196,7 +210,7 @@ public class RabbitMQConsumer : BackgroundService
             Title = "Anulowanie rezerwacji",
             Message = $"Twoja rezerwacja na {appointmentData.ServiceName} w dniu {appointmentData.AppointmentDate:dd.MM.yyyy} została anulowana.",
             Type = NotificationType.AppointmentCancellation,
-            Channel = NotificationChannel.Email,
+            Channel = channel,
             RelatedAppointmentId = appointmentData.AppointmentId,
             Metadata = metadata
         };
@@ -213,13 +227,19 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
         if (appointmentData == null) return;
 
+        var channel = !string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)
+            ? NotificationChannel.Email
+            : !string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)
+                ? NotificationChannel.SMS
+                : NotificationChannel.InApp;
+
         var notification = new Notification
         {
             UserId = appointmentData.UserId,
             Title = "Przypomnienie o wizycie",
             Message = $"Przypominamy o wizycie na {appointmentData.ServiceName} jutro o godz. {appointmentData.AppointmentDate:HH:mm}.",
             Type = NotificationType.AppointmentReminder,
-            Channel = NotificationChannel.Email,
+            Channel = channel,
             RelatedAppointmentId = appointmentData.AppointmentId
         };
 
@@ -246,4 +266,5 @@ public class AppointmentEventData
     public string ServiceName { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
     public string? RecipientEmail { get; set; }
+    public string? RecipientPhone { get; set; }
 }

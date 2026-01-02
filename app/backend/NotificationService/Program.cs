@@ -17,6 +17,7 @@ builder.Services.AddDbContext<NotificationDbContext>(options =>
 
 // Rejestracja serwisów
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddSingleton<SmsInboxStore>();
 builder.Services.AddScoped<INotificationSender, NotificationSender>();
 builder.Services.AddHostedService<RabbitMQConsumer>();
 builder.Services.AddHttpClient();

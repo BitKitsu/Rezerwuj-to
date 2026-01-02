@@ -282,15 +282,22 @@ public class AppointmentsController : ControllerBase
             .FirstOrDefaultAsync();
 
         var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        var userIdForEvent = GetUserId(User)
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
 
         _eventPublisher.Publish("appointment.created", new
         {
             appointmentId = appointment.Id,
-            userId = GetUserId(User) ?? string.Empty,
+            userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = service.ServiceName,
             companyName = companyName ?? string.Empty,
-            recipientEmail = recipientEmail
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone
         });
 
         _logger.LogInformation("Utworzono rezerwację ID: {Id} dla klienta: {CustomerId}", 
@@ -388,7 +395,7 @@ public class AppointmentsController : ControllerBase
             StaffId = dto.StaffId,
             DateStart = dto.DateStart,
             DateEnd = computedEnd,
-            Status = "pending",
+            Status = "confirmed",
             CreatedAt = DateTime.UtcNow
         };
 
@@ -415,14 +422,23 @@ public class AppointmentsController : ControllerBase
             .Select(c => c.CompanyName)
             .FirstOrDefaultAsync();
 
+        var recipientEmail = hasEmail ? email : null;
+        var recipientPhone = hasPhone ? phone : null;
+
+        var userIdForEvent = GetUserId(User)
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
+
         _eventPublisher.Publish("appointment.created", new
         {
             appointmentId = appointment.Id,
-            userId = GetUserId(User) ?? string.Empty,
+            userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = service.ServiceName,
             companyName = companyName ?? string.Empty,
-            recipientEmail = hasEmail ? email : null
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone
         });
 
         return CreatedAtAction(nameof(GetAppointment), new { id = appointment.Id }, appointment);
@@ -491,15 +507,22 @@ public class AppointmentsController : ControllerBase
         });
 
         var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        var userIdForEvent = GetUserId(User)
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
 
         _eventPublisher.Publish("appointment.cancelled", new
         {
             appointmentId = appointment.Id,
-            userId = GetUserId(User) ?? string.Empty,
+            userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
-            recipientEmail = recipientEmail
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone
         });
 
         _logger.LogInformation("Anulowano rezerwację ID: {Id}", id);
@@ -549,15 +572,22 @@ public class AppointmentsController : ControllerBase
         });
 
         var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+        var recipientPhone = IsValidPhone(appointment.CustomerId) ? appointment.CustomerId : null;
+
+        var userIdForEvent = GetUserId(User)
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
 
         _eventPublisher.Publish("appointment.cancelled", new
         {
             appointmentId = appointment.Id,
-            userId = GetUserId(User) ?? string.Empty,
+            userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
-            recipientEmail = recipientEmail
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone
         });
 
         _logger.LogInformation("Anulowano (self-service) rezerwację ID: {Id}", id);

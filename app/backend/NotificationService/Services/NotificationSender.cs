@@ -18,15 +18,18 @@ public class NotificationSender : INotificationSender
     private readonly ILogger<NotificationSender> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly EmailSettings _emailSettings;
+    private readonly SmsInboxStore _smsInbox;
 
     public NotificationSender(
         ILogger<NotificationSender> logger,
         IServiceScopeFactory scopeFactory,
-        IOptions<EmailSettings> emailSettings)
+        IOptions<EmailSettings> emailSettings,
+        SmsInboxStore smsInbox)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
         _emailSettings = emailSettings.Value;
+        _smsInbox = smsInbox;
     }
 
     public async Task<bool> SendNotificationAsync(Notification notification)
@@ -131,13 +134,17 @@ public class NotificationSender : INotificationSender
 
     private async Task<(bool Success, string Details)> SendSMSAsync(Notification notification)
     {
-        _logger.LogInformation("Wysyłanie SMS do {UserId}: {Title}", notification.UserId, notification.Title);
-        
-        // TODO: Integracja z serwisem SMS (Twilio, etc.)
-        await Task.Delay(500);
+        var recipient = TryResolveRecipientPhone(notification);
+        if (string.IsNullOrWhiteSpace(recipient))
+        {
+            _logger.LogWarning("Brak recipient phone dla notification {Id} (UserId={UserId})", notification.Id, notification.UserId);
+            return (false, "Missing recipient phone");
+        }
 
-        var success = Random.Shared.Next(100) < 85;
-        return (success, success ? "SMS sent (simulated)" : "SMS failed (simulated)");
+        _smsInbox.Add(recipient, notification.Message, notification.Metadata);
+        await Task.CompletedTask;
+
+        return (true, $"SMS stored in dev inbox for {recipient}");
     }
 
     private async Task<(bool Success, string Details)> SendInAppNotificationAsync(Notification notification)
@@ -175,6 +182,39 @@ public class NotificationSender : INotificationSender
         if (!string.IsNullOrWhiteSpace(notification.UserId) && notification.UserId.Contains('@'))
         {
             return notification.UserId.Trim();
+        }
+
+        return null;
+    }
+
+    private string? TryResolveRecipientPhone(Notification notification)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(notification.Metadata))
+            {
+                using var doc = JsonDocument.Parse(notification.Metadata);
+                if (doc.RootElement.TryGetProperty("recipientPhone", out var p))
+                {
+                    var v = p.GetString();
+                    if (!string.IsNullOrWhiteSpace(v))
+                    {
+                        return v.Trim();
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        if (!string.IsNullOrWhiteSpace(notification.UserId))
+        {
+            var v = notification.UserId.Trim();
+            if (v.StartsWith("+"))
+            {
+                return v;
+            }
         }
 
         return null;

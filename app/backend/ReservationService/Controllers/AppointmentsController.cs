@@ -254,7 +254,7 @@ public class AppointmentsController : ControllerBase
             StaffId = dto.StaffId,
             DateStart = dto.DateStart,
             DateEnd = computedEnd,
-            Status = "pending",
+            Status = "confirmed",
             CreatedAt = DateTime.UtcNow
         };
 

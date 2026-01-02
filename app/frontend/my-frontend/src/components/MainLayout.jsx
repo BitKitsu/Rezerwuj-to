@@ -65,12 +65,12 @@ function MainLayout({ children, theme, toggleTheme }) {
     <div className="app-root">
       <header className="app-header">
         <div className="app-header-inner">
-          <div className="app-logo">
+          <Link to="/" className="app-logo" aria-label="Przejdź do strony głównej">
             <span className="logo-mark">
               <LogoIcon />
             </span>
             <span className="logo-text">REZERWUJ.TO</span>
-          </div>
+          </Link>
 
           <nav className="app-nav">
             <Link to="/" className={navLinkClass('/')}>

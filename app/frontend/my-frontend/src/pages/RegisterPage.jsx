@@ -33,6 +33,7 @@ const formatPhoneDisplay = (value) => {
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     email: '',
     username: '',
@@ -45,6 +46,10 @@ function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleClose = () => {
+    navigate('/');
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -73,6 +78,31 @@ function RegisterPage() {
     const firstName = normalizeHumanNameInput(formData.firstName);
     const lastName = normalizeHumanNameInput(formData.lastName);
     const phone = sanitizePhoneNumberInput(formData.phone);
+
+     if (step === 1) {
+      if (!email) {
+        setError('Email jest wymagany!');
+        return;
+      }
+
+      if (!username) {
+        setError('Nazwa użytkownika jest wymagana!');
+        return;
+      }
+
+      if (!firstName || !lastName) {
+        setError('Imię i nazwisko są wymagane!');
+        return;
+      }
+
+      if (!phone) {
+        setError('Numer telefonu jest wymagany!');
+        return;
+      }
+
+      setStep(2);
+      return;
+    }
 
     if (!email) {
       setError('Email jest wymagany!');
@@ -176,157 +206,188 @@ function RegisterPage() {
   };
 
   return (
-    <div className="auth-shell">
-      <div className="auth-card">
-        <h2 className="form-title">Rejestracja</h2>
-        
-        {error && (
-          <div className="form-message form-message-error">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="form-message form-message-success">
-            Rejestracja zakończona sukcesem! Przekierowywanie do logowania...
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="form">
-          <div className="form-field">
-            <label className="form-label" htmlFor="firstName">
-              Imię: *
-            </label>
-            <input
-              id="firstName"
-              type="text"
-              name="firstName"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="Jan"
-            />
-          </div>
+    <div className="auth-modal-overlay" onClick={handleClose}>
+      <div className="auth-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+          ×
+        </button>
+        <div className="auth-modal-body">
+          <h2 className="auth-modal-title">Załóż konto</h2>
+          <p className="auth-modal-subtitle">Utwórz konto, aby rezerwować i zarządzać wizytami.</p>
           
-          <div className="form-field">
-            <label className="form-label" htmlFor="lastName">
-              Nazwisko: *
-            </label>
-            <input
-              id="lastName"
-              type="text"
-              name="lastName"
-              value={formData.lastName}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="Kowalski"
-            />
-          </div>
-          
-          <div className="form-field">
-            <label className="form-label" htmlFor="email">
-              Email: *
-            </label>
-            <input
-              id="email"
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="twoj@email.com"
-            />
+          {error && (
+            <div className="form-message form-message-error">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="form-message form-message-success">
+              Rejestracja zakończona sukcesem! Przekierowywanie do logowania...
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="form">
+            {step === 1 ? (
+              <>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="firstName">
+                    Imię: *
+                  </label>
+                  <input
+                    id="firstName"
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="Jan"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label" htmlFor="lastName">
+                    Nazwisko: *
+                  </label>
+                  <input
+                    id="lastName"
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="Kowalski"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label" htmlFor="email">
+                    Email: *
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="twoj@email.com"
+                    autoComplete="email"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label" htmlFor="username">
+                    Nazwa użytkownika: *
+                  </label>
+                  <input
+                    id="username"
+                    type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="np. jankowalski123"
+                    minLength="3"
+                    maxLength="50"
+                    autoComplete="username"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label" htmlFor="phone">
+                    Telefon: *
+                  </label>
+                  <input
+                    id="phone"
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="+48 111-222-333"
+                    autoComplete="tel"
+                  />
+                </div>
+
+                <button type="submit" disabled={success} className="btn btn-primary form-button">
+                  Dalej
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="password">
+                    Hasło: *
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="Min. 6 znaków + cyfra"
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label className="form-label" htmlFor="confirmPassword">
+                    Potwierdź hasło:
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    className="form-input"
+                    placeholder="Powtórz hasło"
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button type="submit" disabled={loading || success} className="btn btn-primary form-button" style={{ marginTop: 0, flex: 1 }}>
+                    {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
+                  </button>
+                </div>
+              </>
+            )}
+          </form>
+
+          <div className="form-footer">
+            <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
           </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="username">
-              Nazwa użytkownika: *
-            </label>
-            <input
-              id="username"
-              type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="np. jankowalski123"
-              minLength="3"
-              maxLength="50"
+          <div className="auth-stepper">
+            <button
+              type="button"
+              className="auth-stepper-back"
+              onClick={() => setStep((prev) => Math.max(1, prev - 1))}
+              disabled={step === 1 || loading || success}
+              aria-label="Wróć do poprzedniego kroku"
             />
-          </div>
-          
-          <div className="form-field">
-            <label className="form-label" htmlFor="phone">
-              Telefon: *
-            </label>
-            <input
-              id="phone"
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="+48 111-222-333"
-            />
+            <div className="auth-stepper-indicator">{step}/2</div>
           </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="password">
-              Hasło: *
-            </label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="Min. 6 znaków + cyfra"
-            />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label" htmlFor="confirmPassword">
-              Potwierdź hasło:
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              name="confirmPassword"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="form-input"
-              placeholder="Powtórz hasło"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || success}
-            className="btn btn-primary form-button"
-          >
-            {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
-          </button>
-        </form>
-
-        <div className="form-footer">
-          <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
-          <Link to="/">Powrót do strony głównej</Link>
-        </div>
-        
-        <div className="form-help">
-          <strong>Wymagania hasła:</strong>
-          <ul className="form-help-list">
-            <li>Minimum 6 znaków</li>
-            <li>Przynajmniej 1 cyfra</li>
-          </ul>
+          {step === 2 ? (
+            <div className="form-help">
+              <strong>Wymagania hasła:</strong>
+              <ul className="form-help-list">
+                <li>Minimum 6 znaków</li>
+                <li>Przynajmniej 1 cyfra</li>
+              </ul>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

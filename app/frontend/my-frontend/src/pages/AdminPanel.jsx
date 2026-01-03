@@ -199,11 +199,13 @@ const AdminPanel = () => {
       </div>
 
       {templateFormVisible && editingTemplate && (
-        <div className="admin-card admin-card--form">
-          <h3 className="admin-card__title">
-            {editingTemplate.id == null ? "Dodaj szablon" : "Edytuj szablon"}
-          </h3>
-          <form className="admin-form" onSubmit={handleTemplateFormSubmit}>
+        <div className="admin-card--form-container">
+          <div className="admin-card admin-card--form">
+            <div className="admin-form__header">
+              <h2>{editingTemplate.id == null ? "Dodaj szablon" : "Edytuj szablon"}</h2>
+              <button type="button" className="btn-close" onClick={handleCloseTemplateForm} aria-label="Zamknij" />
+            </div>
+            <form className="admin-form" onSubmit={handleTemplateFormSubmit}>
             <div className="admin-form__grid">
               <label className="admin-form__field">
                 <span>Nazwa</span>
@@ -329,7 +331,8 @@ const AdminPanel = () => {
                 Zapisz
               </button>
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
     </section>
@@ -1042,11 +1045,13 @@ const AdminPanel = () => {
       </div>
 
       {companyFormVisible && editingCompany && (
-        <div className="admin-card admin-card--form">
-          <h3 className="admin-card__title">
-            {editingCompany.id == null ? "Dodaj firmę" : "Edytuj firmę"}
-          </h3>
-          <form className="admin-form" onSubmit={handleCompanyFormSubmit}>
+        <div className="admin-card--form-container">
+          <div className="admin-card admin-card--form">
+            <div className="admin-form__header">
+              <h2>{editingCompany.id == null ? "Dodaj firmę" : "Edytuj firmę"}</h2>
+              <button type="button" className="btn-close" onClick={handleCloseCompanyForm} aria-label="Zamknij" disabled={companyFormSubmitting} />
+            </div>
+            <form className="admin-form" onSubmit={handleCompanyFormSubmit}>
             <div className="admin-form__grid">
               <label className="admin-form__field">
                 <span>Nazwa firmy</span>
@@ -1203,7 +1208,8 @@ const AdminPanel = () => {
                 {companyFormSubmitting ? "Zapisywanie..." : "Zapisz"}
               </button>
             </div>
-          </form>
+            </form>
+          </div>
         </div>
       )}
     </section>

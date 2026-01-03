@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authAPI, auditAPI, companiesAPI, tokenManager } from '../services/api';
 import '../admin.css'; // Reuse some admin styles for the form
 
@@ -45,6 +45,7 @@ const formatPhoneDisplay = (value) => {
 };
 
 function AccountPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -332,6 +333,7 @@ function AccountPage() {
       await authAPI.assignCompany(newCompanyId);
 
       closeCompanyForm();
+      navigate('/company-panel');
       // The user's state is updated by assignCompany, no need to reload page
     } catch (err) {
       console.error('Create company error:', err);

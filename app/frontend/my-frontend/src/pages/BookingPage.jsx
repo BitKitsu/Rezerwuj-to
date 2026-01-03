@@ -388,40 +388,81 @@ function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleClose = () => {
+    if (serviceId) {
+      navigate(`/services/${serviceId}`, { replace: true });
+      return;
+    }
+    navigate('/services', { replace: true });
+  };
+
   if (loading) {
-    return <div className="list-page">Ładowanie...</div>;
+    return (
+      <div className="auth-modal-overlay" onClick={handleClose}>
+        <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+            ×
+          </button>
+          <div className="auth-modal-body">
+            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+            <p className="auth-modal-subtitle">Ładowanie...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="list-page">
-        <div className="list-state list-state-error">{error}</div>
-        <Link to="/services" className="btn btn-outline">
-          Wróć do usług
-        </Link>
+      <div className="auth-modal-overlay" onClick={handleClose}>
+        <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+            ×
+          </button>
+          <div className="auth-modal-body">
+            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+            <div className="services-state services-state-error" style={{ marginBottom: 12 }}>
+              {error}
+            </div>
+            <Link to="/services" className="btn btn-outline">
+              Wróć do usług
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!service) {
     return (
-      <div className="list-page">
-        <div className="list-state">Nie znaleziono usługi.</div>
-        <Link to="/services" className="btn btn-outline">
-          Wróć do usług
-        </Link>
+      <div className="auth-modal-overlay" onClick={handleClose}>
+        <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+            ×
+          </button>
+          <div className="auth-modal-body">
+            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+            <div className="services-state" style={{ marginBottom: 12 }}>
+              Nie znaleziono usługi.
+            </div>
+            <Link to="/services" className="btn btn-outline">
+              Wróć do usług
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="list-page">
-      <header className="list-header">
-        <h1>Rezerwacja terminu</h1>
-        <p>{service.serviceName}</p>
-      </header>
-
-      <div className="card" style={{ padding: "16px", marginBottom: "16px" }}>
+    <div className="auth-modal-overlay" onClick={handleClose}>
+      <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+          ×
+        </button>
+        <div className="auth-modal-body">
+          <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+          <p className="auth-modal-subtitle">{service.serviceName}</p>
         {isAuthenticated ? (
           <div style={{ marginBottom: 8 }}>
             <strong>Zalogowano.</strong> Dane kontaktowe zostały wstępnie uzupełnione.
@@ -551,6 +592,7 @@ function BookingPage() {
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );

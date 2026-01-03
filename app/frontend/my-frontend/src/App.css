@@ -467,6 +467,10 @@ h2 {
   overflow: hidden;
 }
 
+.auth-modal--wide {
+  width: min(860px, 100%);
+}
+
 .auth-modal-body {
   max-height: calc(100vh - 140px);
   overflow-y: auto;

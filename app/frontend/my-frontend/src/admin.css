@@ -36,6 +36,69 @@
   box-shadow: var(--shadow-soft, 0 1px 2px rgba(15, 23, 42, 0.08));
 }
 
+.admin-card--form-container {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.admin-card--form-container .admin-card {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+}
+
+.admin-card--form-container .admin-card--form {
+  margin-top: 0;
+}
+
+.admin-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-form__header h2 {
+  margin: 0;
+}
+
+.btn-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-subtle);
+  background: rgba(15, 23, 42, 0.18);
+  color: var(--color-text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.btn-close::before {
+  content: "×";
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.btn-close:hover {
+  border-color: var(--color-primary);
+}
+
+.btn-close:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .admin-card__title {
   margin: 0 0 0.5rem;
   font-weight: 600;
@@ -174,6 +237,12 @@
 .admin-alert--danger {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  color: var(--color-text);
+}
+
+.admin-alert--info {
+  background: var(--color-primary-soft);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   color: var(--color-text);
 }
 

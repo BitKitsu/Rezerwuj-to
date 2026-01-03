@@ -55,10 +55,18 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     environment:
       # Ciąg połączenia, używający nazwy serwisu 'postgres_db' jako Hosta!
       ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
+      EmailSettings__SmtpHost: mailhog
+      EmailSettings__SmtpPort: 1025
+      EmailSettings__UseSsl: "false"
+      EmailSettings__UseStartTls: "false"
+      EmailSettings__FromEmail: "noreply@mikrosaas.local"
+      EmailSettings__FromName: "MikroSaaS"
 
   # Kontener mikroserwisu Reservation
   reservation_api:

@@ -7,6 +7,9 @@ using IdentityService.Models;
 using IdentityService.Services;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace IdentityService.Controllers
 {
@@ -19,6 +22,7 @@ namespace IdentityService.Controllers
         private readonly IJwtService _jwtService;
         private readonly IAuditService _auditService;
         private readonly ApplicationDbContext _context;
+        private readonly IEmailSender _emailSender;
 
         private string GetClientIpAddress()
         {
@@ -36,13 +40,15 @@ namespace IdentityService.Controllers
             SignInManager<ApplicationUser> signInManager,
             IJwtService jwtService,
             IAuditService auditService,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            IEmailSender emailSender)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _jwtService = jwtService;
             _auditService = auditService;
             _context = context;
+            _emailSender = emailSender;
         }
 
         [HttpPost("register")]
@@ -80,7 +86,7 @@ namespace IdentityService.Controllers
                 LastName = model.LastName,
                 // Zapisujemy znormalizowany numer zarówno w Phone, jak i PhoneNumber (Identity)
                 PhoneNumber = normalizedPhone,
-                EmailConfirmed = true // Auto-confirm dla developmentu
+                EmailConfirmed = false
             };
 
             var result = await _userManager.CreateAsync(user, model.Password);
@@ -91,10 +97,17 @@ namespace IdentityService.Controllers
 
                 // Automatyczne logowanie po rejestracji
                 await _signInManager.SignInAsync(user, isPersistent: false);
+
+                var (sent, details) = await CreateAndSendEmailVerificationAsync(user);
                 
                 return Ok(new 
                 { 
-                    message = "Rejestracja zakończona sukcesem",
+                    message = sent
+                        ? "Rejestracja zakończona sukcesem. Wysłaliśmy kod potwierdzający na email."
+                        : "Rejestracja zakończona sukcesem, ale nie udało się wysłać kodu potwierdzającego. Spróbuj ponowić wysyłkę kodu.",
+                    verificationRequired = true,
+                    emailVerificationSent = sent,
+                    emailVerificationDetails = details,
                     email = user.Email,
                     firstName = user.FirstName,
                     lastName = user.LastName
@@ -120,6 +133,11 @@ namespace IdentityService.Controllers
 
             if (user != null)
             {
+                if (!user.EmailConfirmed)
+                {
+                    return Unauthorized(new { message = "Email nie jest potwierdzony. Sprawdź skrzynkę i potwierdź kodem." });
+                }
+
                 var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
                 if (result.Succeeded)
                 {
@@ -151,6 +169,175 @@ namespace IdentityService.Controllers
             return Unauthorized(new { message = "Nieprawidłowy login lub hasło" });
         }
 
+        [HttpPost("verify-email")]
+        public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailDto dto)
+        {
+            var email = (dto.Email ?? string.Empty).Trim().ToLowerInvariant();
+            var code = (dto.Code ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+            {
+                return BadRequest(new { message = "Email i kod są wymagane." });
+            }
+
+            if (code.Length != 6 || !code.All(char.IsDigit))
+            {
+                return BadRequest(new { message = "Kod musi mieć 6 cyfr." });
+            }
+
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            if (user.EmailConfirmed)
+            {
+                return Ok(new { message = "Email jest już potwierdzony." });
+            }
+
+            var row = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(x => x.UserId == user.Id);
+
+            if (row == null)
+            {
+                return BadRequest(new { message = "Brak aktywnego kodu. Wyślij kod ponownie." });
+            }
+
+            if (row.ExpiresAt < DateTime.UtcNow)
+            {
+                return BadRequest(new { message = "Kod wygasł. Wyślij kod ponownie." });
+            }
+
+            if (row.FailedAttempts >= 5)
+            {
+                return BadRequest(new { message = "Zbyt wiele nieudanych prób. Wyślij kod ponownie." });
+            }
+
+            var expectedHash = ComputeVerificationHash(code, user.Id, user.Email ?? string.Empty);
+            if (!string.Equals(expectedHash, row.CodeHash, StringComparison.Ordinal))
+            {
+                row.FailedAttempts += 1;
+                await _context.SaveChangesAsync();
+                return BadRequest(new { message = "Nieprawidłowy kod." });
+            }
+
+            user.EmailConfirmed = true;
+            var update = await _userManager.UpdateAsync(user);
+            if (!update.Succeeded)
+            {
+                return BadRequest(new { message = "Nie udało się potwierdzić email." });
+            }
+
+            _context.EmailVerificationCodes.Remove(row);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Email potwierdzony." });
+        }
+
+        [HttpPost("resend-verification")]
+        public async Task<IActionResult> ResendEmailVerification([FromBody] ResendEmailVerificationDto dto)
+        {
+            var email = (dto.Email ?? string.Empty).Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return BadRequest(new { message = "Email jest wymagany." });
+            }
+
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+            {
+                return NotFound(new { message = "Użytkownik nie został znaleziony." });
+            }
+
+            if (user.EmailConfirmed)
+            {
+                return Ok(new { sent = false, details = "Email jest już potwierdzony." });
+            }
+
+            var now = DateTime.UtcNow;
+            var existing = await _context.EmailVerificationCodes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == user.Id);
+
+            if (existing != null)
+            {
+                var nextAllowedAt = existing.CreatedAt.AddMinutes(2);
+                if (nextAllowedAt > now)
+                {
+                    var remaining = nextAllowedAt - now;
+                    var secondsRemaining = (int)Math.Ceiling(remaining.TotalSeconds);
+                    return Ok(new
+                    {
+                        sent = false,
+                        details = $"Możesz wysłać kod ponownie za {secondsRemaining} sekund."
+                    });
+                }
+            }
+
+            var (sent, details) = await CreateAndSendEmailVerificationAsync(user);
+            return Ok(new { sent, details });
+        }
+
+        private static string Generate6DigitCode()
+        {
+            var value = RandomNumberGenerator.GetInt32(0, 1_000_000);
+            return value.ToString("D6");
+        }
+
+        private static string ComputeVerificationHash(string code, string userId, string email)
+        {
+            var input = $"{code}:{userId}:{email.Trim().ToLowerInvariant()}";
+            var bytes = Encoding.UTF8.GetBytes(input);
+            var hash = SHA256.HashData(bytes);
+            return Convert.ToHexString(hash).ToLowerInvariant();
+        }
+
+        private async Task<(bool Sent, string Details)> CreateAndSendEmailVerificationAsync(ApplicationUser user)
+        {
+            var email = (user.Email ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return (false, "Missing user email");
+            }
+
+            var code = Generate6DigitCode();
+            var hash = ComputeVerificationHash(code, user.Id, email);
+            var now = DateTime.UtcNow;
+            var expiresAt = now.AddMinutes(15);
+
+            var row = await _context.EmailVerificationCodes.FirstOrDefaultAsync(x => x.UserId == user.Id);
+            if (row == null)
+            {
+                row = new EmailVerificationCode
+                {
+                    UserId = user.Id,
+                    Email = email,
+                    CodeHash = hash,
+                    FailedAttempts = 0,
+                    CreatedAt = now,
+                    ExpiresAt = expiresAt
+                };
+                _context.EmailVerificationCodes.Add(row);
+            }
+            else
+            {
+                row.Email = email;
+                row.CodeHash = hash;
+                row.FailedAttempts = 0;
+                row.CreatedAt = now;
+                row.ExpiresAt = expiresAt;
+            }
+
+            await _context.SaveChangesAsync();
+
+            var subject = "Kod potwierdzający email";
+            var body = $"Twój kod potwierdzający: {code}\n\nKod jest ważny przez 15 minut.";
+
+            var result = await _emailSender.SendAsync(email, subject, body);
+            return (result.Success, result.Details);
+        }
+
         [HttpGet("profile")]
         [Authorize]
         public async Task<IActionResult> GetProfile()
@@ -173,7 +360,8 @@ namespace IdentityService.Controllers
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Phone = user.PhoneNumber ?? string.Empty
+                Phone = user.PhoneNumber ?? string.Empty,
+                EmailConfirmed = user.EmailConfirmed
             };
 
             return Ok(dto);
@@ -287,7 +475,8 @@ namespace IdentityService.Controllers
                 Email = user.Email ?? string.Empty,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Phone = user.PhoneNumber ?? string.Empty
+                Phone = user.PhoneNumber ?? string.Empty,
+                EmailConfirmed = user.EmailConfirmed
             };
 
             return Ok(dto);
@@ -637,6 +826,17 @@ namespace IdentityService.Controllers
         public required string Password { get; set; }
     }
 
+    public class VerifyEmailDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+    }
+
+    public class ResendEmailVerificationDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
     public class UserProfileDto
     {
         public string Username { get; set; } = string.Empty;
@@ -644,6 +844,7 @@ namespace IdentityService.Controllers
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Phone { get; set; } = string.Empty;
+        public bool EmailConfirmed { get; set; }
     }
 
     public class UpdateProfileDto

@@ -29,6 +29,8 @@ namespace IdentityService.Data
         
         // DbSet dla Company Roles
         public DbSet<UserCompanyRole> UserCompanyRoles { get; set; }
+
+        public DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
         
         // DbSet dla Audit Logs
         public DbSet<AuditLog> AuditLogs { get; set; }
@@ -96,6 +98,10 @@ namespace IdentityService.Data
                 .HasIndex(u => u.PhoneNumber)
                 .IsUnique()
                 .HasFilter("\"PhoneNumber\" IS NOT NULL AND \"PhoneNumber\" != ''"); // Filtr dla PostgreSQL
+
+            builder.Entity<EmailVerificationCode>()
+                .HasIndex(x => x.UserId)
+                .IsUnique();
         }
 
         private List<(AuditLog Log, Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry Entry, IReadOnlyList<string> KeyNames)> PrepareAuditLogs()

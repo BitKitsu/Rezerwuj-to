@@ -145,7 +145,8 @@ public class JwtService : IJwtService
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Name, user.UserName ?? ""),
             new Claim("FirstName", user.FirstName),
-            new Claim("LastName", user.LastName)
+            new Claim("LastName", user.LastName),
+            new Claim("email_confirmed", user.EmailConfirmed ? "true" : "false")
         };
 
         if (!string.IsNullOrWhiteSpace(user.PhoneNumber))

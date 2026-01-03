@@ -65,19 +65,19 @@ const stripAllWhitespace = (value) => {
 };
 
 const sanitizePhoneNumberInput = (value) => {
-  const raw = String(value || "");
-  const plus = raw.trim().startsWith("+") ? "+" : "";
+  const raw = String(value || "").trim();
   const digits = raw.replace(/\D/g, "").slice(0, 12);
-  if (!plus && !digits) return "";
-  return plus + digits;
+  if (!digits) return "";
+  return `+${digits}`;
 };
 
 const formatPhoneDisplay = (value) => {
-  const sanitized = sanitizePhoneNumberInput(value);
-  if (!sanitized) return "";
-  const plus = sanitized.startsWith("+") ? "+" : "";
-  const digits = sanitized.replace(/^\+/, "");
-  if (!digits) return plus;
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!digits) {
+    return raw.startsWith("+") ? "+" : "";
+  }
+  const plus = "+";
 
   const inferredCountryLen = digits.length > 9 ? Math.min(3, digits.length - 9) : Math.min(3, digits.length);
   const country = digits.slice(0, inferredCountryLen);

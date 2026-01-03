@@ -20,6 +20,31 @@ const stripAllWhitespace = (value) => {
   return String(value || "").replace(/\s+/g, "");
 };
 
+const sanitizePhoneNumberInput = (value) => {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!digits) return "";
+  return `+${digits}`;
+};
+
+const formatPhoneDisplay = (value) => {
+  const raw = String(value || "").trim();
+  const digits = raw.replace(/\D/g, "").slice(0, 12);
+  if (!digits) {
+    return raw.startsWith("+") ? "+" : "";
+  }
+  const plus = "+";
+
+  const inferredCountryLen = digits.length > 9 ? Math.min(3, digits.length - 9) : Math.min(3, digits.length);
+  const country = digits.slice(0, inferredCountryLen);
+  const rest = digits.slice(inferredCountryLen);
+
+  const groups = rest.match(/.{1,3}/g) || [];
+  const grouped = groups.join("-");
+
+  return plus + country + (grouped ? ` ${grouped}` : "");
+};
+
 const AdminPanel = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
@@ -673,7 +698,7 @@ const AdminPanel = () => {
       id: company.id,
       companyName: company.companyName,
       email: company.email || "",
-      phone: company.phone || "",
+      phone: formatPhoneDisplay(company.phone || ""),
       streetName: company.streetName || "",
       streetNumber: company.streetNumber || "",
       apartmentNumber: company.apartmentNumber || "",
@@ -698,6 +723,9 @@ const AdminPanel = () => {
     if (field === "streetNumber" || field === "apartmentNumber") {
       nextValue = stripAllWhitespace(value);
     }
+    if (field === "phone") {
+      nextValue = formatPhoneDisplay(value);
+    }
     setEditingCompany((prev) => ({
       ...prev,
       [field]: nextValue,
@@ -712,7 +740,7 @@ const AdminPanel = () => {
       const payload = {
         companyName: editingCompany.companyName,
         email: editingCompany.email,
-        phone: editingCompany.phone,
+        phone: sanitizePhoneNumberInput(editingCompany.phone),
         streetName: editingCompany.streetName,
         streetNumber: editingCompany.streetNumber,
         apartmentNumber: editingCompany.apartmentNumber,

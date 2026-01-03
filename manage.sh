@@ -116,7 +116,7 @@ start_backend() {
     cd app/backend
     
     print_info "Uruchamianie Docker Compose..."
-    docker-compose up -d
+    docker-compose up -d --build
     if [ $? -ne 0 ]; then
         print_error "Docker Compose nie wystartował poprawnie."
         print_info "Sprawdź: docker-compose logs"
@@ -221,7 +221,7 @@ restart_backend() {
     cd app/backend
     
     print_info "Uruchamianie (jeśli nie działa)..."
-    docker-compose up -d
+    docker-compose up -d --build
     if [ $? -ne 0 ]; then
         print_error "Docker Compose up nie wystartował poprawnie."
         print_info "Sprawdź: docker-compose logs"
@@ -419,6 +419,95 @@ test_system() {
 
     if [ "$http_code" = "200" ]; then
         print_success "Rejestracja działa!"
+
+        verification_code=""
+        for i in {1..15}; do
+            verification_code=$(python3 - "$test_email" <<'PY'
+import json
+import re
+import sys
+import urllib.request
+import quopri
+
+target = (sys.argv[1] if len(sys.argv) > 1 else "").strip().lower()
+
+def recipients(msg):
+    rec = []
+    content = msg.get("Content") or {}
+    headers = content.get("Headers") or {}
+    to_list = headers.get("To") or []
+    if isinstance(to_list, list):
+        rec.extend([str(x) for x in to_list])
+    raw = msg.get("Raw") or {}
+    raw_to = raw.get("To") or []
+    if isinstance(raw_to, list):
+        rec.extend([str(x) for x in raw_to])
+    return [r.lower() for r in rec]
+
+def extract_body(msg):
+    content = msg.get("Content") or {}
+    body = content.get("Body")
+    if isinstance(body, str) and body:
+        return body
+
+    mime = msg.get("MIME") or {}
+    parts = mime.get("Parts") or []
+    if isinstance(parts, list) and parts:
+        p0 = parts[0] or {}
+        b = p0.get("Body")
+        if isinstance(b, str) and b:
+            return b
+    return ""
+
+try:
+    with urllib.request.urlopen("http://localhost:8025/api/v2/messages", timeout=2) as r:
+        data = json.loads(r.read().decode("utf-8", errors="ignore"))
+except Exception:
+    sys.exit(0)
+
+items = data.get("items") or []
+for msg in items:
+    recs = recipients(msg)
+    if target and not any(target in r for r in recs):
+        continue
+
+    body = extract_body(msg)
+    if not body:
+        continue
+
+    decoded = body
+    try:
+        decoded = quopri.decodestring(body.encode("utf-8", errors="ignore")).decode("utf-8", errors="ignore")
+    except Exception:
+        decoded = body
+
+    m = re.search(r"\b(\d{6})\b", decoded)
+    if m:
+        sys.stdout.write(m.group(1))
+        sys.exit(0)
+
+sys.exit(0)
+PY
+)
+            if [ -n "$verification_code" ]; then
+                break
+            fi
+            sleep 1
+        done
+
+        if [ -n "$verification_code" ]; then
+            verify_response=$(curl -s -X POST http://localhost:5000/identity/account/verify-email \
+                -H "Content-Type: application/json" \
+                -d "{\"email\": \"$test_email\", \"code\": \"$verification_code\"}" \
+                -w "\nHTTP_CODE:%{http_code}")
+            verify_http_code=$(echo "$verify_response" | grep "HTTP_CODE:" | cut -d: -f2)
+
+            if [ "$verify_http_code" != "200" ]; then
+                print_error "Nie udało się potwierdzić email testowego użytkownika (HTTP $verify_http_code)"
+            fi
+        else
+            print_error "Nie udało się pobrać kodu weryfikacyjnego z MailHog."
+        fi
 
         # Po udanym teście rejestracji wyczyść testowego użytkownika,
         # żeby nie zaśmiecać bazy danymi z automatycznych testów.

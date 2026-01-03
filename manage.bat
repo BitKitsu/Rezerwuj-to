@@ -75,7 +75,7 @@ echo ========================================
 echo URUCHAMIANIE BACKEND
 echo ========================================
 cd app\backend
-docker-compose up -d
+docker-compose up -d --build
 echo.
 echo Czekanie na inicjalizacje (20 sekund)...
 timeout /t 20 /nobreak >nul
@@ -142,7 +142,7 @@ echo RESTART BACKEND
 echo ========================================
 cd app\backend
 echo Uruchamianie (jesli nie dziala)...
-docker-compose up -d
+docker-compose up -d --build
 echo Restartowanie kontenerow...
 docker-compose restart
 echo.
@@ -287,6 +287,18 @@ for /f "delims=" %%i in ('curl -s -o nul -w "%%{http_code}" -X POST http://local
 
 if "!REG_STATUS!"=="200" (
     echo %GREEN%Rejestracja dziala!%NC%
+
+    set "VERIFICATION_CODE="
+    for /f "delims=" %%i in ('powershell -NoProfile -Command "$email='!TEST_EMAIL!'; $code=''; for($i=0; $i -lt 15 -and -not $code; $i++){ try { $data = Invoke-RestMethod -TimeoutSec 2 'http://localhost:8025/api/v2/messages' } catch { Start-Sleep -Seconds 1; continue }; foreach($m in $data.items){ $to=''; if($m.Content -and $m.Content.Headers -and $m.Content.Headers.To){ $to = ($m.Content.Headers.To -join ',') }; if((-not $to) -and $m.Raw -and $m.Raw.To){ $to = ($m.Raw.To -join ',') }; if($to -like ('*' + $email + '*')){ $body = $null; if($m.Content -and $m.Content.Body){ $body = $m.Content.Body }; if((-not $body) -and $m.MIME -and $m.MIME.Parts -and $m.MIME.Parts.Count -gt 0){ $body = $m.MIME.Parts[0].Body }; if($body){ $match=[regex]::Match($body,'\b\d{6}\b'); if($match.Success){ $code=$match.Value; break } } } } if(-not $code){ Start-Sleep -Seconds 1 } }; Write-Output $code"') do set "VERIFICATION_CODE=%%i"
+
+    if not "!VERIFICATION_CODE!"=="" (
+        for /f "delims=" %%i in ('curl -s -o nul -w "%%{http_code}" -X POST http://localhost:5000/identity/account/verify-email -H "Content-Type: application/json" -d "{\"email\":\"!TEST_EMAIL!\",\"code\":\"!VERIFICATION_CODE!\"}"') do set "VERIFY_STATUS=%%i"
+        if not "!VERIFY_STATUS!"=="200" (
+            echo %RED%Nie udalo sie potwierdzic email testowego uzytkownika (HTTP !VERIFY_STATUS!)%NC%
+        )
+    ) else (
+        echo %RED%Nie udalo sie pobrac kodu weryfikacyjnego z MailHog.%NC%
+    )
 
     set "TEST_ACCESS_TOKEN="
     for /f "delims=" %%i in ('curl -s -X POST http://localhost:5000/identity/account/login -H "Content-Type: application/json" -d "{\"loginIdentifier\":\"!TEST_EMAIL!\",\"password\":\"Test123!\"}" ^| powershell -NoProfile -Command "$json=[Console]::In.ReadToEnd(); try { ($json ^| ConvertFrom-Json).accessToken } catch { '' }"') do set "TEST_ACCESS_TOKEN=%%i"

@@ -21,6 +21,8 @@ public class ScheduleService : IScheduleService
     private readonly ILogger<ScheduleService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
+
+    private static readonly TimeZoneInfo AppTimeZone = ResolveAppTimeZone();
     
     public ScheduleService(
         ReservationDbContext context,
@@ -33,11 +35,54 @@ public class ScheduleService : IScheduleService
         _httpClientFactory = httpClientFactory;
         _cache = cache;
     }
+
+    private static TimeZoneInfo ResolveAppTimeZone()
+    {
+        var tzId = Environment.GetEnvironmentVariable("APP_TIMEZONE")
+            ?? Environment.GetEnvironmentVariable("APP_TIME_ZONE")
+            ?? Environment.GetEnvironmentVariable("TZ")
+            ?? "Europe/Warsaw";
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(tzId);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Warsaw");
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Central European Standard Time");
+        }
+        catch
+        {
+            return TimeZoneInfo.Local;
+        }
+    }
+
+    private static DateTime NormalizeToLocalDate(DateTime date)
+    {
+        if (date.Kind == DateTimeKind.Utc)
+        {
+            return TimeZoneInfo.ConvertTimeFromUtc(date, AppTimeZone);
+        }
+
+        return date;
+    }
     
     public async Task<List<TimeSlot>> GenerateTimeSlotsAsync(int companyId, int branchId, int serviceId, DateTime date)
     {
         // Pobierz harmonogram dla dnia tygodnia
-        var localDate = date.Kind == DateTimeKind.Utc ? date.ToLocalTime() : date;
+        var localDate = NormalizeToLocalDate(date);
         var localDayStart = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Unspecified);
         var dayOfWeek = localDayStart.DayOfWeek;
         var schedules = await _context.Schedules
@@ -106,8 +151,8 @@ public class ScheduleService : IScheduleService
             var currentLocal = localDayStart.Add(scheduleStart);
             var endLocal = localDayStart.Add(scheduleEnd);
 
-            var currentTime = TimeZoneInfo.ConvertTimeToUtc(currentLocal, TimeZoneInfo.Local);
-            var endTime = TimeZoneInfo.ConvertTimeToUtc(endLocal, TimeZoneInfo.Local);
+            var currentTime = TimeZoneInfo.ConvertTimeToUtc(currentLocal, AppTimeZone);
+            var endTime = TimeZoneInfo.ConvertTimeToUtc(endLocal, AppTimeZone);
             
             while (currentTime.AddMinutes(service.DurationMinutes) <= endTime)
             {
@@ -183,11 +228,11 @@ public class ScheduleService : IScheduleService
             closeHours = close;
         }
 
-        var localDate = date.Kind == DateTimeKind.Utc ? date.ToLocalTime() : date;
+        var localDate = NormalizeToLocalDate(date);
         var localDayStart = DateTime.SpecifyKind(localDate.Date, DateTimeKind.Unspecified);
         var localDayEnd = localDayStart.AddDays(1);
-        var dayStartUtc = TimeZoneInfo.ConvertTimeToUtc(localDayStart, TimeZoneInfo.Local);
-        var dayEndUtc = TimeZoneInfo.ConvertTimeToUtc(localDayEnd, TimeZoneInfo.Local);
+        var dayStartUtc = TimeZoneInfo.ConvertTimeToUtc(localDayStart, AppTimeZone);
+        var dayEndUtc = TimeZoneInfo.ConvertTimeToUtc(localDayEnd, AppTimeZone);
         var dayOfWeek = localDayStart.DayOfWeek;
 
         var schedules = await _context.Schedules
@@ -208,8 +253,9 @@ public class ScheduleService : IScheduleService
         var staffIds = schedules
             .Select(s => s.StaffId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => id!)
-            .Distinct(StringComparer.Ordinal)
+            .Select(id => id!.Trim())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var staffNameById = await ResolveStaffNamesAsync(companyId, staffIds);
@@ -219,8 +265,7 @@ public class ScheduleService : IScheduleService
             .Where(b => b.CompanyId == companyId
                 && b.BranchId == branchId
                 && b.IsActive
-                && b.DayOfWeek == dayOfWeek
-                && staffIds.Contains(b.StaffId))
+                && b.DayOfWeek == dayOfWeek)
             .ToListAsync();
 
         var appointments = await _context.Appointments
@@ -228,13 +273,12 @@ public class ScheduleService : IScheduleService
             .Include(a => a.Service)
             .Where(a => a.CompanyId == companyId
                 && a.BranchId == branchId
-                && staffIds.Contains(a.StaffId)
                 && a.Status != "cancelled"
                 && a.DateStart < dayEndUtc
                 && a.DateEnd > dayStartUtc)
             .ToListAsync();
 
-        var blockedByStaff = new Dictionary<string, List<TimeInterval>>();
+        var blockedByStaff = new Dictionary<string, List<TimeInterval>>(StringComparer.OrdinalIgnoreCase);
         foreach (var id in staffIds)
         {
             blockedByStaff[id!] = new List<TimeInterval>();
@@ -242,21 +286,23 @@ public class ScheduleService : IScheduleService
 
         foreach (var b in breaks)
         {
-            if (!blockedByStaff.TryGetValue(b.StaffId, out var list))
+            var staffId = (b.StaffId ?? string.Empty).Trim();
+            if (!blockedByStaff.TryGetValue(staffId, out var list))
             {
                 continue;
             }
 
             var startLocal = localDayStart.Add(b.StartTime.ToTimeSpan());
             var endLocal = localDayStart.Add(b.EndTime.ToTimeSpan());
-            var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, TimeZoneInfo.Local);
-            var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, TimeZoneInfo.Local);
+            var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, AppTimeZone);
+            var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, AppTimeZone);
             list.Add(new TimeInterval(startUtc, endUtc));
         }
 
         foreach (var a in appointments)
         {
-            if (!blockedByStaff.TryGetValue(a.StaffId, out var list))
+            var staffId = (a.StaffId ?? string.Empty).Trim();
+            if (!blockedByStaff.TryGetValue(staffId, out var list))
             {
                 continue;
             }
@@ -272,7 +318,10 @@ public class ScheduleService : IScheduleService
         }
 
         var duration = TimeSpan.FromMinutes(service.DurationMinutes);
-        var step = TimeSpan.FromMinutes(service.DurationMinutes + service.BufferMinutesAfter);
+        var bufferAfter = TimeSpan.FromMinutes(service.BufferMinutesAfter);
+        var blockedDuration = duration + bufferAfter;
+
+        var step = blockedDuration;
         if (step <= TimeSpan.Zero)
         {
             step = duration;
@@ -288,6 +337,8 @@ public class ScheduleService : IScheduleService
             {
                 continue;
             }
+
+            var scheduleStaffId = schedule.StaffId.Trim();
 
             var scheduleStart = schedule.StartTime.ToTimeSpan();
             var scheduleEnd = schedule.EndTime.ToTimeSpan();
@@ -305,16 +356,17 @@ public class ScheduleService : IScheduleService
 
             var scheduleStartLocal = localDayStart.Add(scheduleStart);
             var scheduleEndLocal = localDayStart.Add(scheduleEnd);
-            var scheduleStartUtc = TimeZoneInfo.ConvertTimeToUtc(scheduleStartLocal, TimeZoneInfo.Local);
-            var scheduleEndUtc = TimeZoneInfo.ConvertTimeToUtc(scheduleEndLocal, TimeZoneInfo.Local);
+            var scheduleStartUtc = TimeZoneInfo.ConvertTimeToUtc(scheduleStartLocal, AppTimeZone);
+            var scheduleEndUtc = TimeZoneInfo.ConvertTimeToUtc(scheduleEndLocal, AppTimeZone);
 
             var current = scheduleStartUtc;
-            var blocks = blockedByStaff.TryGetValue(schedule.StaffId, out var v) ? v : new List<TimeInterval>();
+            var blocks = blockedByStaff.TryGetValue(scheduleStaffId, out var v) ? v : new List<TimeInterval>();
 
-            while (current.Add(duration) <= scheduleEndUtc)
+            while (current.Add(blockedDuration) <= scheduleEndUtc)
             {
                 var candidateEnd = current.Add(duration);
-                var overlap = FindOverlap(current, candidateEnd, blocks);
+                var blockedEnd = current.Add(blockedDuration);
+                var overlap = FindOverlap(current, blockedEnd, blocks);
                 if (overlap == null)
                 {
                     if (current < nowUtc)
@@ -334,7 +386,7 @@ public class ScheduleService : IScheduleService
                     {
                         Start = current,
                         End = candidateEnd,
-                        StaffId = schedule.StaffId,
+                        StaffId = scheduleStaffId,
                         StaffName = staffName
                     });
 

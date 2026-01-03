@@ -38,6 +38,7 @@ public class RabbitMqEventPublisher : IRabbitMqEventPublisher, IDisposable
             var props = _channel.CreateBasicProperties();
             props.Persistent = true;
             props.ContentType = "application/json";
+            props.MessageId = Guid.NewGuid().ToString();
 
             _channel.BasicPublish(
                 exchange: "reservation_events",

@@ -361,11 +361,18 @@ public class AppointmentsController : ControllerBase
             ?? recipientPhone
             ?? string.Empty;
 
+        var userFirstName = User.FindFirst("FirstName")?.Value;
+        var userLastName = User.FindFirst("LastName")?.Value;
+        userFirstName = string.IsNullOrWhiteSpace(userFirstName) ? null : userFirstName.Trim();
+        userLastName = string.IsNullOrWhiteSpace(userLastName) ? null : userLastName.Trim();
+
         _eventPublisher.Publish("appointment.created", new
         {
             appointmentId = appointment.Id,
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
+            userFirstName = userFirstName,
+            userLastName = userLastName,
             serviceName = service.ServiceName,
             companyName = companyInfo?.CompanyName ?? string.Empty,
             branchName = branchInfo?.BranchName,
@@ -563,11 +570,18 @@ public class AppointmentsController : ControllerBase
             ?? recipientPhone
             ?? string.Empty;
 
+        var userFirstName = User.FindFirst("FirstName")?.Value;
+        var userLastName = User.FindFirst("LastName")?.Value;
+        userFirstName = string.IsNullOrWhiteSpace(userFirstName) ? null : userFirstName.Trim();
+        userLastName = string.IsNullOrWhiteSpace(userLastName) ? null : userLastName.Trim();
+
         _eventPublisher.Publish("appointment.created", new
         {
             appointmentId = appointment.Id,
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
+            userFirstName = userFirstName,
+            userLastName = userLastName,
             serviceName = service.ServiceName,
             companyName = companyInfo?.CompanyName ?? string.Empty,
             branchName = branchInfo?.BranchName,
@@ -660,6 +674,11 @@ public class AppointmentsController : ControllerBase
             ?? recipientPhone
             ?? string.Empty;
 
+        var userFirstName = User.FindFirst("FirstName")?.Value;
+        var userLastName = User.FindFirst("LastName")?.Value;
+        userFirstName = string.IsNullOrWhiteSpace(userFirstName) ? null : userFirstName.Trim();
+        userLastName = string.IsNullOrWhiteSpace(userLastName) ? null : userLastName.Trim();
+
         var addressFull = BuildAddress(
             streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
             streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
@@ -682,6 +701,8 @@ public class AppointmentsController : ControllerBase
             appointmentId = appointment.Id,
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
+            userFirstName = userFirstName,
+            userLastName = userLastName,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
             branchName = appointment.Branch?.BranchName,
@@ -759,6 +780,11 @@ public class AppointmentsController : ControllerBase
             ?? recipientPhone
             ?? string.Empty;
 
+        var userFirstName = User.FindFirst("FirstName")?.Value;
+        var userLastName = User.FindFirst("LastName")?.Value;
+        userFirstName = string.IsNullOrWhiteSpace(userFirstName) ? null : userFirstName.Trim();
+        userLastName = string.IsNullOrWhiteSpace(userLastName) ? null : userLastName.Trim();
+
         var addressFull = BuildAddress(
             streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
             streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
@@ -781,6 +807,8 @@ public class AppointmentsController : ControllerBase
             appointmentId = appointment.Id,
             userId = userIdForEvent,
             appointmentDate = appointment.DateStart,
+            userFirstName = userFirstName,
+            userLastName = userLastName,
             serviceName = appointment.Service?.ServiceName ?? string.Empty,
             companyName = appointment.Company?.CompanyName ?? string.Empty,
             branchName = appointment.Branch?.BranchName,

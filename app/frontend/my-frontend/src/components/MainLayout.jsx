@@ -53,7 +53,7 @@ function MainLayout({ children, theme, toggleTheme }) {
 
     const load = async () => {
       try {
-        const res = await notificationsAPI.getUserNotifications(user.userId, false);
+        const res = await notificationsAPI.getMyNotifications(false, { skip: 0, take: 50 });
         const items = Array.isArray(res.data) ? res.data : [];
         if (cancelled) return;
         setNotifications(items.slice(0, 20));
@@ -73,7 +73,9 @@ function MainLayout({ children, theme, toggleTheme }) {
     if (!isAuthenticated || !user?.userId) return;
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(`http://localhost:5003/notificationHub?userId=${encodeURIComponent(user.userId)}`)
+      .withUrl(`http://localhost:5000/notification/hub`, {
+        accessTokenFactory: () => tokenManager.getAccessToken() || '',
+      })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Error)
       .build();

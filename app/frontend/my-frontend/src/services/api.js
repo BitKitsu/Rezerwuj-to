@@ -168,6 +168,8 @@ notificationTemplatesAPIInstance.interceptors.response.use(
 // ===== Identity Service =====
 export const authAPI = {
   register: (data) => identityAPI.post('/account/register', data),
+  verifyEmail: (data) => identityAPI.post('/account/verify-email', data),
+  resendEmailVerification: (data) => identityAPI.post('/account/resend-verification', data),
   login: async (data) => {
     const response = await identityAPI.post('/account/login', data);
     if (response.data.accessToken && response.data.refreshToken) {

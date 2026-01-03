@@ -640,28 +640,31 @@ function AccountPage() {
   );
 
   const renderCreateCompanyForm = () => (
-    <div className="admin-card--form-container">
-      <div className="admin-card admin-card--form">
-        <div className="admin-form__header">
-          <h2>Zarejestruj swoją firmę</h2>
-          <button type="button" className="btn-close" onClick={closeCompanyForm} aria-label="Close"></button>
-        </div>
-        <form onSubmit={handleCompanyFormSubmit} className="admin-form">
-          {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
-          <div className="admin-form__grid">
-            <div className="admin-form__field admin-form__field--full">
-              <label htmlFor="companyName">Nazwa firmy</label>
-              <input
-                id="companyName"
-                name="companyName"
-                type="text"
-                value={companyForm.companyName}
-                onChange={handleCompanyFormChange}
-                required
-                maxLength={100}
-                className="admin-input"
-              />
-            </div>
+    <div className="auth-modal-overlay" onClick={closeCompanyForm}>
+      <div className="auth-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button type="button" className="auth-modal-close" onClick={closeCompanyForm} aria-label="Zamknij">
+          ×
+        </button>
+        <div className="auth-modal-body">
+          <h2 className="auth-modal-title">Zarejestruj swoją firmę</h2>
+          <p className="auth-modal-subtitle">Dodaj firmę, aby tworzyć usługi i przyjmować rezerwacje online.</p>
+
+          <form onSubmit={handleCompanyFormSubmit} className="admin-form">
+            {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
+            <div className="admin-form__grid">
+              <div className="admin-form__field admin-form__field--full">
+                <label htmlFor="companyName">Nazwa firmy</label>
+                <input
+                  id="companyName"
+                  name="companyName"
+                  type="text"
+                  value={companyForm.companyName}
+                  onChange={handleCompanyFormChange}
+                  required
+                  maxLength={100}
+                  className="admin-input"
+                />
+              </div>
             <div className="admin-form__field">
               <label htmlFor="email">Email kontaktowy</label>
               <input id="email" name="email" type="email" value={companyForm.email} onChange={handleCompanyFormChange} required className="admin-input" />
@@ -768,14 +771,15 @@ function AccountPage() {
               <label htmlFor="closingHour">Godzina zamknięcia</label>
               <input id="closingHour" name="closingHour" type="time" value={companyForm.closingHour} onChange={handleCompanyFormChange} required className="admin-input" />
             </div>
-          </div>
-          <div className="admin-form__actions">
-            <button type="button" className="btn btn-outline" onClick={closeCompanyForm}>Anuluj</button>
-            <button type="submit" className="btn btn-primary" disabled={companyFormLoading}>
-              {companyFormLoading ? 'Tworzenie firmy...' : 'Utwórz firmę'}
-            </button>
-          </div>
-        </form>
+            </div>
+            <div className="admin-form__actions">
+              <button type="button" className="btn btn-outline" onClick={closeCompanyForm}>Anuluj</button>
+              <button type="submit" className="btn btn-primary" disabled={companyFormLoading}>
+                {companyFormLoading ? 'Tworzenie firmy...' : 'Utwórz firmę'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

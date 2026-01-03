@@ -51,6 +51,14 @@ const notificationAPI = axios.create({
   },
 });
 
+// Instancja dla Notification Templates (ApiGateway -> NotificationService)
+const notificationTemplatesAPIInstance = axios.create({
+  baseURL: `${API_GATEWAY_URL}/notification/templates`,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 // Interceptor dla ReservationService - dodaj token
 reservationAPI.interceptors.request.use(
   (config) => {
@@ -76,6 +84,17 @@ identityAPI.interceptors.request.use(
 );
 
 notificationAPI.interceptors.request.use(
+  (config) => {
+    const token = tokenManager.getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+notificationTemplatesAPIInstance.interceptors.request.use(
   (config) => {
     const token = tokenManager.getAccessToken();
     if (token) {
@@ -139,6 +158,11 @@ identityAPI.interceptors.response.use(
 notificationAPI.interceptors.response.use(
   (response) => response,
   (error) => handleTokenRefresh(error, notificationAPI)
+);
+
+notificationTemplatesAPIInstance.interceptors.response.use(
+  (response) => response,
+  (error) => handleTokenRefresh(error, notificationTemplatesAPIInstance)
 );
 
 // ===== Identity Service =====
@@ -277,9 +301,20 @@ export const auditAPI = {
 
 // ===== Notification Service =====
 export const notificationsAPI = {
+  getMyNotifications: (unreadOnly = false, { skip = 0, take = 50 } = {}) =>
+    notificationAPI.get('/me', { params: { unreadOnly, skip, take } }),
   getUserNotifications: (userId, unreadOnly = false) =>
     notificationAPI.get(`/user/${userId}`, { params: { unreadOnly } }),
   markAsRead: (id) => notificationAPI.put(`/${id}/read`),
+};
+
+export const notificationTemplatesAPI = {
+  getAll: (includeInactive = true) =>
+    notificationTemplatesAPIInstance.get('', { params: { includeInactive } }),
+  getById: (id) => notificationTemplatesAPIInstance.get(`/${id}`),
+  create: (data) => notificationTemplatesAPIInstance.post('', data),
+  update: (id, data) => notificationTemplatesAPIInstance.put(`/${id}`, data),
+  delete: (id) => notificationTemplatesAPIInstance.delete(`/${id}`),
 };
 
 export const geocodeAPI = {

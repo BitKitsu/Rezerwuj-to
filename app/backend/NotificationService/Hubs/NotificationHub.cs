@@ -1,8 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NotificationService.Models;
+using System.Security.Claims;
 
 namespace NotificationService.Hubs;
 
+ [Authorize]
 public class NotificationHub : Hub
 {
     private readonly ILogger<NotificationHub> _logger;
@@ -14,12 +17,18 @@ public class NotificationHub : Hub
     
     public override async Task OnConnectedAsync()
     {
-        var userId = Context.GetHttpContext()?.Request.Query["userId"].ToString();
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         
         if (!string.IsNullOrEmpty(userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
             _logger.LogInformation("Użytkownik {UserId} połączył się z hubem", userId);
+        }
+        else
+        {
+            _logger.LogWarning("Połączenie z hubem bez userId w JWT - rozłączam");
+            Context.Abort();
+            return;
         }
         
         await base.OnConnectedAsync();
@@ -27,7 +36,7 @@ public class NotificationHub : Hub
     
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var userId = Context.GetHttpContext()?.Request.Query["userId"].ToString();
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         
         if (!string.IsNullOrEmpty(userId))
         {
@@ -39,6 +48,7 @@ public class NotificationHub : Hub
     }
     
     // Metoda do wysyłania powiadomienia do konkretnego użytkownika (real-time)
+    [Authorize(Roles = "Admin")]
     public async Task SendNotificationToUser(string userId, Notification notification)
     {
         await Clients.Group($"user-{userId}").SendAsync("ReceiveNotification", notification);
@@ -46,6 +56,7 @@ public class NotificationHub : Hub
     }
     
     // Metoda do wysyłania powiadomienia do wszystkich użytkowników
+    [Authorize(Roles = "Admin")]
     public async Task BroadcastNotification(Notification notification)
     {
         await Clients.All.SendAsync("ReceiveNotification", notification);

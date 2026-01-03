@@ -1,7 +1,12 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import "../admin.css";
-import { adminAPI, companiesAPI, tokenManager } from "../services/api";
+import {
+  adminAPI,
+  companiesAPI,
+  notificationTemplatesAPI,
+  tokenManager,
+} from "../services/api";
 
 const normalizePostalCodeInput = (value) => {
   const digits = String(value || "")
@@ -20,6 +25,84 @@ const AdminPanel = () => {
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(() => tabFromUrl || "users");
   const currentUser = tokenManager.getUser();
+  const isSystemAdmin = (currentUser?.roles || []).includes("Admin");
+
+  const templateTypeOptions = [
+    { value: 0, label: "AppointmentReminder" },
+    { value: 1, label: "AppointmentConfirmation" },
+    { value: 2, label: "AppointmentCancellation" },
+    { value: 3, label: "AppointmentRescheduled" },
+    { value: 4, label: "SystemNotification" },
+    { value: 5, label: "PromotionalOffer" },
+    { value: 6, label: "AccountUpdate" },
+  ];
+
+  const templateChannelOptions = [
+    { value: 0, label: "Email" },
+    { value: 1, label: "SMS" },
+    { value: 2, label: "InApp" },
+  ];
+
+  const templatePlaceholders = [
+    { token: "{{userName}}", label: "userName" },
+    { token: "{{userFirstName}}", label: "userFirstName" },
+    { token: "{{userLastName}}", label: "userLastName" },
+    { token: "{{userFullName}}", label: "userFullName" },
+    { token: "{{companyName}}", label: "companyName" },
+    { token: "{{branchName}}", label: "branchName" },
+    { token: "{{serviceName}}", label: "serviceName" },
+    { token: "{{appointmentDate}}", label: "appointmentDate" },
+    { token: "{{appointmentTime}}", label: "appointmentTime" },
+    { token: "{{appointmentDateTime}}", label: "appointmentDateTime" },
+    { token: "{{appointmentShort}}", label: "appointmentShort" },
+    { token: "{{appointmentId}}", label: "appointmentId" },
+    { token: "{{companyAddress}}", label: "companyAddress" },
+    { token: "{{companyAddressShort}}", label: "companyAddressShort" },
+    { token: "{{companyEmail}}", label: "companyEmail" },
+    { token: "{{companyPhone}}", label: "companyPhone" },
+    { token: "{{contact}}", label: "contact" },
+  ];
+
+  const subjectRef = useRef(null);
+  const bodyRef = useRef(null);
+  const [activeTemplateField, setActiveTemplateField] = useState("body");
+
+  const getHttpErrorMessage = (err, fallback) => {
+    const reqUrl = err?.config
+      ? `${String(err.config.baseURL || "").replace(/\/$/, "")}${String(err.config.url || "")}`
+      : "";
+    const msg =
+      err?.response?.data?.message ||
+      (typeof err?.response?.data === "string" ? err.response.data : "") ||
+      (err?.response?.status ? `HTTP ${err.response.status}` : "") ||
+      fallback;
+    return [String(msg), reqUrl ? `URL: ${reqUrl}` : ""].filter(Boolean).join(" | ");
+  };
+
+  const insertTemplateToken = (token) => {
+    const field = activeTemplateField === "subject" ? "subject" : "body";
+    const ref = field === "subject" ? subjectRef : bodyRef;
+    const el = ref.current;
+
+    const currentValue = String(editingTemplate?.[field] ?? "");
+
+    if (el && typeof el.selectionStart === "number" && typeof el.selectionEnd === "number") {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const next = `${currentValue.slice(0, start)}${token}${currentValue.slice(end)}`;
+      handleTemplateFormChange(field, next);
+      requestAnimationFrame(() => {
+        try {
+          el.focus();
+          el.setSelectionRange(start + token.length, start + token.length);
+        } catch {
+        }
+      });
+      return;
+    }
+
+    handleTemplateFormChange(field, `${currentValue}${token}`);
+  };
 
   const setTab = useCallback(
     (tab) => {
@@ -36,12 +119,228 @@ const AdminPanel = () => {
     [setSearchParams],
   );
 
+  const renderTemplatesTab = () => (
+    <section className="admin-section">
+      <div className="admin-section__header">
+        <h2 className="admin-section__title">Szablony powiadomień</h2>
+        <div className="admin-section__actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenCreateTemplate}
+          >
+            Dodaj szablon
+          </button>
+        </div>
+      </div>
+
+      {templatesError && (
+        <div className="admin-alert admin-alert--error">{templatesError}</div>
+      )}
+
+      {!isSystemAdmin ? (
+        <div className="admin-alert admin-alert--error">
+          Brak uprawnień. Szablony mogą być zarządzane tylko przez administratora systemu.
+        </div>
+      ) : null}
+
+      <div className="admin-card">
+        {templatesLoading && templates.length === 0 ? (
+          <p>Ładowanie szablonów...</p>
+        ) : templates.length === 0 ? (
+          <p>Brak szablonów do wyświetlenia.</p>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Nazwa</th>
+                <th>Typ</th>
+                <th>Kanał</th>
+                <th>Aktywny</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody>
+              {templates.map((t) => (
+                <tr key={t.id}>
+                  <td>{t.name}</td>
+                  <td>
+                    {templateTypeOptions.find((x) => x.value === t.type)?.label ||
+                      String(t.type)}
+                  </td>
+                  <td>
+                    {templateChannelOptions.find((x) => x.value === t.channel)?.label ||
+                      String(t.channel ?? "")}
+                  </td>
+                  <td>{t.isActive ? "TAK" : "NIE"}</td>
+                  <td>
+                    <div className="admin-user-actions">
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => handleOpenEditTemplate(t)}
+                      >
+                        Edytuj
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs admin-table__delete-btn"
+                        onClick={() => handleDeleteTemplate(t)}
+                      >
+                        Usuń
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {templateFormVisible && editingTemplate && (
+        <div className="admin-card admin-card--form">
+          <h3 className="admin-card__title">
+            {editingTemplate.id == null ? "Dodaj szablon" : "Edytuj szablon"}
+          </h3>
+          <form className="admin-form" onSubmit={handleTemplateFormSubmit}>
+            <div className="admin-form__grid">
+              <label className="admin-form__field">
+                <span>Nazwa</span>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={editingTemplate.name}
+                  onChange={(e) =>
+                    handleTemplateFormChange("name", e.target.value)
+                  }
+                  required
+                  maxLength={200}
+                />
+              </label>
+
+              <label className="admin-form__field">
+                <span>Typ</span>
+                <select
+                  className="admin-input"
+                  value={String(editingTemplate.type)}
+                  onChange={(e) =>
+                    handleTemplateFormChange("type", Number(e.target.value))
+                  }
+                >
+                  {templateTypeOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="admin-form__field">
+                <span>Kanał</span>
+                <select
+                  className="admin-input"
+                  value={String(editingTemplate.channel ?? 0)}
+                  onChange={(e) =>
+                    handleTemplateFormChange("channel", Number(e.target.value))
+                  }
+                >
+                  {templateChannelOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="admin-form__field admin-form__field--full">
+                <span>Temat (Subject)</span>
+                <input
+                  type="text"
+                  className="admin-input"
+                  ref={subjectRef}
+                  value={editingTemplate.subject}
+                  onChange={(e) =>
+                    handleTemplateFormChange("subject", e.target.value)
+                  }
+                  onFocus={() => setActiveTemplateField("subject")}
+                />
+              </label>
+
+              <label className="admin-form__field admin-form__field--full">
+                <span>Treść (Body)</span>
+                <textarea
+                  className="admin-input"
+                  rows={5}
+                  ref={bodyRef}
+                  value={editingTemplate.body}
+                  onChange={(e) =>
+                    handleTemplateFormChange("body", e.target.value)
+                  }
+                  onFocus={() => setActiveTemplateField("body")}
+                />
+              </label>
+
+              <div className="admin-form__field admin-form__field--full">
+                <span className="admin-muted">
+                  Wstaw zmienną (aktywne pole: {activeTemplateField === "subject" ? "Subject" : "Body"})
+                </span>
+                <div className="admin-user-actions" style={{ flexWrap: "wrap" }}>
+                  {templatePlaceholders.map((p) => (
+                    <button
+                      key={`token-${p.token}`}
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => insertTemplateToken(p.token)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="admin-form__field">
+                <span>Aktywny</span>
+                <select
+                  className="admin-input"
+                  value={editingTemplate.isActive ? "true" : "false"}
+                  onChange={(e) =>
+                    handleTemplateFormChange(
+                      "isActive",
+                      e.target.value === "true",
+                    )
+                  }
+                >
+                  <option value="true">TAK</option>
+                  <option value="false">NIE</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="admin-form__actions">
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleCloseTemplateForm}
+              >
+                Anuluj
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Zapisz
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+
   useEffect(() => {
-    const allowedTabs = ["users", "companies"];
+    const allowedTabs = isSystemAdmin ? ["users", "companies", "templates"] : ["users", "companies"];
     if (!allowedTabs.includes(activeTab)) {
       setTab("users");
     }
-  }, [activeTab, setTab]);
+  }, [activeTab, isSystemAdmin, setTab]);
 
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -69,6 +368,12 @@ const AdminPanel = () => {
     [],
   );
 
+  const [templates, setTemplates] = useState([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState("");
+  const [templateFormVisible, setTemplateFormVisible] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+
   const resetCompanyForm = () => {
     setEditingCompany({
       id: null,
@@ -86,10 +391,134 @@ const AdminPanel = () => {
     });
   };
 
+  const resetTemplateForm = () => {
+    setEditingTemplate({
+      id: null,
+      name: "",
+      type: 0,
+      channel: 0,
+      subject: "",
+      body: "",
+      isActive: true,
+    });
+  };
+
+  const loadTemplates = async () => {
+    setTemplatesLoading(true);
+    setTemplatesError("");
+    try {
+      const res = await notificationTemplatesAPI.getAll(true);
+      setTemplates(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error("Error loading templates", error);
+      setTemplatesError(getHttpErrorMessage(error, "Nie udało się pobrać listy szablonów."));
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleOpenCreateTemplate = () => {
+    resetTemplateForm();
+    setTemplateFormVisible(true);
+  };
+
+  const handleOpenEditTemplate = (template) => {
+    setEditingTemplate({
+      id: template.id,
+      name: template.name || "",
+      type:
+        typeof template.type === "number" ? template.type : Number(template.type) || 0,
+      channel:
+        typeof template.channel === "number"
+          ? template.channel
+          : Number(template.channel) || 0,
+      subject: template.subject || "",
+      body: template.body || "",
+      isActive: template.isActive !== false,
+    });
+    setTemplateFormVisible(true);
+  };
+
+  const handleCloseTemplateForm = () => {
+    setTemplateFormVisible(false);
+  };
+
+  const handleTemplateFormChange = (field, value) => {
+    setEditingTemplate((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleTemplateFormSubmit = async (event) => {
+    event.preventDefault();
+    if (!editingTemplate) return;
+
+    if (!isSystemAdmin) {
+      window.alert("Brak uprawnień. Szablony może zapisywać tylko administrator.");
+      return;
+    }
+
+    const payload = {
+      name: (editingTemplate.name || "").trim(),
+      type: Number(editingTemplate.type) || 0,
+      channel: Number(editingTemplate.channel) || 0,
+      subject: editingTemplate.subject || "",
+      body: editingTemplate.body || "",
+      isActive: !!editingTemplate.isActive,
+    };
+
+    if (!payload.name) {
+      window.alert("Nazwa szablonu jest wymagana.");
+      return;
+    }
+
+    try {
+      if (editingTemplate.id == null) {
+        await notificationTemplatesAPI.create(payload);
+      } else {
+        await notificationTemplatesAPI.update(editingTemplate.id, payload);
+      }
+      setTemplateFormVisible(false);
+      await loadTemplates();
+    } catch (error) {
+      console.error("Save template error", error);
+      window.alert(getHttpErrorMessage(error, "Nie udało się zapisać szablonu."));
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    if (
+      !window.confirm(
+        `Na pewno chcesz usunąć szablon "${template.name}"? Ta operacja jest nieodwracalna.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await notificationTemplatesAPI.delete(template.id);
+      await loadTemplates();
+    } catch (error) {
+      console.error("Delete template error", error);
+      window.alert("Nie udało się usunąć szablonu.");
+    }
+  };
+
   useEffect(() => {
     loadUsers(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "templates") return;
+    if (isSystemAdmin) {
+      loadTemplates();
+    } else {
+      setTemplates([]);
+      setTemplatesError("Brak uprawnień. Szablony mogą być zarządzane tylko przez administratora systemu.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isSystemAdmin]);
 
   useEffect(() => {
     // Only trigger if we're on the companies tab
@@ -810,10 +1239,27 @@ const AdminPanel = () => {
         >
           Firmy
         </button>
+        {isSystemAdmin ? (
+          <button
+            type="button"
+            className={
+              activeTab === "templates"
+                ? "admin-tab admin-tab--active"
+                : "admin-tab"
+            }
+            onClick={() => setTab("templates")}
+          >
+            Szablony
+          </button>
+        ) : null}
       </div>
 
       <section className="admin-page__content">
-        {activeTab === "users" ? renderUsersTab() : renderCompaniesTab()}
+        {activeTab === "users"
+          ? renderUsersTab()
+          : activeTab === "companies"
+            ? renderCompaniesTab()
+            : renderTemplatesTab()}
       </section>
     </div>
   );

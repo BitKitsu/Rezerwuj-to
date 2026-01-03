@@ -1,13 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Data;
 using NotificationService.Models;
 using NotificationService.Services;
+using System.Security.Claims;
 
 namespace NotificationService.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class NotificationsController : ControllerBase
 {
     private readonly NotificationDbContext _context;
@@ -24,13 +27,34 @@ public class NotificationsController : ControllerBase
         _logger = logger;
     }
 
-    // GET: api/notifications/user/{userId}
-    [HttpGet("user/{userId}")]
-    public async Task<ActionResult<IEnumerable<Notification>>> GetUserNotifications(
-        string userId, 
-        [FromQuery] bool unreadOnly = false)
+    private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    private bool IsAdmin() => User.IsInRole("Admin");
+
+    private static int ClampTake(int take)
     {
+        if (take <= 0) return 50;
+        return Math.Min(take, 200);
+    }
+
+    // GET: api/notifications/me
+    [HttpGet("me")]
+    public async Task<ActionResult<IEnumerable<Notification>>> GetMyNotifications(
+        [FromQuery] bool unreadOnly = false,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 50)
+    {
+        var userId = GetUserId();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized();
+        }
+
+        take = ClampTake(take);
+        if (skip < 0) skip = 0;
+
         IQueryable<Notification> query = _context.Notifications
+            .AsNoTracking()
             .Where(n => n.UserId == userId);
 
         if (unreadOnly)
@@ -38,7 +62,44 @@ public class NotificationsController : ControllerBase
             query = query.Where(n => n.ReadAt == null);
         }
 
-        query = query.OrderByDescending(n => n.CreatedAt);
+        query = query
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip(skip)
+            .Take(take);
+
+        return await query.ToListAsync();
+    }
+
+    // GET: api/notifications/user/{userId}
+    [HttpGet("user/{userId}")]
+    public async Task<ActionResult<IEnumerable<Notification>>> GetUserNotifications(
+        string userId, 
+        [FromQuery] bool unreadOnly = false,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 50)
+    {
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(callerUserId, userId, StringComparison.Ordinal))
+        {
+            return Forbid();
+        }
+
+        take = ClampTake(take);
+        if (skip < 0) skip = 0;
+
+        IQueryable<Notification> query = _context.Notifications
+            .AsNoTracking()
+            .Where(n => n.UserId == userId);
+
+        if (unreadOnly)
+        {
+            query = query.Where(n => n.ReadAt == null);
+        }
+
+        query = query
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip(skip)
+            .Take(take);
 
         return await query.ToListAsync();
     }
@@ -47,11 +108,17 @@ public class NotificationsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<Notification>> GetNotification(int id)
     {
-        var notification = await _context.Notifications.FindAsync(id);
+        var notification = await _context.Notifications.AsNoTracking().FirstOrDefaultAsync(n => n.Id == id);
 
         if (notification == null)
         {
             return NotFound();
+        }
+
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        {
+            return Forbid();
         }
 
         return notification;
@@ -61,6 +128,12 @@ public class NotificationsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Notification>> CreateNotification(CreateNotificationDto dto)
     {
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal))
+        {
+            return Forbid();
+        }
+
         // Pobierz szablon jeśli określony
         NotificationTemplate? template = null;
         if (dto.TemplateId.HasValue)
@@ -97,8 +170,7 @@ public class NotificationsController : ControllerBase
         _context.Notifications.Add(notification);
         await _context.SaveChangesAsync();
 
-        // Wyślij powiadomienie asynchronicznie
-        _ = Task.Run(async () => await _notificationSender.SendNotificationAsync(notification));
+        await _notificationSender.SendNotificationAsync(notification);
 
         return CreatedAtAction(nameof(GetNotification), new { id = notification.Id }, notification);
     }
@@ -113,6 +185,12 @@ public class NotificationsController : ControllerBase
             return NotFound();
         }
 
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        {
+            return Forbid();
+        }
+
         notification.ReadAt = DateTime.UtcNow;
         notification.Status = NotificationStatus.Read;
         
@@ -125,6 +203,12 @@ public class NotificationsController : ControllerBase
     [HttpPost("send-appointment-reminder")]
     public async Task<ActionResult<Notification>> SendAppointmentReminder([FromBody] AppointmentReminderDto dto)
     {
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal))
+        {
+            return Forbid();
+        }
+
         _logger.LogInformation("Wysyłanie przypomnienia o wizycie dla użytkownika {UserId}", dto.UserId);
 
         var template = await _context.NotificationTemplates
@@ -163,6 +247,12 @@ public class NotificationsController : ControllerBase
         if (notification == null)
         {
             return NotFound();
+        }
+
+        var callerUserId = GetUserId();
+        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        {
+            return Forbid();
         }
 
         _context.Notifications.Remove(notification);

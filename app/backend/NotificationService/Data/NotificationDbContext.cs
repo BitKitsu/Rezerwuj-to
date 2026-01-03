@@ -13,6 +13,7 @@ public class NotificationDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<NotificationTemplate> NotificationTemplates { get; set; }
     public DbSet<NotificationHistory> NotificationHistories { get; set; }
+    public DbSet<ProcessedMessage> ProcessedMessages { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,10 @@ public class NotificationDbContext : DbContext
         modelBuilder.Entity<Notification>()
             .HasIndex(n => n.CreatedAt);
 
+        modelBuilder.Entity<ProcessedMessage>()
+            .HasIndex(x => x.DedupeKey)
+            .IsUnique();
+
         // Relacje
         modelBuilder.Entity<NotificationHistory>()
             .HasOne(h => h.Notification)
@@ -42,6 +47,7 @@ public class NotificationDbContext : DbContext
                 Id = 1,
                 Name = "Przypomnienie o wizycie",
                 Type = NotificationType.AppointmentReminder,
+                Channel = NotificationChannel.Email,
                 Subject = "Przypomnienie o nadchodzącej wizycie",
                 Body = "Szanowny/a {{userName}}, przypominamy o wizycie w dniu {{appointmentDate}} o godzinie {{appointmentTime}}. Adres: {{companyAddress}}.",
                 IsActive = true
@@ -51,6 +57,7 @@ public class NotificationDbContext : DbContext
                 Id = 2,
                 Name = "Potwierdzenie rezerwacji",
                 Type = NotificationType.AppointmentConfirmation,
+                Channel = NotificationChannel.Email,
                 Subject = "Potwierdzenie rezerwacji",
                 Body = "Szanowny/a {{userName}}, Twoja rezerwacja na {{serviceName}} w dniu {{appointmentDate}} o godzinie {{appointmentTime}} została potwierdzona.",
                 IsActive = true
@@ -60,6 +67,7 @@ public class NotificationDbContext : DbContext
                 Id = 3,
                 Name = "Anulowanie wizyty",
                 Type = NotificationType.AppointmentCancellation,
+                Channel = NotificationChannel.Email,
                 Subject = "Wizyta została anulowana",
                 Body = "Szanowny/a {{userName}}, informujemy że Twoja wizyta w dniu {{appointmentDate}} została anulowana. Prosimy o kontakt w celu umówienia nowego terminu.",
                 IsActive = true

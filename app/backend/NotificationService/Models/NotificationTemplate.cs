@@ -5,6 +5,7 @@ public class NotificationTemplate
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public NotificationType Type { get; set; }
+    public NotificationChannel Channel { get; set; } = NotificationChannel.Email;
     public string Subject { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty; // Może zawierać placeholdery jak {{userName}}, {{appointmentDate}}
     public bool IsActive { get; set; } = true;

@@ -493,6 +493,21 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/templates",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "notification_api",
+          "Port": 8080
+        }
+      ],
+      "UpstreamPathTemplate": "/notification/templates",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
+    },
+    {
       "DownstreamPathTemplate": "/notificationHub",
       "DownstreamScheme": "ws",
       "DownstreamHostAndPorts": [

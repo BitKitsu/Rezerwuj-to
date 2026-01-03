@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { companiesAPI } from '../services/api';
 
 function SalonsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const appliedPrefillKeyRef = useRef(null);
   const [salons, setSalons] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,33 @@ function SalonsPage() {
   const [sortBy, setSortBy] = useState('recommended');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
+
+  const prefill = location.state?.prefill;
+
+  useEffect(() => {
+    const hasPrefill =
+      prefill && (typeof prefill.query === 'string' || typeof prefill.city === 'string');
+    if (!hasPrefill) return;
+    if (appliedPrefillKeyRef.current === location.key) return;
+
+    appliedPrefillKeyRef.current = location.key;
+
+    if (typeof prefill.query === 'string') {
+      setQuery(prefill.query);
+    }
+    if (typeof prefill.city === 'string') {
+      setCity(prefill.city);
+    }
+    setPage(1);
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: location.search,
+      },
+      { replace: true, state: null },
+    );
+  }, [prefill, location.key, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     const load = async () => {

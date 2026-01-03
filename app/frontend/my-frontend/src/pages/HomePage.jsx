@@ -13,14 +13,17 @@ function HomePage() {
   const [featuredSalons, setFeaturedSalons] = useState([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
 
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [heroIsFading, setHeroIsFading] = useState(false);
+
   const categories = useMemo(
     () => [
-      { label: 'Fryzjer', query: 'strzyżenie' },
-      { label: 'Barber', query: 'broda' },
-      { label: 'Paznokcie', query: 'paznokcie' },
-      { label: 'Kosmetyczka', query: 'kosmet' },
-      { label: 'Masaż', query: 'masaż' },
-      { label: 'Brwi i rzęsy', query: 'rzęsy' },
+      { label: 'Fryzjer', query: 'strzyżenie', hint: 'Strzyżenie, modelowanie, koloryzacja' },
+      { label: 'Barber', query: 'broda', hint: 'Broda i włosy — szybkie terminy' },
+      { label: 'Paznokcie', query: 'paznokcie', hint: 'Manicure, pedicure, hybryda' },
+      { label: 'Kosmetyczka', query: 'kosmet', hint: 'Zabiegi i pielęgnacja twarzy' },
+      { label: 'Masaż', query: 'masaż', hint: 'Relaks i regeneracja' },
+      { label: 'Brwi i rzęsy', query: 'rzęsy', hint: 'Stylizacja brwi i rzęs' },
     ],
     [],
   );
@@ -56,8 +59,8 @@ function HomePage() {
       setFeaturedLoading(true);
       try {
         const [servicesRes, salonsRes] = await Promise.all([
-          servicesAPI.getAll({ page: 1, pageSize: 6, sort: 'rating' }),
-          companiesAPI.getAll({ page: 1, pageSize: 4, sort: 'rating' }),
+          servicesAPI.getAll({ page: 1, pageSize: 10, sort: 'rating' }),
+          companiesAPI.getAll({ page: 1, pageSize: 10, sort: 'rating' }),
         ]);
 
         if (cancelled) return;
@@ -85,7 +88,32 @@ function HomePage() {
     };
   }, []);
 
-  const heroService = featuredServices[0] || null;
+  useEffect(() => {
+    if (featuredLoading) return undefined;
+    if (!Array.isArray(featuredServices) || featuredServices.length < 2) return undefined;
+
+    let cancelled = false;
+    let fadeTimeout = null;
+
+    const interval = setInterval(() => {
+      if (cancelled) return;
+
+      setHeroIsFading(true);
+      fadeTimeout = setTimeout(() => {
+        if (cancelled) return;
+        setHeroIndex((idx) => (idx + 1) % featuredServices.length);
+        setHeroIsFading(false);
+      }, 240);
+    }, 4800);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      if (fadeTimeout) clearTimeout(fadeTimeout);
+    };
+  }, [featuredLoading, featuredServices]);
+
+  const heroService = featuredServices[heroIndex] || featuredServices[0] || null;
   const heroSalonName = heroService?.companyName || heroService?.company?.companyName || 'Polecany salon';
   const heroServiceName = heroService?.serviceName || 'Przykładowa usługa';
   const heroCity = heroService?.city || heroService?.branch?.city || 'Twoje miasto';
@@ -118,6 +146,18 @@ function HomePage() {
 
   return (
     <div className="home-page">
+      <section className="home-cta home-cta-top">
+        <div className="home-cta-card">
+          <div>
+            <h2>Masz firmę usługową?</h2>
+            <p>Dodaj ofertę, ustaw grafik i przyjmuj rezerwacje online — bez telefonów.</p>
+          </div>
+          <Link to={businessLink} className="btn btn-primary">
+            {businessCtaLabel}
+          </Link>
+        </div>
+      </section>
+
       <section className="home-hero">
         <div className="home-hero-text">
           <h1>Umów wizytę online</h1>
@@ -199,26 +239,32 @@ function HomePage() {
           state={heroService?.id ? { service: heroService } : undefined}
           className="home-hero-card"
         >
-          <div className="home-hero-card-header">
-            <div className="home-hero-avatar" />
-            <div>
-              <div className="home-hero-salon-name">{heroSalonName}</div>
-              <div className="home-hero-salon-meta">{heroCity}</div>
-            </div>
-          </div>
-          <div className="home-hero-service">
-            <div>
-              <div className="home-hero-service-name">{heroServiceName}</div>
-              <div className="home-hero-service-meta">
-                {[heroDuration, heroService?.branchName || heroService?.branch?.branchName]
-                  .filter(Boolean)
-                  .join(' | ') || 'Sprawdź szczegóły usługi'}
+          <div className={heroIsFading ? 'home-hero-showcase home-hero-showcase-fade' : 'home-hero-showcase'}>
+            <div className="home-hero-card-header">
+              <div className="home-hero-avatar" />
+              <div>
+                <div className="home-hero-salon-name">{heroSalonName}</div>
+                <div className="home-hero-salon-meta">{heroCity}</div>
               </div>
             </div>
-            <div className="home-hero-service-price">{heroPrice || '—'}</div>
-          </div>
-          <div className="home-hero-footer">
-            <span>{featuredLoading ? 'Ładowanie polecanych usług...' : 'Sprawdź dostępne terminy i rezerwuj w kilka kliknięć.'}</span>
+            <div className="home-hero-service">
+              <div>
+                <div className="home-hero-service-name">{heroServiceName}</div>
+                <div className="home-hero-service-meta">
+                  {[heroDuration, heroService?.branchName || heroService?.branch?.branchName]
+                    .filter(Boolean)
+                    .join(' | ') || 'Sprawdź szczegóły usługi'}
+                </div>
+              </div>
+              <div className="home-hero-service-price">{heroPrice || '—'}</div>
+            </div>
+            <div className="home-hero-footer">
+              <span>
+                {featuredLoading
+                  ? 'Ładowanie polecanych usług...'
+                  : 'Top usługi zmieniają się automatycznie — kliknij, aby przejść do rezerwacji.'}
+              </span>
+            </div>
           </div>
         </Link>
       </section>
@@ -237,7 +283,7 @@ function HomePage() {
               onClick={() => handleSearch(cat.query, city)}
             >
               <div className="home-category-title">{cat.label}</div>
-              <div className="home-category-meta">Szukaj: {cat.query}</div>
+              <div className="home-category-meta">{cat.hint}</div>
             </button>
           ))}
         </div>
@@ -246,7 +292,7 @@ function HomePage() {
       <section className="home-section">
         <div className="home-section-header">
           <h2>Polecane usługi</h2>
-          <p>Wybrane pozycje z najwyższymi ocenami.</p>
+          <p>Top 10 usług z najwyższymi ocenami.</p>
         </div>
 
         {featuredLoading ? (
@@ -291,7 +337,7 @@ function HomePage() {
       <section className="home-section">
         <div className="home-section-header">
           <h2>Polecane firmy</h2>
-          <p>Znajdź firmę w Twoim mieście i wybierz usługę.</p>
+          <p>Top 10 firm z najwyższymi ocenami.</p>
         </div>
 
         {featuredLoading ? (
@@ -355,17 +401,6 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="home-cta">
-        <div className="home-cta-card">
-          <div>
-            <h2>Masz firmę usługową?</h2>
-            <p>Dodaj ofertę, ustaw grafik i przyjmuj rezerwacje online — bez telefonów.</p>
-          </div>
-          <Link to={businessLink} className="btn btn-primary">
-            {businessCtaLabel}
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }

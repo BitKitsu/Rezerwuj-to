@@ -1,7 +1,7 @@
 .admin-page {
   padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .admin-page__header {

@@ -335,6 +335,10 @@ function AccountPage() {
       // The user's state is updated by assignCompany, no need to reload page
     } catch (err) {
       console.error('Create company error:', err);
+      if (err.response?.status === 403) {
+        setCompanyFormError('Aby utworzyć firmę, musisz najpierw potwierdzić adres email.');
+        return;
+      }
       if (err.response?.data?.errors) {
         const message = Object.values(err.response.data.errors).flat().join(' ');
         setCompanyFormError(message);
@@ -420,10 +424,16 @@ function AccountPage() {
 
   useEffect(() => {
     const shouldOpenCompanyForm = searchParams.get('openCompanyForm') === '1';
-    if (shouldOpenCompanyForm && !hasCompany) {
-      setShowCompanyForm(true);
+    if (!shouldOpenCompanyForm || hasCompany) return;
+    if (profileLoading) return;
+
+    if (profile && profile.emailConfirmed === false) {
+      setProfileError('Aby utworzyć firmę, musisz najpierw potwierdzić adres email.');
+      return;
     }
-  }, [searchParams, hasCompany]);
+
+    setShowCompanyForm(true);
+  }, [searchParams, hasCompany, profileLoading, profile]);
 
   const formatAuditDate = (value) => {
     if (!value) return '';

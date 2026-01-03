@@ -44,8 +44,11 @@ function RegisterPage() {
     phone: ''
   });
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [verified, setVerified] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationMessage, setVerificationMessage] = useState('');
 
   const handleClose = () => {
     navigate('/');
@@ -72,6 +75,7 @@ function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setVerificationMessage('');
 
     const email = String(formData.email || '').trim().toLowerCase();
     const username = String(formData.username || '').replace(/\s+/g, '');
@@ -79,7 +83,7 @@ function RegisterPage() {
     const lastName = normalizeHumanNameInput(formData.lastName);
     const phone = sanitizePhoneNumberInput(formData.phone);
 
-     if (step === 1) {
+    if (step === 1) {
       if (!email) {
         setError('Email jest wymagany!');
         return;
@@ -101,6 +105,33 @@ function RegisterPage() {
       }
 
       setStep(2);
+      return;
+    }
+
+    if (step === 3) {
+      const code = String(verificationCode || '').replace(/\D/g, '').slice(0, 6);
+      if (code.length !== 6) {
+        setError('Kod musi mieć 6 cyfr.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await authAPI.verifyEmail({
+          email,
+          code
+        });
+        setVerified(true);
+        setVerificationMessage('Email potwierdzony. Przekierowywanie do logowania...');
+        setTimeout(() => {
+          navigate('/login');
+        }, 1500);
+      } catch (err) {
+        setError(err.response?.data?.message || 'Nie udało się potwierdzić email.');
+      } finally {
+        setLoading(false);
+      }
+
       return;
     }
 
@@ -145,7 +176,7 @@ function RegisterPage() {
     setLoading(true);
 
     try {
-      await authAPI.register({
+      const response = await authAPI.register({
         email,
         username,
         password: formData.password,
@@ -153,13 +184,20 @@ function RegisterPage() {
         lastName,
         phone
       });
-      
-      setSuccess(true);
-      
-      // Po 2 sekundach przekieruj do logowania
-      setTimeout(() => {
-        navigate('/login');
-      }, 2000);
+
+      setRegistered(true);
+      setStep(3);
+      setVerificationCode('');
+      const sent = Boolean(response?.data?.emailVerificationSent);
+      const details = response?.data?.emailVerificationDetails;
+      if (sent) {
+        setVerificationMessage('Wysłaliśmy kod potwierdzający na email. Wpisz go poniżej.');
+      } else {
+        setVerificationMessage('Konto utworzone, ale nie udało się wysłać kodu. Użyj opcji "Wyślij kod ponownie".');
+        setError(
+          `Nie udało się wysłać kodu email.${details ? ` Szczegóły: ${details}` : ''}`
+        );
+      }
       
     } catch (err) {
       console.error('Registration error:', err);
@@ -221,11 +259,11 @@ function RegisterPage() {
             </div>
           )}
 
-          {success && (
+          {verificationMessage ? (
             <div className="form-message form-message-success">
-              Rejestracja zakończona sukcesem! Przekierowywanie do logowania...
+              {verificationMessage}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleSubmit} className="form">
             {step === 1 ? (
@@ -315,11 +353,11 @@ function RegisterPage() {
                   />
                 </div>
 
-                <button type="submit" disabled={success} className="btn btn-primary form-button">
+                <button type="submit" disabled={registered || verified} className="btn btn-primary form-button">
                   Dalej
                 </button>
               </>
-            ) : (
+            ) : step === 2 ? (
               <>
                 <div className="form-field">
                   <label className="form-label" htmlFor="password">
@@ -356,8 +394,76 @@ function RegisterPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button type="submit" disabled={loading || success} className="btn btn-primary form-button" style={{ marginTop: 0, flex: 1 }}>
+                  <button type="submit" disabled={loading || registered || verified} className="btn btn-primary form-button" style={{ marginTop: 0, flex: 1 }}>
                     {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-field">
+                  <label className="form-label" htmlFor="verificationCode">
+                    Kod z emaila (6 cyfr):
+                  </label>
+                  <input
+                    id="verificationCode"
+                    type="text"
+                    inputMode="numeric"
+                    name="verificationCode"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(String(e.target.value || '').replace(/\D/g, '').slice(0, 6))}
+                    required
+                    className="form-input"
+                    placeholder="123456"
+                    disabled={loading || verified}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button
+                    type="submit"
+                    disabled={loading || verified}
+                    className="btn btn-primary form-button"
+                    style={{ marginTop: 0, flex: 1 }}
+                  >
+                    {loading ? 'Potwierdzanie...' : 'Potwierdź email'}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={loading || verified}
+                    className="btn form-button"
+                    style={{ marginTop: 0, flex: 1 }}
+                    onClick={async () => {
+                      setError('');
+                      setVerificationMessage('');
+                      setLoading(true);
+                      try {
+                        const resendEmail = String(formData.email || '').trim().toLowerCase();
+                        const resp = await authAPI.resendEmailVerification({ email: resendEmail });
+                        const sent = Boolean(resp?.data?.sent);
+                        const details = resp?.data?.details;
+                        if (sent) {
+                          setVerificationMessage('Wysłaliśmy nowy kod. Sprawdź email.');
+                        } else {
+                          const isRateLimited = typeof details === 'string' && details.includes('Możesz wysłać kod ponownie');
+                          if (isRateLimited) {
+                            setVerificationMessage(details);
+                          } else {
+                            setVerificationMessage('Nie udało się wysłać kodu ponownie.');
+                            setError(
+                              `Nie udało się wysłać kodu ponownie.${details ? ` Szczegóły: ${details}` : ''}`
+                            );
+                          }
+                        }
+                      } catch (err) {
+                        setError(err.response?.data?.message || 'Nie udało się wysłać kodu ponownie.');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  >
+                    Wyślij kod ponownie
                   </button>
                 </div>
               </>
@@ -373,10 +479,10 @@ function RegisterPage() {
               type="button"
               className="auth-stepper-back"
               onClick={() => setStep((prev) => Math.max(1, prev - 1))}
-              disabled={step === 1 || loading || success}
+              disabled={step === 1 || loading || registered || verified}
               aria-label="Wróć do poprzedniego kroku"
             />
-            <div className="auth-stepper-indicator">{step}/2</div>
+            <div className="auth-stepper-indicator">{step}/3</div>
           </div>
 
           {step === 2 ? (
@@ -385,6 +491,16 @@ function RegisterPage() {
               <ul className="form-help-list">
                 <li>Minimum 6 znaków</li>
                 <li>Przynajmniej 1 cyfra</li>
+              </ul>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="form-help">
+              <strong>Potwierdzenie email:</strong>
+              <ul className="form-help-list">
+                <li>Kod jest ważny przez 15 minut</li>
+                <li>Możesz wysłać nowy kod, jeśli poprzedni nie dotarł</li>
               </ul>
             </div>
           ) : null}

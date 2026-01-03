@@ -50,7 +50,7 @@
   gap: 0.25rem;
   padding: 0.25rem;
   border-radius: 9999px;
-  background: rgba(148, 163, 184, 0.12);
+  background: var(--color-bg-soft);
   margin-bottom: 1.5rem;
 }
 
@@ -100,15 +100,15 @@
   min-width: 0;
   padding: 0.5rem 0.75rem;
   border-radius: 9999px;
-  border: 1px solid var(--color-border-subtle, #374151);
-  background-color: rgba(15, 23, 42, 0.6);
-  color: inherit;
+  border: 1px solid var(--color-border-subtle);
+  background-color: var(--color-bg-soft);
+  color: var(--color-text);
 }
 
 .admin-input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.6);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-soft);
 }
 
 .admin-form textarea.admin-input {
@@ -129,7 +129,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text-subtle, #9ca3af);
+  color: var(--color-text-muted);
 }
 
 .admin-table th,
@@ -140,11 +140,11 @@
 }
 
 .admin-table tbody tr:nth-child(even) {
-  background-color: rgba(15, 23, 42, 0.5);
+  background-color: var(--color-primary-soft);
 }
 
 .admin-table tbody tr:hover {
-  background-color: rgba(79, 70, 229, 0.25);
+  background-color: color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .admin-pagination {
@@ -166,15 +166,15 @@
 }
 
 .admin-alert--error {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fecaca;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  color: var(--color-text);
 }
 
 .admin-alert--danger {
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #fecaca;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  color: var(--color-text);
 }
 
 .admin-card--form {
@@ -212,8 +212,8 @@
 }
 
 .admin-table__delete-btn {
-  color: #f97373;
-  border-color: rgba(248, 113, 113, 0.6);
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
 }
 
 .admin-user-actions {

@@ -140,7 +140,7 @@ public class CompaniesController : ControllerBase
 
     // POST: api/companies
     [HttpPost]
-    [Authorize]
+    [Authorize(Policy = "VerifiedEmail")]
     public async Task<ActionResult<Company>> CreateCompany(Company company)
     {
         company.Phone = SanitizePhoneNumber(company.Phone) ?? company.Phone;

@@ -65,6 +65,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("VerifiedEmail", policy =>
+        policy.RequireAssertion(ctx =>
+            ctx.User.HasClaim(c =>
+                c.Type == "email_confirmed" && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase))));
+
     options.AddPolicy("CompanyOwnerOrAdmin", policy =>
         policy.RequireAssertion(ctx =>
             ctx.User.IsInRole("Admin") || ctx.User.HasClaim("CompanyRole", "Owner")));

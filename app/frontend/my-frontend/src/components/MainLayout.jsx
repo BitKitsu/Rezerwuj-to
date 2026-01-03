@@ -202,18 +202,6 @@ function MainLayout({ children, theme, toggleTheme }) {
           <div className="app-header-actions">
             {!isAuthenticated ? (
               <>
-                <Link to="/login" className="header-auth-btn">
-                  <span className="header-auth-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path
-                        d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5Zm0 2c-4.418 0-8 2.015-8 4.5V21h16v-2.5c0-2.485-3.582-4.5-8-4.5Z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                  </span>
-                  <span className="header-auth-text">{headerAuthLabel}</span>
-                </Link>
-
                 <button
                   type="button"
                   className="header-lang-btn"
@@ -262,26 +250,76 @@ function MainLayout({ children, theme, toggleTheme }) {
                     <IconMoon filled={false} />
                   </span>
                 </button>
+
+                <Link to="/login" className="header-auth-btn">
+                  <span className="header-auth-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5Zm0 2c-4.418 0-8 2.015-8 4.5V21h16v-2.5c0-2.485-3.582-4.5-8-4.5Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                  <span className="header-auth-text">{headerAuthLabel}</span>
+                </Link>
               </>
             ) : (
               <>
+                {showListYourBusiness && (
+                  <Link to={listYourBusinessTo} className="header-business-link">
+                    {headerBusinessLabel}
+                  </Link>
+                )}
+
+                <button
+                  type="button"
+                  className="header-lang-btn"
+                  aria-label="Wybór języka (placeholder)"
+                  onClick={toggleLanguage}
+                >
+                  {language}
+                </button>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={theme !== 'light'}
+                  className={
+                    theme === 'light'
+                      ? 'theme-toggle theme-toggle--icon'
+                      : 'theme-toggle theme-toggle--icon theme-toggle--dark'
+                  }
+                  onClick={toggleTheme}
+                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                >
+                  <span
+                    className={
+                      theme === 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconSun filled={false} />
+                  </span>
+                  <span
+                    className={
+                      theme !== 'light'
+                        ? 'theme-toggle-icon theme-toggle-icon--active'
+                        : 'theme-toggle-icon'
+                    }
+                    aria-hidden="true"
+                  >
+                    <IconMoon filled={false} />
+                  </span>
+                </button>
+
                 <div style={{ position: 'relative' }}>
                   <button
                     type="button"
                     onClick={() => setNotificationsOpen((v) => !v)}
                     aria-label="Powiadomienia"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      border: '1px solid var(--color-border-subtle)',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      position: 'relative'
-                    }}
+                    className="header-icon-btn header-notifications-btn"
                   >
                     <svg
                       fill="currentColor"
@@ -393,59 +431,10 @@ function MainLayout({ children, theme, toggleTheme }) {
 
                 <button
                   type="button"
-                  className="btn btn-outline header-login-btn"
+                  className="btn btn-ghost header-login-btn header-logout-btn"
                   onClick={handleLogout}
                 >
                   Wyloguj
-                </button>
-
-                <button
-                  type="button"
-                  className="header-lang-btn"
-                  aria-label="Wybór języka (placeholder)"
-                  onClick={toggleLanguage}
-                >
-                  {language}
-                </button>
-
-                {showListYourBusiness && (
-                  <Link to={listYourBusinessTo} className="header-business-link">
-                    {headerBusinessLabel}
-                  </Link>
-                )}
-
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={theme !== 'light'}
-                  className={
-                    theme === 'light'
-                      ? 'theme-toggle theme-toggle--icon'
-                      : 'theme-toggle theme-toggle--icon theme-toggle--dark'
-                  }
-                  onClick={toggleTheme}
-                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
-                >
-                  <span
-                    className={
-                      theme === 'light'
-                        ? 'theme-toggle-icon theme-toggle-icon--active'
-                        : 'theme-toggle-icon'
-                    }
-                    aria-hidden="true"
-                  >
-                    <IconSun filled={false} />
-                  </span>
-                  <span
-                    className={
-                      theme !== 'light'
-                        ? 'theme-toggle-icon theme-toggle-icon--active'
-                        : 'theme-toggle-icon'
-                    }
-                    aria-hidden="true"
-                  >
-                    <IconMoon filled={false} />
-                  </span>
                 </button>
               </>
             )}

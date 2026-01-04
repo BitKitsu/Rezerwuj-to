@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { branchReviewsAPI, geocodeAPI, servicesAPI } from "../services/api";
+import { useI18n } from "../i18n/I18nContext";
 
 function ServiceDetailsPage() {
   const { id } = useParams();
   const location = useLocation();
+  const { t, locale } = useI18n();
 
   const initialService = location.state?.service || null;
 
@@ -19,6 +21,18 @@ function ServiceDetailsPage() {
   const [branchReviewsError, setBranchReviewsError] = useState("");
 
   const [mapCoords, setMapCoords] = useState(null);
+
+  const tx = (value) => {
+    if (!value) return "";
+    if (typeof value === "string") {
+      if (value.startsWith("serviceDetails.")) return t(value);
+      return value;
+    }
+    if (typeof value === "object" && value.key) {
+      return t(value.key, value.vars);
+    }
+    return String(value);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +49,7 @@ function ServiceDetailsPage() {
       } catch (err) {
         if (!cancelled) {
           if (!location.state?.service) {
-            setError("Nie udało się pobrać szczegółów usługi.");
+            setError("serviceDetails.loadError");
           }
         }
       } finally {
@@ -104,7 +118,7 @@ function ServiceDetailsPage() {
   }, [company?.openingHour, company?.closingHour]);
 
   const hoursText = branchHoursText || companyHoursText;
-  const hoursLabel = branchHoursText ? "Godziny oddziału:" : "Godziny firmy (domyślne):";
+  const hoursLabel = branchHoursText ? t('serviceDetails.branchHours') : t('serviceDetails.companyHoursDefault');
 
   const normalizeStreet = (value) => {
     if (!value) return null;
@@ -203,8 +217,8 @@ function ServiceDetailsPage() {
           setBranchSummary(null);
           setBranchSummaryError(
             status
-              ? `Nie udało się pobrać oceny. (HTTP ${status})`
-              : "Nie udało się pobrać oceny.",
+              ? { key: 'serviceDetails.ratingLoadErrorHttp', vars: { status } }
+              : 'serviceDetails.ratingLoadError',
           );
         }
       }
@@ -231,8 +245,8 @@ function ServiceDetailsPage() {
           setBranchReviews([]);
           setBranchReviewsError(
             status
-              ? `Nie udało się pobrać opinii. (HTTP ${status})`
-              : "Nie udało się pobrać opinii.",
+              ? { key: 'serviceDetails.reviewsLoadErrorHttp', vars: { status } }
+              : 'serviceDetails.reviewsLoadError',
           );
         }
       } finally {
@@ -251,23 +265,23 @@ function ServiceDetailsPage() {
   }, [branchId]);
 
   const formatBranchSummary = (summary) => {
-    if (!summary) return "—";
+    if (!summary) return t('serviceDetails.ratingPlaceholder');
     const count = summary.reviewCount ?? 0;
     const avg = summary.averageRating ?? 0;
-    if (count === 0) return "Brak ocen";
+    if (count === 0) return t('serviceDetails.noRatings');
     return `${Number(avg).toFixed(1)}/5 (${count})`;
   };
 
   if (loading) {
-    return <div className="list-page">Ładowanie szczegółów usługi...</div>;
+    return <div className="list-page">{t('serviceDetails.loading')}</div>;
   }
 
   if (error) {
     return (
       <div className="list-page">
-        <div className="list-state list-state-error">{error}</div>
+        <div className="list-state list-state-error">{tx(error)}</div>
         <Link to="/services" className="btn btn-outline">
-          Wróć do listy usług
+          {t('serviceDetails.backToList')}
         </Link>
       </div>
     );
@@ -276,9 +290,9 @@ function ServiceDetailsPage() {
   if (!service) {
     return (
       <div className="list-page">
-        <div className="list-state">Nie znaleziono usługi.</div>
+        <div className="list-state">{t('serviceDetails.notFound')}</div>
         <Link to="/services" className="btn btn-outline">
-          Wróć do listy usług
+          {t('serviceDetails.backToList')}
         </Link>
       </div>
     );
@@ -304,34 +318,34 @@ function ServiceDetailsPage() {
 
         <div style={{ marginTop: "16px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <Link to={`/services/${id}/book`} className="btn btn-primary">
-            Zarezerwuj
+            {t('serviceDetails.book')}
           </Link>
           <Link to="/services" className="btn btn-outline">
-            Wróć
+            {t('serviceDetails.back')}
           </Link>
         </div>
       </div>
 
       <div className="card" style={{ padding: "16px", marginBottom: "16px" }}>
-        <h2 style={{ marginTop: 0 }}>Dane salonu</h2>
+        <h2 style={{ marginTop: 0 }}>{t('serviceDetails.salonData')}</h2>
 
         {companyName && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Firma:</strong> {companyName}
+            <strong>{t('serviceDetails.company')}</strong> {companyName}
           </div>
         )}
 
         {addressText && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Adres:</strong> {addressText}
+            <strong>{t('serviceDetails.address')}</strong> {addressText}
             {mapLink && (
               <div style={{ marginTop: "6px" }}>
                 <a href={mapLink} target="_blank" rel="noreferrer">
-                  Otwórz w OpenStreetMap
+                  {t('serviceDetails.openInOsm')}
                 </a>
                 {!mapCoords && osmQuery && (
                   <div style={{ fontSize: "0.85em", opacity: 0.8, marginTop: "4px" }}>
-                    Nie udało się dopasować mapy do adresu – możesz użyć linku powyżej.
+                    {t('serviceDetails.mapMismatch')}
                   </div>
                 )}
               </div>
@@ -347,7 +361,7 @@ function ServiceDetailsPage() {
 
         {branch?.phone && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Telefon oddziału:</strong>{" "}
+            <strong>{t('serviceDetails.branchPhone')}</strong>{" "}
             {branchPhoneHref ? (
               <a href={branchPhoneHref}>{branch.phone}</a>
             ) : (
@@ -358,7 +372,7 @@ function ServiceDetailsPage() {
 
         {company?.phone && (!branch?.phone || company.phone !== branch.phone) && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Telefon firmy:</strong>{" "}
+            <strong>{t('serviceDetails.companyPhone')}</strong>{" "}
             {companyPhoneHref ? (
               <a href={companyPhoneHref}>{company.phone}</a>
             ) : (
@@ -369,13 +383,13 @@ function ServiceDetailsPage() {
 
         {company?.email && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Email:</strong> <a href={`mailto:${company.email}`}>{company.email}</a>
+            <strong>{t('serviceDetails.email')}</strong> <a href={`mailto:${company.email}`}>{company.email}</a>
           </div>
         )}
 
         {company?.website && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Strona:</strong>{" "}
+            <strong>{t('serviceDetails.website')}</strong>{" "}
             <a href={company.website} target="_blank" rel="noreferrer">
               {company.website}
             </a>
@@ -384,23 +398,23 @@ function ServiceDetailsPage() {
       </div>
 
       <div className="card" style={{ padding: "16px", marginBottom: "16px" }}>
-        <h2 style={{ marginTop: 0 }}>Oceny i opinie</h2>
+        <h2 style={{ marginTop: 0 }}>{t('serviceDetails.ratings')}</h2>
         <div style={{ marginBottom: "8px" }}>
-          <strong>Ocena oddziału:</strong>{" "}
-          {branchSummaryError ? branchSummaryError : formatBranchSummary(branchSummary)}
+          <strong>{t('serviceDetails.branchRating')}</strong>{" "}
+          {branchSummaryError ? tx(branchSummaryError) : formatBranchSummary(branchSummary)}
         </div>
 
         {branchReviewsLoading ? (
-          <p>Ładowanie...</p>
+          <p>{t('serviceDetails.loadingReviews')}</p>
         ) : branchReviewsError ? (
-          <div className="list-state list-state-error">{branchReviewsError}</div>
+          <div className="list-state list-state-error">{tx(branchReviewsError)}</div>
         ) : branchReviews.length === 0 ? (
-          <p>Brak opinii dla tego oddziału.</p>
+          <p>{t('serviceDetails.noReviews')}</p>
         ) : (
           <ul style={{ margin: 0, paddingLeft: "18px" }}>
             {branchReviews.map((review) => {
               const dateText = review.createdAt
-                ? new Date(review.createdAt).toLocaleDateString()
+                ? new Date(review.createdAt).toLocaleDateString(locale)
                 : "";
               return (
                 <li key={review.id} style={{ marginBottom: "10px" }}>
@@ -421,7 +435,7 @@ function ServiceDetailsPage() {
       {mapEmbedSrc && (
         <div className="card" style={{ padding: "0", overflow: "hidden" }}>
           <iframe
-            title="map"
+            title={t('serviceDetails.mapTitle')}
             src={mapEmbedSrc}
             width="100%"
             height="320"

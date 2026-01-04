@@ -13,16 +13,25 @@ import {
   authAPI,
   companyUsersAPI,
 } from "../services/api";
+import { useI18n } from "../i18n/I18nContext";
 import "../admin.css"; // Reusing admin panel styles for consistency
 
-const dayLabels = {
-  0: "Niedziela",
-  1: "Poniedziałek",
-  2: "Wtorek",
-  3: "Środa",
-  4: "Czwartek",
-  5: "Piątek",
-  6: "Sobota",
+const capitalize = (value) => {
+  const s = String(value || "");
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+const getWeekdayLabel = (day, locale) => {
+  const d = Number(day);
+  if (!Number.isFinite(d) || d < 0 || d > 6) return String(day);
+  // 2021-08-01 is Sunday. Day indexes in this app use 0=Sunday...6=Saturday.
+  const base = new Date(Date.UTC(2021, 7, 1 + d, 0, 0, 0));
+  const label = new Intl.DateTimeFormat(locale || "pl-PL", {
+    weekday: "long",
+    timeZone: "UTC",
+  }).format(base);
+  return capitalize(label);
 };
 
 const daysOrder = [1, 2, 3, 4, 5, 6, 0];
@@ -44,12 +53,12 @@ const daysEqual = (a, b) => {
   return aa.every((x, i) => x === bb[i]);
 };
 
-const getDaysSummaryLabel = (days) => {
+const getDaysSummaryLabel = (days, t, locale) => {
   const normalized = normalizeDays(days);
-  if (daysEqual(normalized, allDays)) return "Wszystkie dni";
-  if (daysEqual(normalized, workdays)) return "Dni robocze";
-  if (normalized.length === 0) return "Wybierz dni";
-  return normalized.map((d) => dayLabels[d] || d).join(", ");
+  if (daysEqual(normalized, allDays)) return t("companyPanel.days.allDays");
+  if (daysEqual(normalized, workdays)) return t("companyPanel.days.workdays");
+  if (normalized.length === 0) return t("companyPanel.days.selectDays");
+  return normalized.map((d) => getWeekdayLabel(d, locale)).join(", ");
 };
 
 const normalizePostalCodeInput = (value) => {
@@ -90,10 +99,11 @@ const formatPhoneDisplay = (value) => {
 };
 
 const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const normalizedValue = normalizeDays(value);
-  const label = getDaysSummaryLabel(normalizedValue);
+  const label = getDaysSummaryLabel(normalizedValue, t, locale);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -165,7 +175,7 @@ const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
               }}
               disabled={disabled}
             >
-              Wszystkie dni
+              {t("companyPanel.days.allDays")}
             </button>
             <button
               type="button"
@@ -176,7 +186,7 @@ const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
               }}
               disabled={disabled}
             >
-              Dni robocze
+              {t("companyPanel.days.workdays")}
             </button>
           </div>
 
@@ -197,7 +207,7 @@ const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
                   onChange={() => toggleDay(day)}
                   disabled={disabled}
                 />
-                <span>{dayLabels[day]}</span>
+                <span>{getWeekdayLabel(day, locale)}</span>
               </label>
             ))}
           </div>
@@ -208,6 +218,18 @@ const DaysChecklistDropdown = ({ value, onChange, disabled }) => {
 };
 
 const CompanyPanel = () => {
+  const { t, locale } = useI18n();
+
+  const tx = (value) => {
+    if (!value) return "";
+    if (typeof value === "object" && value.key) {
+      return t(value.key, value.vars);
+    }
+    const s = String(value);
+    if (s.startsWith("companyPanel.") || s.startsWith("common.")) return t(s);
+    return s;
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(() => tabFromUrl || "details");
@@ -403,7 +425,7 @@ const CompanyPanel = () => {
       });
     } catch (err) {
       console.error("Failed to load appointments", err);
-      setAppointmentsError("Nie udało się załadować rezerwacji.");
+      setAppointmentsError("companyPanel.reservations.loadError");
       setAppointments([]);
       setSelectedAppointmentId(null);
     } finally {
@@ -420,7 +442,7 @@ const CompanyPanel = () => {
       setSchedules(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Failed to load schedules", err);
-      setSchedulesError("Nie udało się załadować harmonogramów.");
+      setSchedulesError("companyPanel.schedules.loadError");
       setSchedules([]);
     } finally {
       setSchedulesLoading(false);
@@ -442,7 +464,7 @@ const CompanyPanel = () => {
       setAppointmentEvents(items);
     } catch (err) {
       console.error("Failed to load appointment events", err);
-      setAppointmentEventsError("Nie udało się załadować historii zmian rezerwacji.");
+      setAppointmentEventsError("companyPanel.reservations.eventsLoadError");
       setAppointmentEvents([]);
     } finally {
       setAppointmentEventsLoading(false);
@@ -459,7 +481,7 @@ const CompanyPanel = () => {
     } catch (err) {
       console.error("Failed to load staff breaks", err);
       setStaffBreaks([]);
-      setStaffBreaksError(getHttpErrorMessage(err, "Nie udało się załadować przerw."));
+      setStaffBreaksError(getHttpErrorMessage(err, t('companyPanel.staffBreaks.loadError')));
     } finally {
       setStaffBreaksLoading(false);
     }
@@ -501,17 +523,17 @@ const CompanyPanel = () => {
     setStaffBreakSubmitting(true);
     try {
       if (!companyId) {
-        setStaffBreakFormError("Brak CompanyId.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.missingCompanyId");
         return;
       }
       const branchId = Number(staffBreakFilters.branchId);
       if (!branchId) {
-        setStaffBreakFormError("Wybierz oddział.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.selectBranch");
         return;
       }
       const staffId = String(staffBreakFilters.staffId || "").trim();
       if (!staffId) {
-        setStaffBreakFormError("Wybierz pracownika.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.selectEmployee");
         return;
       }
 
@@ -520,25 +542,25 @@ const CompanyPanel = () => {
         new Set(dayValuesRaw.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)),
       );
       if (daysToCreate.length === 0) {
-        setStaffBreakFormError("Wybierz dzień tygodnia.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.selectDay");
         return;
       }
 
       const startTime = String(staffBreakForm.startTime || "").trim();
       const endTime = String(staffBreakForm.endTime || "").trim();
       if (!startTime || !endTime) {
-        setStaffBreakFormError("Podaj start i koniec przerwy.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.provideTimes");
         return;
       }
       if (endTime <= startTime) {
-        setStaffBreakFormError("Koniec przerwy musi być później niż start.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.endAfterStart");
         return;
       }
 
       const startMin = parseTimeToMinutes(startTime);
       const endMin = parseTimeToMinutes(endTime);
       if (startMin === null || endMin === null) {
-        setStaffBreakFormError("Niepoprawny format godziny.");
+        setStaffBreakFormError("companyPanel.staffBreaks.validation.invalidTimeFormat");
         return;
       }
 
@@ -551,7 +573,10 @@ const CompanyPanel = () => {
 
       if (hasOpenHours && (startMin < openMin || endMin > closeMin)) {
         setStaffBreakFormError(
-          `Przerwa musi mieścić się w godzinach otwarcia (${openRaw} - ${closeRaw}).`,
+          {
+            key: 'companyPanel.staffBreaks.validation.withinOpenHours',
+            vars: { open: openRaw, close: closeRaw },
+          },
         );
         return;
       }
@@ -568,7 +593,10 @@ const CompanyPanel = () => {
 
         if (daySchedules.length === 0) {
           setStaffBreakFormError(
-            `Brak harmonogramu dla pracownika w ${dayLabels[d] || d}. Najpierw dodaj harmonogram.`,
+            {
+              key: 'companyPanel.staffBreaks.validation.noScheduleForDay',
+              vars: { day: getWeekdayLabel(d, locale) || d },
+            },
           );
           return;
         }
@@ -599,7 +627,14 @@ const CompanyPanel = () => {
           const effStart = hasOpenHours ? Math.max(minStart, openMin) : minStart;
           const effEnd = hasOpenHours ? Math.min(maxEnd, closeMin) : maxEnd;
           setStaffBreakFormError(
-            `Przerwa musi mieścić się w godzinach pracy (${minutesToTime(effStart)} - ${minutesToTime(effEnd)}) dla ${dayLabels[d] || d}.`,
+            {
+              key: 'companyPanel.staffBreaks.validation.withinWorkHours',
+              vars: {
+                start: minutesToTime(effStart),
+                end: minutesToTime(effEnd),
+                day: getWeekdayLabel(d, locale) || d,
+              },
+            },
           );
           return;
         }
@@ -621,7 +656,7 @@ const CompanyPanel = () => {
       await loadStaffBreaks();
     } catch (err) {
       console.error("Failed to create staff break", err);
-      setStaffBreakFormError(getHttpErrorMessage(err, "Nie udało się dodać przerwy."));
+      setStaffBreakFormError(getHttpErrorMessage(err, t('companyPanel.staffBreaks.createError')));
     } finally {
       setStaffBreakSubmitting(false);
     }
@@ -629,14 +664,14 @@ const CompanyPanel = () => {
 
   const handleDeleteSchedule = async (schedule) => {
     if (!schedule?.id) return;
-    if (!window.confirm("Usunąć ten harmonogram na stałe?")) return;
+    if (!window.confirm(t('companyPanel.schedules.deleteConfirm'))) return;
     try {
       await schedulesAPI.delete(schedule.id);
-      setPanelSuccess("Harmonogram usunięty.");
+      setPanelSuccess("companyPanel.schedules.deleted");
       await loadSchedules();
     } catch (err) {
       console.error("Failed to delete schedule", err);
-      alert(err.response?.data?.message || "Nie udało się usunąć harmonogramu.");
+      alert(err.response?.data?.message || t('companyPanel.schedules.deleteError'));
     }
   };
 
@@ -652,19 +687,19 @@ const CompanyPanel = () => {
       await loadStaffBreaks();
     } catch (err) {
       console.error("Failed to toggle staff break", err);
-      alert(getHttpErrorMessage(err, "Nie udało się zmienić statusu przerwy."));
+      alert(getHttpErrorMessage(err, t('companyPanel.staffBreaks.toggleError')));
     }
   };
 
   const handleDeleteStaffBreak = async (b) => {
     if (!b?.id) return;
-    if (!window.confirm("Usunąć tę przerwę?")) return;
+    if (!window.confirm(t('companyPanel.staffBreaks.deleteConfirm'))) return;
     try {
       await staffBreaksAPI.delete(b.id);
       await loadStaffBreaks();
     } catch (err) {
       console.error("Failed to delete staff break", err);
-      alert(getHttpErrorMessage(err, "Nie udało się usunąć przerwy."));
+      alert(getHttpErrorMessage(err, t('companyPanel.staffBreaks.deleteError')));
     }
   };
 
@@ -835,7 +870,7 @@ const CompanyPanel = () => {
   };
 
   const getScheduleHoursLabel = (s) => {
-    if (!s) return "—";
+    if (!s) return t('common.dash');
     const start = String(s.startTime);
     const end = String(s.endTime);
     const open = s.branch?.openingHour;
@@ -848,7 +883,7 @@ const CompanyPanel = () => {
 
     if (openMin !== null && closeMin !== null && startMin !== null && endMin !== null) {
       if (startMin < openMin || endMin > closeMin) {
-        return `${start} - ${end} (poza godzinami oddziału ${open} - ${close})`;
+        return t('companyPanel.schedules.outsideBranchHours', { start, end, open, close });
       }
     }
 
@@ -859,16 +894,16 @@ const CompanyPanel = () => {
     if (branches.length === 0 || services.length === 0) {
       setSchedulesError(
         branches.length === 0 && services.length === 0
-          ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+          ? "companyPanel.alerts.noBranchesAndServices"
           : branches.length === 0
-            ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
-            : "Brak usług. Dodaj usługę w zakładce Usługi."
+            ? "companyPanel.alerts.noBranches"
+            : "companyPanel.alerts.noServices"
       );
       return;
     }
 
     if (employeeOptions.length === 0 && !currentUserId) {
-      setSchedulesError("Brak pracowników. Dodaj pracownika w zakładce Pracownicy.");
+      setSchedulesError("companyPanel.schedules.validation.noEmployees");
       return;
     }
 
@@ -924,7 +959,7 @@ const CompanyPanel = () => {
         new Set(dayValuesRaw.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6)),
       );
       if (daysToCreate.length === 0) {
-        setScheduleCreateError("Wybierz dzień tygodnia.");
+        setScheduleCreateError("companyPanel.schedules.validation.selectDay");
         return;
       }
 
@@ -938,12 +973,12 @@ const CompanyPanel = () => {
       };
 
       if (!payloadBase.branchId || !payloadBase.serviceId) {
-        setScheduleCreateError("Wybierz oddział i usługę.");
+        setScheduleCreateError("companyPanel.schedules.validation.selectBranchAndService");
         return;
       }
 
       if (!payloadBase.startTime || !payloadBase.endTime || payloadBase.endTime <= payloadBase.startTime) {
-        setScheduleCreateError("Nieprawidłowe godziny (koniec musi być później niż start).");
+        setScheduleCreateError("companyPanel.schedules.validation.invalidHours");
         return;
       }
 
@@ -957,15 +992,16 @@ const CompanyPanel = () => {
 
       if (openMin !== null && closeMin !== null && startMin !== null && endMin !== null) {
         if (startMin < openMin || endMin > closeMin) {
-          setScheduleCreateError(
-            `Harmonogram musi mieścić się w godzinach otwarcia oddziału (${branchOpen} - ${branchClose}).`
-          );
+          setScheduleCreateError({
+            key: 'companyPanel.schedules.validation.withinOpenHours',
+            vars: { open: branchOpen, close: branchClose },
+          });
           return;
         }
       }
 
       if (!payloadBase.staffId) {
-        setScheduleCreateError("Wybierz pracownika.");
+        setScheduleCreateError("companyPanel.schedules.validation.selectEmployee");
         return;
       }
 
@@ -979,38 +1015,41 @@ const CompanyPanel = () => {
           const msg =
             err?.response?.data?.message ||
             (typeof err?.response?.data === "string" ? err.response.data : "") ||
-            String(err?.response?.data || "Nie udało się dodać harmonogramu.");
-          setScheduleCreateError(`Nie udało się dodać harmonogramu dla ${dayLabels[d] || d}. ${msg}`);
+            String(err?.response?.data || t('companyPanel.schedules.createError'));
+          setScheduleCreateError({
+            key: 'companyPanel.schedules.createErrorDay',
+            vars: { day: getWeekdayLabel(d, locale) || d, message: msg },
+          });
           return;
         }
       }
-      setPanelSuccess("Harmonogram dodany.");
+      setPanelSuccess("companyPanel.schedules.created");
       setScheduleCreateVisible(false);
       await loadSchedules();
     } catch (err) {
       console.error("Failed to create schedule", err);
-      setScheduleCreateError(err.response?.data?.message || String(err.response?.data || "Nie udało się dodać harmonogramu."));
+      setScheduleCreateError(err.response?.data?.message || "companyPanel.schedules.createError");
     } finally {
       setScheduleCreateSubmitting(false);
     }
   };
 
   const handleDeactivateSchedule = async (scheduleId) => {
-    if (!window.confirm("Wyłączyć ten harmonogram?")) return;
+    if (!window.confirm(t('companyPanel.schedules.disableConfirm'))) return;
     try {
       await schedulesAPI.delete(scheduleId);
-      setPanelSuccess("Harmonogram wyłączony.");
+      setPanelSuccess("companyPanel.schedules.disabled");
       await loadSchedules();
     } catch (err) {
       console.error("Failed to delete schedule", err);
-      alert(err.response?.data?.message || "Nie udało się wyłączyć harmonogramu.");
+      alert(err.response?.data?.message || t('companyPanel.schedules.disableError'));
     }
   };
 
   const handleToggleSchedule = async (schedule) => {
     if (!schedule) return;
     const nextIsActive = !schedule.isActive;
-    const confirmText = nextIsActive ? "Włączyć ten harmonogram?" : "Wyłączyć ten harmonogram?";
+    const confirmText = nextIsActive ? t('companyPanel.schedules.enableConfirm') : t('companyPanel.schedules.disableConfirm');
     if (!window.confirm(confirmText)) return;
 
     try {
@@ -1021,11 +1060,11 @@ const CompanyPanel = () => {
         isActive: nextIsActive,
       });
 
-      setPanelSuccess(nextIsActive ? "Harmonogram włączony." : "Harmonogram wyłączony.");
+      setPanelSuccess(nextIsActive ? "companyPanel.schedules.enabled" : "companyPanel.schedules.disabled");
       await loadSchedules();
     } catch (err) {
       console.error("Failed to toggle schedule", err);
-      alert(err.response?.data?.message || "Nie udało się zmienić statusu harmonogramu.");
+      alert(err.response?.data?.message || t('companyPanel.schedules.toggleError'));
     }
   };
 
@@ -1111,7 +1150,7 @@ const CompanyPanel = () => {
             err?.response?.data?.message ||
             (typeof err?.response?.data === "string" ? err.response.data : "") ||
             (err?.response?.status ? `HTTP ${err.response.status}` : "") ||
-            "Nie udało się załadować dostępnych slotów.";
+            "companyPanel.reservations.slotsLoadError";
           setAvailableSlotsError(String(msg));
         }
       } finally {
@@ -1176,13 +1215,13 @@ const CompanyPanel = () => {
     try {
       const serviceId = Number(createAppointmentForm.serviceId);
       if (!serviceId) {
-        setCreateAppointmentError("Wybierz usługę.");
+        setCreateAppointmentError("companyPanel.reservations.validation.selectService");
         return;
       }
 
       const staffId = (createAppointmentForm.staffId || "").trim();
       if (!staffId) {
-        setCreateAppointmentError("Wybierz pracownika.");
+        setCreateAppointmentError("companyPanel.reservations.validation.selectEmployee");
         return;
       }
 
@@ -1201,17 +1240,17 @@ const CompanyPanel = () => {
       const hasPhone = Boolean(phone);
 
       if (!hasEmail && !hasPhone) {
-        setCreateAppointmentError("Email lub telefon klienta jest wymagany.");
+        setCreateAppointmentError("companyPanel.reservations.validation.customerContactRequired");
         return;
       }
 
       if (hasEmail && !isValidEmail(email)) {
-        setCreateAppointmentError("Nieprawidłowy email klienta.");
+        setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerEmail");
         return;
       }
 
       if (hasPhone && !isValidPhone(phone)) {
-        setCreateAppointmentError("Nieprawidłowy telefon klienta.");
+        setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerPhone");
         return;
       }
 
@@ -1220,7 +1259,7 @@ const CompanyPanel = () => {
       const dateStart = createAppointmentForm.dateStart;
       const dateEnd = createAppointmentForm.dateEnd;
       if (!dateStart) {
-        setCreateAppointmentError("Wybierz dostępny slot.");
+        setCreateAppointmentError("companyPanel.reservations.validation.selectSlot");
         return;
       }
 
@@ -1235,7 +1274,7 @@ const CompanyPanel = () => {
       });
 
       const createdId = res?.data?.id;
-      setPanelSuccess("Rezerwacja została utworzona.");
+      setPanelSuccess("companyPanel.reservations.created");
       setCreateAppointmentVisible(false);
       await loadCompanyAppointments();
       if (createdId) {
@@ -1244,7 +1283,7 @@ const CompanyPanel = () => {
       }
     } catch (err) {
       console.error("Failed to create appointment", err);
-      setCreateAppointmentError(err.response?.data || err.response?.data?.message || "Nie udało się utworzyć rezerwacji.");
+      setCreateAppointmentError(getHttpErrorMessage(err, "companyPanel.reservations.createError"));
     } finally {
       setCreateAppointmentSubmitting(false);
     }
@@ -1254,48 +1293,48 @@ const CompanyPanel = () => {
     if (!selectedAppointmentId) return;
     try {
       await appointmentsAPI.confirm(selectedAppointmentId);
-      setPanelSuccess("Rezerwacja potwierdzona.");
+      setPanelSuccess("companyPanel.reservations.confirmed");
       await loadCompanyAppointments();
       await loadAppointmentEvents(selectedAppointmentId);
     } catch (err) {
       console.error("Failed to confirm appointment", err);
-      alert(err.response?.data?.message || "Nie udało się potwierdzić rezerwacji.");
+      alert(err.response?.data?.message || t('companyPanel.reservations.confirmError'));
     }
   };
 
   const handleCancelSelectedAppointment = async () => {
     if (!selectedAppointmentId) return;
-    if (!window.confirm("Na pewno anulować rezerwację?")) return;
+    if (!window.confirm(t('companyPanel.reservations.cancelConfirm'))) return;
     try {
       await appointmentsAPI.cancel(selectedAppointmentId);
-      setPanelSuccess("Rezerwacja anulowana.");
+      setPanelSuccess("companyPanel.reservations.cancelled");
       await loadCompanyAppointments();
       await loadAppointmentEvents(selectedAppointmentId);
     } catch (err) {
       console.error("Failed to cancel appointment", err);
-      alert(err.response?.data?.message || "Nie udało się anulować rezerwacji.");
+      alert(err.response?.data?.message || t('companyPanel.reservations.cancelError'));
     }
   };
 
   const handleDeleteSelectedAppointment = async () => {
     if (!selectedAppointmentId) return;
-    if (!window.confirm("Usunąć rezerwację? (operacja nieodwracalna)")) return;
+    if (!window.confirm(t('companyPanel.reservations.deleteConfirm'))) return;
     try {
       await appointmentsAPI.delete(selectedAppointmentId);
-      setPanelSuccess("Rezerwacja usunięta.");
+      setPanelSuccess("companyPanel.reservations.deleted");
       await loadCompanyAppointments();
       setAppointmentEvents([]);
     } catch (err) {
       console.error("Failed to delete appointment", err);
-      alert(err.response?.data?.message || "Nie udało się usunąć rezerwacji.");
+      alert(err.response?.data?.message || t('companyPanel.reservations.deleteError'));
     }
   };
 
   const formatDateTime = (value) => {
-    if (!value) return "—";
+    if (!value) return t('common.dash');
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString(undefined, {
+    return date.toLocaleString(locale, {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -1317,13 +1356,13 @@ const CompanyPanel = () => {
   };
 
   const formatEventLabel = (evt) => {
-    if (!evt) return "—";
+    if (!evt) return t('common.dash');
     const type = evt.eventType || "";
-    if (type === "AppointmentCreatedEvent") return "Utworzono";
-    if (type === "AppointmentConfirmedEvent") return "Potwierdzono";
-    if (type === "AppointmentCancelledEvent") return "Anulowano";
-    if (type === "AppointmentRescheduledEvent") return "Zmieniono termin";
-    if (type === "AppointmentDeletedEvent") return "Usunięto";
+    if (type === "AppointmentCreatedEvent") return t('companyPanel.reservations.event.created');
+    if (type === "AppointmentConfirmedEvent") return t('companyPanel.reservations.event.confirmed');
+    if (type === "AppointmentCancelledEvent") return t('companyPanel.reservations.event.cancelled');
+    if (type === "AppointmentRescheduledEvent") return t('companyPanel.reservations.event.rescheduled');
+    if (type === "AppointmentDeletedEvent") return t('companyPanel.reservations.event.deleted');
     return type;
   };
 
@@ -1340,7 +1379,7 @@ const CompanyPanel = () => {
 
   const formatEventDetails = (evt) => {
     const payload = tryParseJson(evt?.eventData);
-    if (!payload) return "—";
+    if (!payload) return t('common.dash');
 
     if (evt?.eventType === "AppointmentCreatedEvent") {
       const start = payload.dateStart || payload.DateStart;
@@ -1349,33 +1388,33 @@ const CompanyPanel = () => {
       const customerId = payload.customerId || payload.CustomerId;
       const staffLabel = staffId ? getEmployeeShortLabelById(String(staffId)) : "";
       return [
-        start ? `Start: ${formatDateTime(start)}` : null,
-        end ? `Koniec: ${formatDateTime(end)}` : null,
-        staffId ? `Pracownik: ${staffLabel || staffId}` : null,
-        customerId ? `Klient: ${customerId}` : null,
-      ].filter(Boolean).join(" | ") || "—";
+        start ? `${t('common.start')}: ${formatDateTime(start)}` : null,
+        end ? `${t('common.end')}: ${formatDateTime(end)}` : null,
+        staffId ? `${t('companyPanel.reservations.details.staff')}: ${staffLabel || staffId}` : null,
+        customerId ? `${t('companyPanel.reservations.details.customer')}: ${customerId}` : null,
+      ].filter(Boolean).join(" | ") || t('common.dash');
     }
 
     if (evt?.eventType === "AppointmentRescheduledEvent") {
       const oldStart = payload.oldDateStart || payload.OldDateStart;
       const newStart = payload.newDateStart || payload.NewDateStart;
       return [
-        oldStart ? `Stary termin: ${formatDateTime(oldStart)}` : null,
-        newStart ? `Nowy termin: ${formatDateTime(newStart)}` : null,
-      ].filter(Boolean).join(" | ") || "—";
+        oldStart ? `${t('companyPanel.reservations.details.oldSlot')}: ${formatDateTime(oldStart)}` : null,
+        newStart ? `${t('companyPanel.reservations.details.newSlot')}: ${formatDateTime(newStart)}` : null,
+      ].filter(Boolean).join(" | ") || t('common.dash');
     }
 
     if (evt?.eventType === "AppointmentCancelledEvent") {
-      return payload.reason || payload.Reason || "—";
+      return payload.reason || payload.Reason || t('common.dash');
     }
 
-    return "—";
+    return t('common.dash');
   };
 
   const renderReservationsTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Rezerwacje</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.reservations')}</h2>
         <div className="admin-section__actions">
           <button
             type="button"
@@ -1383,7 +1422,7 @@ const CompanyPanel = () => {
             onClick={openCreateAppointment}
             disabled={appointmentsLoading || services.length === 0}
           >
-            Dodaj rezerwację
+            {t('companyPanel.reservations.add')}
           </button>
           <button
             type="button"
@@ -1391,22 +1430,22 @@ const CompanyPanel = () => {
             onClick={loadCompanyAppointments}
             disabled={appointmentsLoading}
           >
-            Odśwież
+            {t('common.refresh')}
           </button>
         </div>
       </div>
 
       {appointmentsError ? (
-        <div className="admin-alert admin-alert--error">{appointmentsError}</div>
+        <div className="admin-alert admin-alert--error">{tx(appointmentsError)}</div>
       ) : null}
 
       {branches.length === 0 || services.length === 0 ? (
         <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
           {branches.length === 0 && services.length === 0
-            ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+            ? t('companyPanel.alerts.noBranchesAndServices')
             : branches.length === 0
-              ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
-              : "Brak usług. Dodaj usługę w zakładce Usługi."}
+              ? t('companyPanel.alerts.noBranches')
+              : t('companyPanel.alerts.noServices')}
         </div>
       ) : null}
 
@@ -1420,11 +1459,11 @@ const CompanyPanel = () => {
           }}
         >
           <div>
-            <h4 style={{ marginTop: 0 }}>Wizyty</h4>
+            <h4 style={{ marginTop: 0 }}>{t('companyPanel.reservations.visits')}</h4>
             {appointmentsLoading ? (
-              <p>Ładowanie...</p>
+              <p>{t('common.loading')}</p>
             ) : appointments.length === 0 ? (
-              <p>Brak rezerwacji.</p>
+              <p>{t('companyPanel.reservations.empty')}</p>
             ) : (
               <div>
                 {(() => {
@@ -1452,9 +1491,9 @@ const CompanyPanel = () => {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>Data</th>
-                        <th>Usługa</th>
-                        <th>Status</th>
+                        <th>{t('common.date')}</th>
+                        <th>{t('common.service')}</th>
+                        <th>{t('common.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1469,15 +1508,15 @@ const CompanyPanel = () => {
                           onClick={() => setSelectedAppointmentId(a.id)}
                         >
                           <td>{formatDateTime(a.dateStart)}</td>
-                          <td>{a.service?.serviceName || "—"}</td>
-                          <td>{a.status || "—"}</td>
+                          <td>{a.service?.serviceName || t('common.dash')}</td>
+                          <td>{a.status || t('common.dash')}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 10 }}>
                     <span className="admin-muted">
-                      Strona {safePage} / {totalPages}
+                      {t('common.page')} {safePage} / {totalPages}
                     </span>
                     <div style={{ display: "flex", gap: 8 }}>
                       <button
@@ -1486,7 +1525,7 @@ const CompanyPanel = () => {
                         onClick={() => setAppointmentsListPage((p) => Math.max(1, p - 1))}
                         disabled={safePage <= 1}
                       >
-                        Poprzednia
+                        {t('common.previous')}
                       </button>
                       <button
                         type="button"
@@ -1494,7 +1533,7 @@ const CompanyPanel = () => {
                         onClick={() => setAppointmentsListPage((p) => Math.min(totalPages, p + 1))}
                         disabled={safePage >= totalPages}
                       >
-                        Następna
+                        {t('common.next')}
                       </button>
                     </div>
                   </div>
@@ -1508,7 +1547,7 @@ const CompanyPanel = () => {
 
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <h4 style={{ marginTop: 0, marginBottom: 0 }}>Timeline</h4>
+              <h4 style={{ marginTop: 0, marginBottom: 0 }}>{t('companyPanel.reservations.timeline')}</h4>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <button
                   type="button"
@@ -1516,7 +1555,7 @@ const CompanyPanel = () => {
                   onClick={handleConfirmSelectedAppointment}
                   disabled={!selectedAppointmentId || selectedAppointment?.status === "confirmed"}
                 >
-                  Potwierdź
+                  {t('companyPanel.reservations.confirm')}
                 </button>
                 <button
                   type="button"
@@ -1524,7 +1563,7 @@ const CompanyPanel = () => {
                   onClick={handleCancelSelectedAppointment}
                   disabled={!selectedAppointmentId || selectedAppointment?.status === "cancelled"}
                 >
-                  Anuluj
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="button"
@@ -1532,34 +1571,34 @@ const CompanyPanel = () => {
                   onClick={handleDeleteSelectedAppointment}
                   disabled={!selectedAppointmentId}
                 >
-                  Usuń
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
             {appointmentEventsError ? (
-              <div className="admin-alert admin-alert--error">{appointmentEventsError}</div>
+              <div className="admin-alert admin-alert--error">{tx(appointmentEventsError)}</div>
             ) : null}
 
             {!selectedAppointmentId ? (
-              <p>Wybierz rezerwację, aby zobaczyć historię zdarzeń.</p>
+              <p>{t('companyPanel.reservations.selectToSeeEvents')}</p>
             ) : appointmentEventsLoading ? (
-              <p>Ładowanie...</p>
+              <p>{t('common.loading')}</p>
             ) : appointmentEvents.length === 0 ? (
-              <p>Brak zdarzeń dla tej rezerwacji.</p>
+              <p>{t('companyPanel.reservations.noEvents')}</p>
             ) : (
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Wersja</th>
-                    <th>Data</th>
-                    <th>Zdarzenie</th>
-                    <th>Szczegóły</th>
+                    <th>{t('companyPanel.reservations.eventTable.version')}</th>
+                    <th>{t('common.date')}</th>
+                    <th>{t('companyPanel.reservations.eventTable.event')}</th>
+                    <th>{t('companyPanel.reservations.eventTable.details')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {appointmentEvents.map((evt) => (
                     <tr key={evt.eventId || `${evt.occurredAt}-${evt.version}`}>
-                      <td>{evt.version ?? "—"}</td>
+                      <td>{evt.version ?? t('common.dash')}</td>
                       <td>{formatDateTime(evt.occurredAt)}</td>
                       <td>{formatEventLabel(evt)}</td>
                       <td
@@ -1587,7 +1626,7 @@ const CompanyPanel = () => {
   const renderSchedulesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Harmonogram</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.schedules')}</h2>
         <div className="admin-section__actions">
           <button
             type="button"
@@ -1595,7 +1634,7 @@ const CompanyPanel = () => {
             onClick={loadSchedules}
             disabled={schedulesLoading}
           >
-            Odśwież
+            {t('common.refresh')}
           </button>
           <button
             type="button"
@@ -1603,7 +1642,7 @@ const CompanyPanel = () => {
             onClick={openCreateSchedule}
             disabled={branches.length === 0 || services.length === 0}
           >
-            Dodaj harmonogram
+            {t('companyPanel.schedules.add')}
           </button>
         </div>
       </div>
@@ -1611,40 +1650,38 @@ const CompanyPanel = () => {
       {branches.length === 0 || services.length === 0 ? (
         <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
           {branches.length === 0 && services.length === 0
-            ? "Brak oddziałów i usług. Dodaj je najpierw w zakładkach Oddziały i Usługi."
+            ? t('companyPanel.alerts.noBranchesAndServices')
             : branches.length === 0
-              ? "Brak oddziałów. Dodaj oddział w zakładce Oddziały."
-              : "Brak usług. Dodaj usługę w zakładce Usługi."}
+              ? t('companyPanel.alerts.noBranches')
+              : t('companyPanel.alerts.noServices')}
         </div>
       ) : null}
 
       {schedulesError ? (
-        <div className="admin-alert admin-alert--error">{schedulesError}</div>
+        <div className="admin-alert admin-alert--error">{tx(schedulesError)}</div>
       ) : null}
 
       <div className="admin-card">
         {schedulesLoading ? (
-          <p>Ładowanie...</p>
+          <p>{t('common.loading')}</p>
         ) : schedules.length === 0 ? (
-          <p>
-            Brak harmonogramu. Dodaj harmonogram dla usługi i dnia tygodnia, aby pojawiły się sloty.
-          </p>
+          <p>{t('companyPanel.schedules.empty')}</p>
         ) : (
           <table className="admin-table admin-table--auto">
             <thead>
               <tr>
-                <th>Dzień</th>
-                <th>Oddział</th>
-                <th>Usługa</th>
-                <th>Pracownik</th>
-                <th>Godziny</th>
-                <th>Akcje</th>
+                <th>{t('common.day')}</th>
+                <th>{t('common.branch')}</th>
+                <th>{t('common.service')}</th>
+                <th>{t('common.employee')}</th>
+                <th>{t('common.hours')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {schedules.map((s) => (
                 <tr key={s.id}>
-                  <td>{dayLabels[s.dayOfWeek] || s.dayOfWeek}</td>
+                  <td>{getWeekdayLabel(s.dayOfWeek, locale) || s.dayOfWeek}</td>
                   <td>{s.branch?.branchName || s.branchId}</td>
                   <td>{s.service?.serviceName || s.serviceId}</td>
                   <td>{getEmployeeLabelById(s.staffId)}</td>
@@ -1658,14 +1695,14 @@ const CompanyPanel = () => {
                         className="btn btn-outline btn-xs"
                         onClick={() => handleToggleSchedule(s)}
                       >
-                        {s.isActive ? "Wyłącz" : "Włącz"}
+                        {s.isActive ? t('common.disable') : t('common.enable')}
                       </button>
                       <button
                         type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
                         onClick={() => handleDeleteSchedule(s)}
                       >
-                        Usuń
+                        {t('common.delete')}
                       </button>
                     </div>
                   </td>
@@ -1683,17 +1720,17 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>Dodaj harmonogram (MVP)</h2>
+          <h2>{t('companyPanel.schedules.formTitle')}</h2>
           <button type="button" className="btn-close" onClick={closeCreateSchedule}></button>
         </div>
         <form onSubmit={handleScheduleCreateSubmit} className="admin-form">
           {scheduleCreateError ? (
-            <div className="admin-alert admin-alert--error">{scheduleCreateError}</div>
+            <div className="admin-alert admin-alert--error">{tx(scheduleCreateError)}</div>
           ) : null}
 
           <div className="admin-form__grid">
             <div className="admin-form__field">
-              <label>Oddział</label>
+              <label>{t('common.branch')}</label>
               <select
                 name="branchId"
                 value={scheduleCreateForm.branchId}
@@ -1710,7 +1747,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Usługa</label>
+              <label>{t('common.service')}</label>
               <select
                 name="serviceId"
                 value={scheduleCreateForm.serviceId}
@@ -1729,7 +1766,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Dzień tygodnia</label>
+              <label>{t('companyPanel.schedules.dayOfWeek')}</label>
               <DaysChecklistDropdown
                 value={scheduleCreateForm.dayOfWeek}
                 onChange={(days) => {
@@ -1741,7 +1778,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Start</label>
+              <label>{t('common.start')}</label>
               <input
                 type="time"
                 name="startTime"
@@ -1753,7 +1790,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Koniec</label>
+              <label>{t('common.end')}</label>
               <input
                 type="time"
                 name="endTime"
@@ -1770,23 +1807,22 @@ const CompanyPanel = () => {
               return (
                 <div className="admin-form__field admin-form__field--full">
                   <div className="admin-muted">
-                    Godziny otwarcia oddziału: {b.openingHour} - {b.closingHour}
+                    {t('companyPanel.schedules.branchOpenHours', { open: b.openingHour, close: b.closingHour })}
                   </div>
                 </div>
               );
             })()}
 
             <div className="admin-form__field admin-form__field--full">
-              <label>Pracownik</label>
+              <label>{t('common.employee')}</label>
               {employeeOptions.length === 0 && !employeesLoading ? (
                 currentUserId ? (
                   <div className="admin-alert admin-alert--info" style={{ marginTop: 8 }}>
-                    Nie udało się pobrać listy pracowników lub nie ma jeszcze pracowników w firmie.
-                    Możesz tymczasowo wybrać tylko siebie.
+                    {t('companyPanel.schedules.employeeFallbackInfo')}
                   </div>
                 ) : (
                   <div className="admin-alert admin-alert--error" style={{ marginTop: 8 }}>
-                    Brak pracowników w firmie. Dodaj pracownika w zakładce Pracownicy.
+                    {t('companyPanel.schedules.noEmployeesError')}
                   </div>
                 )
               ) : null}
@@ -1798,7 +1834,7 @@ const CompanyPanel = () => {
                 required
                 disabled={employeesLoading || (employeeOptions.length === 0 && !currentUserId)}
               >
-                {employeesLoading ? <option value="">Ładowanie...</option> : null}
+                {employeesLoading ? <option value="">{t('common.loading')}</option> : null}
                 {employeeOptions.length > 0 ? (
                   employeeOptions.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1806,9 +1842,9 @@ const CompanyPanel = () => {
                     </option>
                   ))
                 ) : currentUserId ? (
-                  <option value={currentUserId}>Ja (moje UserId)</option>
+                  <option value={currentUserId}>{t('companyPanel.schedules.meOption', { id: currentUserId })}</option>
                 ) : (
-                  <option value="">Brak pracowników</option>
+                  <option value="">{t('companyPanel.schedules.noEmployeesOption')}</option>
                 )}
               </select>
             </div>
@@ -1816,10 +1852,10 @@ const CompanyPanel = () => {
 
           <div className="admin-form__actions">
             <button type="button" className="btn btn-outline" onClick={closeCreateSchedule}>
-              Anuluj
+              {t('common.cancel')}
             </button>
             <button type="submit" className="btn btn-primary" disabled={scheduleCreateSubmitting}>
-              {scheduleCreateSubmitting ? "Zapisywanie..." : "Dodaj"}
+              {scheduleCreateSubmitting ? t('common.saving') : t('common.add')}
             </button>
           </div>
         </form>
@@ -1831,17 +1867,17 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>Dodaj rezerwację (MVP)</h2>
+          <h2>{t('companyPanel.reservations.formTitle')}</h2>
           <button type="button" className="btn-close" onClick={closeCreateAppointment}></button>
         </div>
         <form onSubmit={handleCreateAppointmentSubmit} className="admin-form">
           {createAppointmentError ? (
-            <div className="admin-alert admin-alert--error">{String(createAppointmentError)}</div>
+            <div className="admin-alert admin-alert--error">{tx(createAppointmentError)}</div>
           ) : null}
 
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
-              <label>Usługa</label>
+              <label>{t('common.service')}</label>
               <select
                 name="serviceId"
                 value={createAppointmentForm.serviceId}
@@ -1862,7 +1898,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Data (do slotów)</label>
+              <label>{t('companyPanel.reservations.dateForSlots')}</label>
               <input
                 type="date"
                 name="date"
@@ -1872,13 +1908,13 @@ const CompanyPanel = () => {
               />
               {availableSlotsError ? (
                 <div className="admin-muted" style={{ marginTop: 6 }}>
-                  {availableSlotsError}
+                  {tx(availableSlotsError)}
                 </div>
               ) : null}
             </div>
 
             <div className="admin-form__field">
-              <label>Pracownik</label>
+              <label>{t('common.employee')}</label>
               <select
                 name="staffId"
                 value={createAppointmentForm.staffId}
@@ -1887,7 +1923,7 @@ const CompanyPanel = () => {
                 required
                 disabled={employeesLoading || (employeeOptions.length === 0 && !currentUserId)}
               >
-                {employeesLoading ? <option value="">Ładowanie...</option> : null}
+                {employeesLoading ? <option value="">{t('common.loading')}</option> : null}
                 {employeeOptions.length > 0 ? (
                   employeeOptions.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -1895,15 +1931,15 @@ const CompanyPanel = () => {
                     </option>
                   ))
                 ) : currentUserId ? (
-                  <option value={currentUserId}>Ja (moje UserId)</option>
+                  <option value={currentUserId}>{t('companyPanel.schedules.meOption', { id: currentUserId })}</option>
                 ) : (
-                  <option value="">Brak pracowników</option>
+                  <option value="">{t('companyPanel.schedules.noEmployeesOption')}</option>
                 )}
               </select>
             </div>
 
             <div className="admin-form__field">
-              <label>Dostępny slot</label>
+              <label>{t('companyPanel.reservations.availableSlot')}</label>
               <select
                 name="slotIndex"
                 value={createAppointmentForm.slotIndex}
@@ -1911,7 +1947,7 @@ const CompanyPanel = () => {
                 className="admin-input"
                 disabled={availableSlotsLoading}
               >
-                <option value="">(wybierz)</option>
+                <option value="">{t('companyPanel.reservations.selectSlotPlaceholder')}</option>
                 {filteredAvailableSlots.map((slot, idx) => (
                   <option key={`${slot.start}-${slot.staffId}-${idx}`} value={String(idx)}>
                     {formatDateTime(slot.start)} - {formatDateTime(slot.end)} | {getEmployeeShortLabelById(slot.staffId)}
@@ -1920,42 +1956,42 @@ const CompanyPanel = () => {
               </select>
               {!availableSlotsLoading && createAppointmentForm.serviceId && filteredAvailableSlots.length === 0 ? (
                 <div className="admin-muted" style={{ marginTop: 6 }}>
-                  Brak slotów. Dodaj harmonogram dla tej usługi w zakładce Harmonogram (oraz przerwy pracownika, jeśli dotyczy).
+                  {t('companyPanel.reservations.noSlotsHint')}
                 </div>
               ) : null}
             </div>
 
             <div className="admin-form__field">
-              <label>Email</label>
+              <label>{t('companyPanel.reservations.customerEmail')}</label>
               <input
                 type="email"
                 name="customerEmail"
                 value={createAppointmentForm.customerEmail}
                 onChange={handleCreateAppointmentFormChange}
                 className="admin-input"
-                placeholder="np. jan@x.pl"
+                placeholder={t('companyPanel.reservations.emailPlaceholder')}
               />
             </div>
 
             <div className="admin-form__field">
-              <label>Telefon</label>
+              <label>{t('companyPanel.reservations.customerPhone')}</label>
               <input
                 type="text"
                 name="customerPhone"
                 value={createAppointmentForm.customerPhone}
                 onChange={handleCreateAppointmentFormChange}
                 className="admin-input"
-                placeholder="np. +48 123 123 123"
+                placeholder={t('companyPanel.reservations.phonePlaceholder')}
               />
             </div>
           </div>
 
           <div className="admin-form__actions">
             <button type="button" className="btn btn-outline" onClick={closeCreateAppointment}>
-              Anuluj
+              {t('common.cancel')}
             </button>
             <button type="submit" className="btn btn-primary" disabled={createAppointmentSubmitting}>
-              {createAppointmentSubmitting ? "Zapisywanie..." : "Utwórz"}
+              {createAppointmentSubmitting ? t('common.saving') : t('companyPanel.reservations.create')}
             </button>
           </div>
         </form>
@@ -1973,7 +2009,7 @@ const CompanyPanel = () => {
       setCompanyAuditPage(1);
     } catch (err) {
       console.error("Failed to load company audit", err);
-      setCompanyAuditError("Nie udało się załadować audytu firmy.");
+      setCompanyAuditError("companyPanel.audit.loadError");
     } finally {
       setCompanyAuditLoading(false);
     }
@@ -1998,7 +2034,7 @@ const CompanyPanel = () => {
 
   const loadCompanyData = useCallback(async () => {
     if (!companyId) {
-      setError("Nie znaleziono przypisanej firmy.");
+      setError("companyPanel.details.missingCompany");
       setLoading(false);
       return;
     }
@@ -2027,9 +2063,7 @@ const CompanyPanel = () => {
       console.error("Failed to load company data", err);
       if (err.response?.status === 404) {
         // Firma przypisana w Identity nie istnieje już w ReservationService
-        setError(
-          "Nie znaleziono firmy przypisanej do Twojego konta. Firma mogła zostać usunięta. Zostaniesz przekierowany do ustawień konta, aby dodać nową firmę.",
-        );
+        setError("companyPanel.details.companyNotFoundRedirect");
         try {
           await authAPI.unassignCompany();
         } catch (unassignErr) {
@@ -2042,7 +2076,7 @@ const CompanyPanel = () => {
           }, 2500);
         }
       } else {
-        setError("Nie udało się załadować danych firmy.");
+        setError("companyPanel.loadCompanyError");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2124,11 +2158,14 @@ const CompanyPanel = () => {
   }, [branches]);
 
   const formatBranchReviewSummary = (summary) => {
-    if (!summary) return "—";
+    if (!summary) return t('common.dash');
     const count = summary.reviewCount ?? 0;
     const avg = summary.averageRating ?? 0;
-    if (count === 0) return "Brak ocen";
-    return `${Number(avg).toFixed(1)}/5 (${count})`;
+    if (count === 0) return t('companyPanel.branches.noReviews');
+    return t('companyPanel.branches.reviewsSummary', {
+      avg: Number(avg).toFixed(1),
+      count,
+    });
   };
 
   useEffect(() => {
@@ -2198,7 +2235,7 @@ const CompanyPanel = () => {
     ) {
       setCompanyFormSubmitting(false);
       setCompanyFormError(
-        "Godzina zamknięcia musi być późniejsza niż godzina otwarcia.",
+        "companyPanel.details.validation.closingAfterOpening",
       );
       return;
     }
@@ -2208,7 +2245,7 @@ const CompanyPanel = () => {
         phone: sanitizePhoneNumberInput(companyForm?.phone || ""),
       };
       await companiesAPI.update(companyId, payload);
-      setCompanyFormSuccess("Dane firmy zostały zaktualizowane.");
+      setCompanyFormSuccess("companyPanel.details.updated");
       // Nie przeładowuj danych z backendu, aby nie nadpisywać lokalnych pól front-endowych
       // (np. godzin otwarcia/zamknięcia, które backend na razie ignoruje).
     } catch (err) {
@@ -2221,7 +2258,7 @@ const CompanyPanel = () => {
       } else if (err.response?.data?.message) {
         setCompanyFormError(err.response.data.message);
       } else {
-        setCompanyFormError("Nie udało się zaktualizować danych firmy.");
+        setCompanyFormError("companyPanel.details.updateError");
       }
     } finally {
       setCompanyFormSubmitting(false);
@@ -2284,12 +2321,12 @@ const CompanyPanel = () => {
     setBranchFormError("");
     try {
       if (!companyId) {
-        setBranchFormError("Brak ID firmy.");
+        setBranchFormError("companyPanel.branches.validation.missingCompanyId");
         return;
       }
 
       if (!editingBranch) {
-        setBranchFormError("Brak danych oddziału.");
+        setBranchFormError("companyPanel.branches.validation.missingBranchData");
         return;
       }
 
@@ -2301,10 +2338,10 @@ const CompanyPanel = () => {
 
       if (editingBranch.id) {
         await branchesAPI.update(editingBranch.id, payload);
-        setPanelSuccess("Oddział został zaktualizowany.");
+        setPanelSuccess("companyPanel.branches.updated");
       } else {
         await branchesAPI.create(payload);
-        setPanelSuccess("Oddział został dodany.");
+        setPanelSuccess("companyPanel.branches.created");
       }
 
       setBranchFormVisible(false);
@@ -2320,7 +2357,7 @@ const CompanyPanel = () => {
       } else if (err.response?.data?.message) {
         setBranchFormError(err.response.data.message);
       } else {
-        setBranchFormError("Nie udało się zapisać oddziału.");
+        setBranchFormError("companyPanel.branches.saveError");
       }
     } finally {
       setBranchFormSubmitting(false);
@@ -2328,15 +2365,15 @@ const CompanyPanel = () => {
   };
 
   const handleDeleteBranch = async (branchId) => {
-    if (window.confirm("Na pewno chcesz usunąć ten oddział?")) {
+    if (window.confirm(t('companyPanel.branches.deleteConfirm'))) {
       try {
         await branchesAPI.delete(branchId);
         await loadBranches();
         await loadServices();
-        setPanelSuccess("Oddział został usunięty.");
+        setPanelSuccess("companyPanel.branches.deleted");
       } catch (err) {
         console.error("Failed to delete branch", err);
-        alert(err.response?.data?.message || "Nie udało się usunąć oddziału.");
+        alert(err.response?.data?.message || t('companyPanel.branches.deleteError'));
       }
     }
   };
@@ -2400,12 +2437,12 @@ const CompanyPanel = () => {
     try {
       const serviceName = String(editingService?.serviceName || "").trim();
       if (!serviceName) {
-        setServiceFormError("Nazwa usługi jest wymagana.");
+        setServiceFormError("companyPanel.services.validation.nameRequired");
         return;
       }
 
       if (serviceName.length > 120) {
-        setServiceFormError("Nazwa usługi może mieć maksymalnie 120 znaków.");
+        setServiceFormError("companyPanel.services.validation.nameMaxLength");
         return;
       }
 
@@ -2413,12 +2450,12 @@ const CompanyPanel = () => {
       const normalizedPrice = rawPrice.replace(/\s+/g, "").replace(/,/g, ".");
       const parsedPrice = normalizedPrice === "" ? NaN : Number(normalizedPrice);
       if (!Number.isFinite(parsedPrice)) {
-        setServiceFormError("Podaj poprawną cenę (np. 50 lub 49.99). ");
+        setServiceFormError("companyPanel.services.validation.invalidPrice");
         return;
       }
 
       if (parsedPrice < 0) {
-        setServiceFormError("Cena nie może być ujemna.");
+        setServiceFormError("companyPanel.services.validation.priceNegative");
         return;
       }
 
@@ -2433,10 +2470,10 @@ const CompanyPanel = () => {
       };
       if (editingService.id) {
         await servicesAPI.update(editingService.id, serviceData);
-        setPanelSuccess("Usługa została zaktualizowana.");
+        setPanelSuccess("companyPanel.services.updated");
       } else {
         await servicesAPI.create(serviceData);
-        setPanelSuccess("Usługa została dodana.");
+        setPanelSuccess("companyPanel.services.created");
       }
       setServiceFormVisible(false);
       await loadServices();
@@ -2450,7 +2487,7 @@ const CompanyPanel = () => {
       } else if (err.response?.data?.message) {
         setServiceFormError(err.response.data.message);
       } else {
-        setServiceFormError("Nie udało się zapisać usługi.");
+        setServiceFormError("companyPanel.services.saveError");
       }
     } finally {
       setServiceFormSubmitting(false);
@@ -2460,7 +2497,7 @@ const CompanyPanel = () => {
   const handleDeleteCompany = async () => {
     if (
       !window.confirm(
-        "Czy na pewno chcesz trwale usunąć swoją firmę? Spowoduje to usunięcie wszystkich jej danych i usług. Ta operacja jest nieodwracalna.",
+        t('companyPanel.settings.deleteCompanyConfirm'),
       )
     ) {
       return;
@@ -2496,9 +2533,7 @@ const CompanyPanel = () => {
       }
     } catch (err) {
       console.error("Failed to delete company", err);
-      setDeleteCompanyError(
-        "Nie udało się usunąć firmy. Skontaktuj się z administratorem.",
-      );
+      setDeleteCompanyError("companyPanel.settings.deleteCompanyError");
     } finally {
       setDeleteCompanyLoading(false);
     }
@@ -2522,7 +2557,7 @@ const CompanyPanel = () => {
     } catch (err) {
       console.error("Failed to add user", err);
       setAddUserFormError(
-        err.response?.data?.message || "Nie udało się dodać użytkownika.",
+        err.response?.data?.message || "companyPanel.employees.addUserError",
       );
     } finally {
       setAddUserFormSubmitting(false);
@@ -2530,14 +2565,14 @@ const CompanyPanel = () => {
   };
 
   const handleRemoveUser = async (userId) => {
-    if (window.confirm("Na pewno chcesz usunąć tego pracownika z firmy?")) {
+    if (window.confirm(t('companyPanel.employees.removeConfirm'))) {
       try {
         await companyUsersAPI.removeUser(userId);
         await loadEmployees();
       } catch (err) {
         console.error("Failed to remove user", err);
         alert(
-          err.response?.data?.message || "Nie udało się usunąć użytkownika.",
+          err.response?.data?.message || t('companyPanel.employees.removeError'),
         );
       }
     }
@@ -2546,20 +2581,20 @@ const CompanyPanel = () => {
   const handleTransferOwnership = async (newOwner) => {
     if (
       window.confirm(
-        `Czy na pewno chcesz przekazać własność firmy użytkownikowi ${newOwner.email}? Utracisz uprawnienia właściciela.`,
+        t('companyPanel.employees.transferConfirm', { email: newOwner.email }),
       )
     ) {
       try {
         await companyUsersAPI.transferOwnership(newOwner.id);
         alert(
-          "Własność została przekazana. Zostaniesz wylogowany, aby odświeżyć uprawnienia.",
+          t('companyPanel.employees.transferSuccess'),
         );
         // Force logout to refresh roles on next login
         authAPI.logout();
       } catch (err) {
         console.error("Failed to transfer ownership", err);
         alert(
-          err.response?.data?.message || "Nie udało się przekazać własności.",
+          err.response?.data?.message || t('companyPanel.employees.transferError'),
         );
       }
     }
@@ -2571,19 +2606,19 @@ const CompanyPanel = () => {
       await loadEmployees();
     } catch (err) {
       console.error("Failed to update role", err);
-      alert(err.response?.data?.message || "Nie udało się zaktualizować roli.");
+      alert(err.response?.data?.message || t('companyPanel.employees.updateRoleError'));
     }
   };
 
   const handleDeleteService = async (serviceId) => {
-    if (window.confirm("Na pewno chcesz usunąć tę usługę?")) {
+    if (window.confirm(t('companyPanel.services.deleteConfirm'))) {
       try {
         await servicesAPI.delete(serviceId);
         await loadServices();
-        setPanelSuccess("Usługa została usunięta.");
+        setPanelSuccess("companyPanel.services.deleted");
       } catch (err) {
         console.error("Failed to delete service", err);
-        alert("Nie udało się usunąć usługi.");
+        alert(err.response?.data?.message || t('companyPanel.services.deleteError'));
       }
     }
   };
@@ -2592,18 +2627,18 @@ const CompanyPanel = () => {
   const renderCompanyDetailsTab = () => (
     <section className="admin-section">
       {companyFormError && (
-        <div className="admin-alert admin-alert--error">{companyFormError}</div>
+        <div className="admin-alert admin-alert--error">{tx(companyFormError)}</div>
       )}
       {companyFormSuccess && (
         <div className="admin-alert admin-alert--success">
-          {companyFormSuccess}
+          {tx(companyFormSuccess)}
         </div>
       )}
       {companyForm && (
         <form onSubmit={handleCompanyFormSubmit} className="admin-form">
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
-              <label>Nazwa firmy</label>
+              <label>{t('companyPanel.details.companyName')}</label>
               <input
                 name="companyName"
                 type="text"
@@ -2616,7 +2651,7 @@ const CompanyPanel = () => {
             </div>
             {/* Add other company fields here, similar to AccountPage company form */}
             <div className="admin-form__field">
-              <label>Email</label>
+              <label>{t('companyPanel.details.email')}</label>
               <input
                 name="email"
                 type="email"
@@ -2627,7 +2662,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Telefon</label>
+              <label>{t('companyPanel.details.phone')}</label>
               <input
                 name="phone"
                 type="tel"
@@ -2635,11 +2670,11 @@ const CompanyPanel = () => {
                 onChange={handleCompanyFormChange}
                 required
                 className="admin-input"
-                placeholder="+48 111 222 333"
+                placeholder={t('companyPanel.details.phonePlaceholder')}
               />
             </div>
             <div className="admin-form__field">
-              <label>Miasto</label>
+              <label>{t('common.city')}</label>
               <input
                 name="city"
                 type="text"
@@ -2656,7 +2691,7 @@ const CompanyPanel = () => {
               </datalist>
             </div>
             <div className="admin-form__field">
-              <label>Ulica</label>
+              <label>{t('companyPanel.details.street')}</label>
               <input
                 name="streetName"
                 type="text"
@@ -2667,7 +2702,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Numer budynku</label>
+              <label>{t('companyPanel.details.buildingNumber')}</label>
               <input
                 name="streetNumber"
                 type="text"
@@ -2678,7 +2713,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Nr lokalu (opcjonalnie)</label>
+              <label>{t('companyPanel.details.apartmentNumberOptional')}</label>
               <input
                 name="apartmentNumber"
                 type="text"
@@ -2688,7 +2723,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Kod pocztowy</label>
+              <label>{t('companyPanel.details.postalCode')}</label>
               <input
                 name="postalCode"
                 type="text"
@@ -2699,11 +2734,11 @@ const CompanyPanel = () => {
                 placeholder="00-000"
                 pattern="^[0-9]{2}-[0-9]{3}$"
                 maxLength={6}
-                title="Kod pocztowy w formacie 00-000"
+                title={t('companyPanel.details.postalCodeTitle')}
               />
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label>Opis (max. 1000 znaków)</label>
+              <label>{t('companyPanel.details.description')}</label>
               <textarea
                 name="description"
                 value={companyForm.description}
@@ -2714,7 +2749,7 @@ const CompanyPanel = () => {
               ></textarea>
             </div>
             <div className="admin-form__field">
-              <label>Godzina otwarcia</label>
+              <label>{t('companyPanel.details.openingHour')}</label>
               <input
                 name="openingHour"
                 type="time"
@@ -2725,7 +2760,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Godzina zamknięcia</label>
+              <label>{t('companyPanel.details.closingHour')}</label>
               <input
                 name="closingHour"
                 type="time"
@@ -2742,7 +2777,7 @@ const CompanyPanel = () => {
               className="btn btn-primary"
               disabled={companyFormSubmitting}
             >
-              {companyFormSubmitting ? "Zapisywanie..." : "Zapisz zmiany"}
+              {companyFormSubmitting ? t('common.saving') : t('companyPanel.details.saveChanges')}
             </button>
           </div>
         </form>
@@ -2753,7 +2788,7 @@ const CompanyPanel = () => {
   const renderServicesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Usługi</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.services')}</h2>
         <div className="admin-section__actions">
           {canManageCompanyCatalog && (
             <button
@@ -2761,26 +2796,26 @@ const CompanyPanel = () => {
               className="btn btn-primary"
               onClick={handleOpenCreateService}
             >
-              Dodaj usługę
+              {t('companyPanel.services.add')}
             </button>
           )}
         </div>
       </div>
       <div className="admin-card">
         {branches.length === 0 ? (
-          <p>Brak oddziałów. Najpierw dodaj oddział.</p>
+          <p>{t('companyPanel.services.noBranches')}</p>
         ) : services.length === 0 ? (
-          <p>Brak zdefiniowanych usług.</p>
+          <p>{t('companyPanel.services.empty')}</p>
         ) : (
           <table className="admin-table admin-table--auto">
             <thead>
               <tr>
-                <th>Nazwa usługi</th>
-                <th>Oddział</th>
-                <th>Czas trwania (min)</th>
-                <th>Bufor po (min)</th>
-                <th>Cena (PLN)</th>
-                <th>Akcje</th>
+                <th>{t('companyPanel.services.table.serviceName')}</th>
+                <th>{t('common.branch')}</th>
+                <th>{t('companyPanel.services.table.duration')}</th>
+                <th>{t('companyPanel.services.table.bufferAfter')}</th>
+                <th>{t('companyPanel.services.table.price')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -2805,18 +2840,18 @@ const CompanyPanel = () => {
                           className="btn btn-outline btn-xs"
                           onClick={() => handleOpenEditService(service)}
                         >
-                          Edytuj
+                          {t('common.edit')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-outline btn-xs admin-table__delete-btn"
                           onClick={() => handleDeleteService(service.id)}
                         >
-                          Usuń
+                          {t('common.delete')}
                         </button>
                       </div>
                     ) : (
-                      <span className="admin-muted">Brak uprawnień</span>
+                      <span className="admin-muted">{t('companyPanel.common.noPermissions')}</span>
                     )}
                   </td>
                 </tr>
@@ -2831,7 +2866,7 @@ const CompanyPanel = () => {
   const renderBranchesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Oddziały</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.branches')}</h2>
         <div className="admin-section__actions">
           {canManageCompanyCatalog && (
             <button
@@ -2839,24 +2874,24 @@ const CompanyPanel = () => {
               className="btn btn-primary"
               onClick={handleOpenCreateBranch}
             >
-              Dodaj oddział
+              {t('companyPanel.branches.add')}
             </button>
           )}
         </div>
       </div>
       <div className="admin-card">
         {branches.length === 0 ? (
-          <p>Brak zdefiniowanych oddziałów.</p>
+          <p>{t('companyPanel.branches.empty')}</p>
         ) : (
           <table className="admin-table admin-table--auto">
             <thead>
               <tr>
-                <th>Nazwa</th>
-                <th>Miasto</th>
-                <th>Adres</th>
-                <th>Telefon</th>
-                <th>Oceny</th>
-                <th>Akcje</th>
+                <th>{t('companyPanel.branches.table.name')}</th>
+                <th>{t('common.city')}</th>
+                <th>{t('companyPanel.branches.table.address')}</th>
+                <th>{t('companyPanel.branches.table.phone')}</th>
+                <th>{t('companyPanel.branches.table.reviews')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -2868,7 +2903,7 @@ const CompanyPanel = () => {
                     {(branch.streetName || "") +
                       (branch.streetNumber ? ` ${branch.streetNumber}` : "")}
                   </td>
-                  <td>{formatPhoneDisplay(branch.phone || "") || "—"}</td>
+                  <td>{formatPhoneDisplay(branch.phone || "") || t('common.dash')}</td>
                   <td>
                     {formatBranchReviewSummary(branchReviewSummaries[branch.id])}
                   </td>
@@ -2880,18 +2915,18 @@ const CompanyPanel = () => {
                           className="btn btn-outline btn-xs"
                           onClick={() => handleOpenEditBranch(branch)}
                         >
-                          Edytuj
+                          {t('common.edit')}
                         </button>
                         <button
                           type="button"
                           className="btn btn-outline btn-xs admin-table__delete-btn"
                           onClick={() => handleDeleteBranch(branch.id)}
                         >
-                          Usuń
+                          {t('common.delete')}
                         </button>
                       </div>
                     ) : (
-                      <span className="admin-muted">Brak uprawnień</span>
+                      <span className="admin-muted">{t('companyPanel.common.noPermissions')}</span>
                     )}
                   </td>
                 </tr>
@@ -2905,17 +2940,16 @@ const CompanyPanel = () => {
 
   const renderSettingsTab = () => (
     <section className="admin-section">
-      <h2 className="admin-section__title">Strefa zagrożenia</h2>
+      <h2 className="admin-section__title">{t('companyPanel.settings.dangerZone')}</h2>
       <div className="admin-card">
         <div className="admin-card__body">
-          <h4>Trwałe usunięcie firmy</h4>
+          <h4>{t('companyPanel.settings.deleteCompanyTitle')}</h4>
           <p>
-            Usunięcie firmy spowoduje skasowanie wszystkich jej danych, w tym
-            listy usług i historii rezerwacji. Tej operacji nie można cofnąć.
+            {t('companyPanel.settings.deleteCompanyDescription')}
           </p>
           {deleteCompanyError && (
             <div className="admin-alert admin-alert--error">
-              {deleteCompanyError}
+              {tx(deleteCompanyError)}
             </div>
           )}
           <button
@@ -2925,7 +2959,7 @@ const CompanyPanel = () => {
             onClick={handleDeleteCompany}
             disabled={deleteCompanyLoading}
           >
-            {deleteCompanyLoading ? "Usuwanie firmy..." : "Usuń firmę na stałe"}
+            {deleteCompanyLoading ? t('companyPanel.settings.deletingCompany') : t('companyPanel.settings.deleteCompanyButton')}
           </button>
         </div>
       </div>
@@ -2935,7 +2969,7 @@ const CompanyPanel = () => {
   const renderEmployeesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Pracownicy</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.employees')}</h2>
         <div className="admin-section__actions">
           {canManageEmployeesActions && (
             <button
@@ -2943,22 +2977,22 @@ const CompanyPanel = () => {
               className="btn btn-primary"
               onClick={() => setAddUserFormVisible(true)}
             >
-              Dodaj pracownika
+              {t('companyPanel.employees.add')}
             </button>
           )}
         </div>
       </div>
       <div className="admin-card">
         {employeesLoading ? (
-          <p>Ładowanie...</p>
+          <p>{t('common.loading')}</p>
         ) : (
           <table className="admin-table admin-table--auto">
             <thead>
               <tr>
-                <th>Email</th>
-                <th>Imię i nazwisko</th>
-                <th>Rola</th>
-                <th>Akcje</th>
+                <th>{t('companyPanel.employees.table.email')}</th>
+                <th>{t('companyPanel.employees.table.name')}</th>
+                <th>{t('companyPanel.employees.table.role')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -2982,10 +3016,10 @@ const CompanyPanel = () => {
                       }
                     >
                       <option value="Owner" disabled>
-                        Właściciel
+                        {t('companyPanel.employees.roles.owner')}
                       </option>
-                      <option value="Manager">Manager</option>
-                      <option value="Employee">Pracownik</option>
+                      <option value="Manager">{t('companyPanel.employees.roles.manager')}</option>
+                      <option value="Employee">{t('companyPanel.employees.roles.employee')}</option>
                     </select>
                   </td>
                   <td>
@@ -3000,7 +3034,7 @@ const CompanyPanel = () => {
                           (currentUserId && user.id === currentUserId)
                         }
                       >
-                        Usuń
+                        {t('common.delete')}
                       </button>
                       {canTransferOwnership && (
                         <button
@@ -3009,7 +3043,7 @@ const CompanyPanel = () => {
                           onClick={() => handleTransferOwnership(user)}
                           disabled={user.role === "Owner"}
                         >
-                          Przekaż Własność
+                          {t('companyPanel.employees.transferOwnership')}
                         </button>
                       )}
                     </div>
@@ -3024,28 +3058,28 @@ const CompanyPanel = () => {
       <div className="admin-card" style={{ marginTop: 16 }}>
         <div className="admin-card__body">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <h3 style={{ marginTop: 0, marginBottom: 0 }}>Przerwy pracowników</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 0 }}>{t('companyPanel.staffBreaks.title')}</h3>
           </div>
 
           {branches.length === 0 ? (
             <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
-              Brak oddziałów. Dodaj oddział w zakładce Oddziały.
+              {t('companyPanel.staffBreaks.noBranches')}
             </div>
           ) : null}
 
           {employees.length === 0 ? (
             <div className="admin-alert admin-alert--error" style={{ marginBottom: 12 }}>
-              Brak pracowników. Dodaj pracownika lub przypisz go do firmy.
+              {t('companyPanel.staffBreaks.noEmployees')}
             </div>
           ) : null}
 
           {staffBreaksError ? (
-            <div className="admin-alert admin-alert--error">{staffBreaksError}</div>
+            <div className="admin-alert admin-alert--error">{tx(staffBreaksError)}</div>
           ) : null}
 
           <div className="admin-form__grid" style={{ marginBottom: 12 }}>
             <div className="admin-form__field">
-              <label>Oddział</label>
+              <label>{t('common.branch')}</label>
               <select
                 name="branchId"
                 value={staffBreakFilters.branchId}
@@ -3062,7 +3096,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Pracownik</label>
+              <label>{t('common.employee')}</label>
               <select
                 name="staffId"
                 value={staffBreakFilters.staffId}
@@ -3079,7 +3113,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Dzień tygodnia</label>
+              <label>{t('companyPanel.staffBreaks.dayOfWeek')}</label>
               <DaysChecklistDropdown
                 value={staffBreakFilters.dayOfWeek}
                 onChange={(days) => {
@@ -3093,12 +3127,12 @@ const CompanyPanel = () => {
 
           <form onSubmit={handleCreateStaffBreak} className="admin-form">
             {staffBreakFormError ? (
-              <div className="admin-alert admin-alert--error">{staffBreakFormError}</div>
+              <div className="admin-alert admin-alert--error">{tx(staffBreakFormError)}</div>
             ) : null}
 
             <div className="admin-form__grid">
               <div className="admin-form__field">
-                <label>Start</label>
+                <label>{t('common.start')}</label>
                 <input
                   type="time"
                   name="startTime"
@@ -3110,7 +3144,7 @@ const CompanyPanel = () => {
               </div>
 
               <div className="admin-form__field">
-                <label>Koniec</label>
+                <label>{t('common.end')}</label>
                 <input
                   type="time"
                   name="endTime"
@@ -3129,22 +3163,22 @@ const CompanyPanel = () => {
                 onClick={loadStaffBreaks}
                 disabled={staffBreaksLoading || branches.length === 0 || employees.length === 0}
               >
-                Odśwież
+                {t('common.refresh')}
               </button>
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={staffBreakSubmitting || branches.length === 0 || employees.length === 0}
               >
-                {staffBreakSubmitting ? "Dodawanie..." : "Dodaj przerwę"}
+                {staffBreakSubmitting ? t('common.saving') : t('companyPanel.staffBreaks.add')}
               </button>
             </div>
           </form>
 
           {staffBreaksLoading ? (
-            <p>Ładowanie...</p>
+            <p>{t('common.loading')}</p>
           ) : staffBreaks.length === 0 ? (
-            <p>Brak przerw.</p>
+            <p>{t('companyPanel.staffBreaks.empty')}</p>
           ) : (
             <table className="admin-table admin-table--auto" style={{ marginTop: 12 }}>
               <thead>
@@ -3155,7 +3189,7 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("branch")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Oddział", "branch")}
+                      {getStaffBreaksHeaderLabel(t('common.branch'), "branch")}
                     </button>
                   </th>
                   <th>
@@ -3164,7 +3198,7 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("staff")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Pracownik", "staff")}
+                      {getStaffBreaksHeaderLabel(t('common.employee'), "staff")}
                     </button>
                   </th>
                   <th>
@@ -3173,7 +3207,7 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("day")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Dzień", "day")}
+                      {getStaffBreaksHeaderLabel(t('common.day'), "day")}
                     </button>
                   </th>
                   <th>
@@ -3182,7 +3216,7 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("start")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Start", "start")}
+                      {getStaffBreaksHeaderLabel(t('common.start'), "start")}
                     </button>
                   </th>
                   <th>
@@ -3191,7 +3225,7 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("end")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Koniec", "end")}
+                      {getStaffBreaksHeaderLabel(t('common.end'), "end")}
                     </button>
                   </th>
                   <th>
@@ -3200,10 +3234,10 @@ const CompanyPanel = () => {
                       onClick={() => handleStaffBreaksSort("status")}
                       style={{ background: "transparent", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}
                     >
-                      {getStaffBreaksHeaderLabel("Status", "status")}
+                      {getStaffBreaksHeaderLabel(t('common.status'), "status")}
                     </button>
                   </th>
-                  <th>Akcje</th>
+                  <th>{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3211,17 +3245,17 @@ const CompanyPanel = () => {
                   <tr key={b.id}>
                     <td>{branches.find((x) => x.id === b.branchId)?.branchName || b.branchId}</td>
                     <td>{getEmployeeShortLabelById(b.staffId)}</td>
-                    <td>{dayLabels[b.dayOfWeek] || b.dayOfWeek}</td>
+                    <td>{getWeekdayLabel(b.dayOfWeek, locale) || b.dayOfWeek}</td>
                     <td>{String(b.startTime || "").slice(0, 5)}</td>
                     <td>{String(b.endTime || "").slice(0, 5)}</td>
-                    <td>{b.isActive ? "Aktywna" : "Wyłączona"}</td>
+                    <td>{b.isActive ? t('common.active') : t('common.inactive')}</td>
                     <td>
                       <div className="admin-user-actions admin-user-actions--center admin-user-actions--nowrap">
                         <button type="button" className="btn btn-outline btn-xs" onClick={() => handleToggleStaffBreak(b)}>
-                          {b.isActive ? "Wyłącz" : "Włącz"}
+                          {b.isActive ? t('common.disable') : t('common.enable')}
                         </button>
                         <button type="button" className="btn btn-outline btn-xs" onClick={() => handleDeleteStaffBreak(b)}>
-                          Usuń
+                          {t('common.delete')}
                         </button>
                       </div>
                     </td>
@@ -3234,7 +3268,7 @@ const CompanyPanel = () => {
           {!staffBreaksLoading && staffBreaks.length > 0 ? (
             <div className="list-pagination" style={{ marginTop: 12 }}>
               <div className="list-page-size">
-                <span>Na stronie:</span>
+                <span>{t('common.perPage')}</span>
                 <select value={staffBreaksPageSize} onChange={handleStaffBreaksPageSizeChange}>
                   <option value={10}>10</option>
                   <option value={15}>15</option>
@@ -3249,10 +3283,10 @@ const CompanyPanel = () => {
                   disabled={staffBreaksCurrentPage === 1}
                   onClick={() => setStaffBreaksPage((p) => Math.max(1, p - 1))}
                 >
-                  Poprzednia
+                  {t('common.previous')}
                 </button>
                 <span>
-                  Strona {staffBreaksCurrentPage} z {staffBreaksPageCount}
+                  {t('common.page')} {staffBreaksCurrentPage} {t('common.of')} {staffBreaksPageCount}
                 </span>
                 <button
                   type="button"
@@ -3260,7 +3294,7 @@ const CompanyPanel = () => {
                   disabled={staffBreaksCurrentPage === staffBreaksPageCount}
                   onClick={() => setStaffBreaksPage((p) => Math.min(staffBreaksPageCount, p + 1))}
                 >
-                  Następna
+                  {t('common.next')}
                 </button>
               </div>
             </div>
@@ -3273,7 +3307,7 @@ const CompanyPanel = () => {
   const renderAuditTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Audyt firmy</h2>
+        <h2 className="admin-section__title">{t('companyPanel.tabs.audit')}</h2>
         <div className="admin-section__actions">
           <button
             type="button"
@@ -3281,29 +3315,29 @@ const CompanyPanel = () => {
             onClick={loadCompanyAudit}
             disabled={companyAuditLoading}
           >
-            Odśwież
+            {t('common.refresh')}
           </button>
         </div>
       </div>
 
       {companyAuditError ? (
-        <div className="admin-alert admin-alert--error">{companyAuditError}</div>
+        <div className="admin-alert admin-alert--error">{tx(companyAuditError)}</div>
       ) : null}
 
       <div className="admin-card">
         {companyAuditLoading ? (
-          <p>Ładowanie...</p>
+          <p>{t('common.loading')}</p>
         ) : companyAuditItems.length === 0 ? (
-          <p>Brak wpisów.</p>
+          <p>{t('common.noEntries')}</p>
         ) : (
           <>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Data</th>
-                  <th>Akcja</th>
-                  <th>Obiekt</th>
-                  <th>Użytkownik</th>
+                  <th>{t('common.date')}</th>
+                  <th>{t('common.action')}</th>
+                  <th>{t('common.object')}</th>
+                  <th>{t('common.user')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3316,12 +3350,12 @@ const CompanyPanel = () => {
                   >
                     <td>
                       {log.occurredAt
-                        ? new Date(log.occurredAt).toLocaleString()
-                        : "—"}
+                        ? new Date(log.occurredAt).toLocaleString(locale)
+                        : t('common.dash')}
                     </td>
-                    <td>{log.action || "—"}</td>
+                    <td>{log.action || t('common.dash')}</td>
                     <td>
-                      {log.entityDisplayName || log.entityName || "—"}
+                      {log.entityDisplayName || log.entityName || t('common.dash')}
                     </td>
                     <td
                       style={{
@@ -3331,7 +3365,7 @@ const CompanyPanel = () => {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {log.userEmail || "—"}
+                      {log.userEmail || t('common.dash')}
                     </td>
                   </tr>
                 ))}
@@ -3340,7 +3374,7 @@ const CompanyPanel = () => {
 
             <div className="list-pagination">
               <div className="list-page-size">
-                <span>Na stronie:</span>
+                <span>{t('common.perPage')}</span>
                 <select value={companyAuditPageSize} onChange={handleCompanyAuditPageSizeChange}>
                   <option value={10}>10</option>
                   <option value={15}>15</option>
@@ -3355,10 +3389,10 @@ const CompanyPanel = () => {
                   disabled={companyAuditCurrentPage === 1}
                   onClick={() => setCompanyAuditPage((p) => Math.max(1, p - 1))}
                 >
-                  Poprzednia
+                  {t('common.previous')}
                 </button>
                 <span>
-                  Strona {companyAuditCurrentPage} z {companyAuditPageCount}
+                  {t('common.page')} {companyAuditCurrentPage} {t('common.of')} {companyAuditPageCount}
                 </span>
                 <button
                   type="button"
@@ -3366,7 +3400,7 @@ const CompanyPanel = () => {
                   disabled={companyAuditCurrentPage === companyAuditPageCount}
                   onClick={() => setCompanyAuditPage((p) => Math.min(companyAuditPageCount, p + 1))}
                 >
-                  Następna
+                  {t('common.next')}
                 </button>
               </div>
             </div>
@@ -3380,7 +3414,7 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>Dodaj pracownika do firmy</h2>
+          <h2>{t('companyPanel.employees.addUserTitle')}</h2>
           <button
             type="button"
             className="btn-close"
@@ -3390,15 +3424,14 @@ const CompanyPanel = () => {
         <form onSubmit={handleAddUserFormSubmit} className="admin-form">
           {addUserFormError && (
             <div className="admin-alert admin-alert--error">
-              {addUserFormError}
+              {tx(addUserFormError)}
             </div>
           )}
           <p>
-            Użytkownik musi już posiadać konto w systemie. Po dodaniu, zostanie
-            przypisany do Twojej firmy.
+            {t('companyPanel.employees.addUserHint')}
           </p>
           <div className="admin-form__field">
-            <label>Email użytkownika</label>
+            <label>{t('companyPanel.employees.userEmail')}</label>
             <input
               name="email"
               type="email"
@@ -3409,15 +3442,15 @@ const CompanyPanel = () => {
             />
           </div>
           <div className="admin-form__field">
-            <label>Rola</label>
+            <label>{t('companyPanel.employees.role')}</label>
             <select
               name="role"
               value={addUserForm.role}
               onChange={handleAddUserFormChange}
               className="admin-input"
             >
-              <option value="Employee">Pracownik</option>
-              <option value="Manager">Manager</option>
+              <option value="Employee">{t('companyPanel.employees.roles.employee')}</option>
+              <option value="Manager">{t('companyPanel.employees.roles.manager')}</option>
             </select>
           </div>
           <div className="admin-form__actions">
@@ -3426,14 +3459,14 @@ const CompanyPanel = () => {
               className="btn btn-outline"
               onClick={() => setAddUserFormVisible(false)}
             >
-              Anuluj
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={addUserFormSubmitting}
             >
-              {addUserFormSubmitting ? "Dodawanie..." : "Dodaj użytkownika"}
+              {addUserFormSubmitting ? t('common.saving') : t('companyPanel.employees.addUserButton')}
             </button>
           </div>
         </form>
@@ -3445,7 +3478,11 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>{editingBranch?.id ? "Edytuj oddział" : "Dodaj nowy oddział"}</h2>
+          <h2>
+            {editingBranch?.id
+              ? t('companyPanel.branches.form.titleEdit')
+              : t('companyPanel.branches.form.titleCreate')}
+          </h2>
           <button
             type="button"
             className="btn-close"
@@ -3454,11 +3491,11 @@ const CompanyPanel = () => {
         </div>
         <form onSubmit={handleBranchFormSubmit} className="admin-form">
           {branchFormError && (
-            <div className="admin-alert admin-alert--error">{branchFormError}</div>
+            <div className="admin-alert admin-alert--error">{tx(branchFormError)}</div>
           )}
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
-              <label>Nazwa oddziału</label>
+              <label>{t('companyPanel.branches.form.name')}</label>
               <input
                 name="branchName"
                 type="text"
@@ -3470,18 +3507,18 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Telefon (opcjonalnie)</label>
+              <label>{t('companyPanel.branches.form.phoneOptional')}</label>
               <input
                 name="phone"
                 type="tel"
                 value={editingBranch?.phone || ""}
                 onChange={handleBranchFormChange}
                 className="admin-input"
-                placeholder="+48 111 222 333"
+                placeholder={t('companyPanel.branches.form.phonePlaceholder')}
               />
             </div>
             <div className="admin-form__field">
-              <label>Miasto</label>
+              <label>{t('common.city')}</label>
               <input
                 name="city"
                 type="text"
@@ -3497,7 +3534,7 @@ const CompanyPanel = () => {
               </datalist>
             </div>
             <div className="admin-form__field">
-              <label>Ulica</label>
+              <label>{t('companyPanel.branches.form.street')}</label>
               <input
                 name="streetName"
                 type="text"
@@ -3507,7 +3544,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Numer budynku</label>
+              <label>{t('companyPanel.branches.form.buildingNumber')}</label>
               <input
                 name="streetNumber"
                 type="text"
@@ -3517,7 +3554,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Nr lokalu (opcjonalnie)</label>
+              <label>{t('companyPanel.branches.form.apartmentNumberOptional')}</label>
               <input
                 name="apartmentNumber"
                 type="text"
@@ -3527,7 +3564,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Kod pocztowy</label>
+              <label>{t('companyPanel.branches.form.postalCode')}</label>
               <input
                 name="postalCode"
                 type="text"
@@ -3536,13 +3573,13 @@ const CompanyPanel = () => {
                 required
                 pattern="^[0-9]{2}-[0-9]{3}$"
                 maxLength={6}
-                title="Kod pocztowy w formacie 00-000"
+                title={t('companyPanel.branches.form.postalCodeTitle')}
                 className="admin-input"
                 placeholder="00-000"
               />
             </div>
             <div className="admin-form__field">
-              <label>Kraj</label>
+              <label>{t('companyPanel.branches.form.country')}</label>
               <input
                 name="country"
                 type="text"
@@ -3552,7 +3589,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Godzina otwarcia</label>
+              <label>{t('companyPanel.branches.form.openingHour')}</label>
               <input
                 name="openingHour"
                 type="time"
@@ -3562,7 +3599,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Godzina zamknięcia</label>
+              <label>{t('companyPanel.branches.form.closingHour')}</label>
               <input
                 name="closingHour"
                 type="time"
@@ -3578,14 +3615,14 @@ const CompanyPanel = () => {
               className="btn btn-outline"
               onClick={() => setBranchFormVisible(false)}
             >
-              Anuluj
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={branchFormSubmitting}
             >
-              {branchFormSubmitting ? "Zapisywanie..." : "Zapisz"}
+              {branchFormSubmitting ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </form>
@@ -3597,7 +3634,11 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>{editingService?.id ? "Edytuj usługę" : "Dodaj nową usługę"}</h2>
+          <h2>
+            {editingService?.id
+              ? t('companyPanel.services.form.titleEdit')
+              : t('companyPanel.services.form.titleCreate')}
+          </h2>
           <button
             type="button"
             className="btn-close"
@@ -3607,12 +3648,12 @@ const CompanyPanel = () => {
         <form onSubmit={handleServiceFormSubmit} className="admin-form">
           {serviceFormError && (
             <div className="admin-alert admin-alert--error">
-              {serviceFormError}
+              {tx(serviceFormError)}
             </div>
           )}
           <div className="admin-form__grid">
             <div className="admin-form__field admin-form__field--full">
-              <label>Oddział</label>
+              <label>{t('common.branch')}</label>
               <select
                 name="branchId"
                 value={editingService?.branchId || ""}
@@ -3622,7 +3663,7 @@ const CompanyPanel = () => {
                 disabled={branches.length === 0}
               >
                 <option value="" disabled>
-                  Wybierz oddział
+                  {t('companyPanel.services.form.selectBranch')}
                 </option>
                 {branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
@@ -3632,7 +3673,7 @@ const CompanyPanel = () => {
               </select>
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label>Nazwa usługi</label>
+              <label>{t('companyPanel.services.form.name')}</label>
               <input
                 name="serviceName"
                 type="text"
@@ -3641,11 +3682,11 @@ const CompanyPanel = () => {
                 required
                 className="admin-input"
                 maxLength={120}
-                title="Maksymalnie 120 znaków"
+                title={t('companyPanel.services.form.nameMaxTitle')}
               />
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label>Opis</label>
+              <label>{t('companyPanel.services.form.description')}</label>
               <textarea
                 name="description"
                 value={editingService?.description || ""}
@@ -3655,7 +3696,7 @@ const CompanyPanel = () => {
               ></textarea>
             </div>
             <div className="admin-form__field">
-              <label>Czas trwania (w minutach)</label>
+              <label>{t('companyPanel.services.form.duration')}</label>
               <input
                 name="durationMinutes"
                 type="number"
@@ -3668,7 +3709,7 @@ const CompanyPanel = () => {
             </div>
 
             <div className="admin-form__field">
-              <label>Bufor po wizycie (w minutach)</label>
+              <label>{t('companyPanel.services.form.bufferAfter')}</label>
               <input
                 name="bufferMinutesAfter"
                 type="number"
@@ -3679,7 +3720,7 @@ const CompanyPanel = () => {
               />
             </div>
             <div className="admin-form__field">
-              <label>Cena (PLN)</label>
+              <label>{t('companyPanel.services.form.price')}</label>
               <input
                 name="price"
                 type="text"
@@ -3688,7 +3729,7 @@ const CompanyPanel = () => {
                 onChange={handleServiceFormChange}
                 required
                 className="admin-input"
-                placeholder="np. 49.99"
+                placeholder={t('companyPanel.services.form.pricePlaceholder')}
               />
             </div>
           </div>
@@ -3698,14 +3739,14 @@ const CompanyPanel = () => {
               className="btn btn-outline"
               onClick={() => setServiceFormVisible(false)}
             >
-              Anuluj
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn btn-primary"
               disabled={serviceFormSubmitting}
             >
-              {serviceFormSubmitting ? "Zapisywanie..." : "Zapisz"}
+              {serviceFormSubmitting ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </form>
@@ -3713,13 +3754,13 @@ const CompanyPanel = () => {
     </div>
   );
 
-  if (loading) return <p>Ładowanie panelu firmy...</p>;
+  if (loading) return <p>{t('companyPanel.loading')}</p>;
   if (error)
-    return <div className="admin-alert admin-alert--error">{error}</div>;
+    return <div className="admin-alert admin-alert--error">{tx(error)}</div>;
   if (!company)
     return (
       <div className="admin-alert admin-alert--error">
-        Nie udało się załadować danych firmy.
+        {t('companyPanel.loadCompanyError')}
       </div>
     );
 
@@ -3732,16 +3773,16 @@ const CompanyPanel = () => {
       {addUserFormVisible && renderAddUserForm()}
       <header className="admin-page__header">
         <div>
-          <h1 className="admin-page__title">Panel Firmy</h1>
+          <h1 className="admin-page__title">{t('companyPanel.title')}</h1>
           <p className="admin-page__subtitle">
-            Zarządzaj danymi firmy {company.companyName} i jej usługami
+            {t('companyPanel.subtitle', { companyName: company.companyName })}
           </p>
         </div>
       </header>
 
       {panelSuccess && (
         <div className="admin-alert admin-alert--success" style={{ marginBottom: "12px" }}>
-          {panelSuccess}
+          {tx(panelSuccess)}
         </div>
       )}
 
@@ -3752,7 +3793,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "reservations" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("reservations")}
           >
-            Rezerwacje
+            {t('companyPanel.tabs.reservations')}
           </button>
         )}
         {canManageCompanyCatalog && (
@@ -3761,7 +3802,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "schedules" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("schedules")}
           >
-            Harmonogram
+            {t('companyPanel.tabs.schedules')}
           </button>
         )}
         {canEditCompany && (
@@ -3770,7 +3811,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "details" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("details")}
           >
-            Dane Firmy
+            {t('companyPanel.tabs.details')}
           </button>
         )}
         {canManageCompanyCatalog && (
@@ -3779,7 +3820,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "branches" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("branches")}
           >
-            Oddziały
+            {t('companyPanel.tabs.branches')}
           </button>
         )}
         {canManageCompanyCatalog && (
@@ -3788,7 +3829,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "services" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("services")}
           >
-            Usługi
+            {t('companyPanel.tabs.services')}
           </button>
         )}
         {canManageEmployees && (
@@ -3797,7 +3838,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "employees" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("employees")}
           >
-            Pracownicy
+            {t('companyPanel.tabs.employees')}
           </button>
         )}
         {canEditCompany && (
@@ -3806,7 +3847,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "audit" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("audit")}
           >
-            Audyt
+            {t('companyPanel.tabs.audit')}
           </button>
         )}
         {canEditCompany && (
@@ -3815,7 +3856,7 @@ const CompanyPanel = () => {
             className={`admin-tab ${activeTab === "settings" ? "admin-tab--active" : ""}`}
             onClick={() => setTab("settings")}
           >
-            Ustawienia
+            {t('companyPanel.tabs.settings')}
           </button>
         )}
       </div>

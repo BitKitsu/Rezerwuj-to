@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import { useI18n } from '../i18n/I18nContext';
 
 function LoginPage() {
+  const { t } = useI18n();
   const [formData, setFormData] = useState({
     loginIdentifier: '',
     password: ''
@@ -102,12 +104,12 @@ function LoginPage() {
   return (
     <div className="auth-modal-overlay" onClick={handleClose}>
       <div className="auth-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
           ×
         </button>
         <div className="auth-modal-body">
-          <h2 className="auth-modal-title">Zaloguj się</h2>
-          <p className="auth-modal-subtitle">Zaloguj się, aby rezerwować i zarządzać wizytami.</p>
+          <h2 className="auth-modal-title">{t('auth.loginTitle')}</h2>
+          <p className="auth-modal-subtitle">{t('auth.loginSubtitle')}</p>
 
           {error && (
             <div className="form-message form-message-error">
@@ -118,7 +120,7 @@ function LoginPage() {
           <form onSubmit={handleSubmit} className="form">
             <div className="form-field">
               <label className="form-label" htmlFor="loginIdentifier">
-                Email
+                {t('auth.email')}
               </label>
               <input
                 id="loginIdentifier"
@@ -137,7 +139,7 @@ function LoginPage() {
 
             <div className="form-field">
               <label className="form-label" htmlFor="password">
-                Hasło
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -159,23 +161,23 @@ function LoginPage() {
               disabled={!canSubmit}
               className="btn btn-primary form-button"
             >
-              {loading ? 'Logowanie...' : 'Zaloguj'}
+              {loading ? t('auth.loggingIn') : t('auth.loginAction')}
             </button>
           </form>
 
           <div className="form-footer">
             <p>
-              Nie masz konta? <Link to="/register">Zarejestruj się</Link>
+              {t('auth.noAccount')} <Link to="/register">{t('auth.signUp')}</Link>
             </p>
           </div>
 
           <div className="form-info">
             <small>
-              <strong>Dane testowe:</strong>
+              <strong>{t('auth.testData')}:</strong>
               <br />
-              Email: test@example.com
+              {t('auth.testEmail')}: test@example.com
               <br />
-              Hasło: Test123!
+              {t('auth.testPassword')}: Test123!
             </small>
           </div>
         </div>

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { companiesAPI, servicesAPI, tokenManager } from '../services/api';
+import { useI18n } from '../i18n/I18nContext';
 
 function HomePage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [city, setCity] = useState('');
@@ -18,14 +20,14 @@ function HomePage() {
 
   const categories = useMemo(
     () => [
-      { label: 'Fryzjer', query: 'strzyżenie', hint: 'Strzyżenie, modelowanie, koloryzacja' },
-      { label: 'Barber', query: 'broda', hint: 'Broda i włosy — szybkie terminy' },
-      { label: 'Paznokcie', query: 'paznokcie', hint: 'Manicure, pedicure, hybryda' },
-      { label: 'Kosmetyczka', query: 'kosmet', hint: 'Zabiegi i pielęgnacja twarzy' },
-      { label: 'Masaż', query: 'masaż', hint: 'Relaks i regeneracja' },
-      { label: 'Brwi i rzęsy', query: 'rzęsy', hint: 'Stylizacja brwi i rzęs' },
+      { label: t('home.categoryHair'), query: 'strzyżenie', hint: t('home.categoryHairHint') },
+      { label: t('home.categoryBarber'), query: 'broda', hint: t('home.categoryBarberHint') },
+      { label: t('home.categoryNails'), query: 'paznokcie', hint: t('home.categoryNailsHint') },
+      { label: t('home.categoryCosmetology'), query: 'kosmet', hint: t('home.categoryCosmetologyHint') },
+      { label: t('home.categoryMassage'), query: 'masaż', hint: t('home.categoryMassageHint') },
+      { label: t('home.categoryBrows'), query: 'rzęsy', hint: t('home.categoryBrowsHint') },
     ],
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -114,9 +116,9 @@ function HomePage() {
   }, [featuredLoading, featuredServices]);
 
   const heroService = featuredServices[heroIndex] || featuredServices[0] || null;
-  const heroSalonName = heroService?.companyName || heroService?.company?.companyName || 'Polecany salon';
-  const heroServiceName = heroService?.serviceName || 'Przykładowa usługa';
-  const heroCity = heroService?.city || heroService?.branch?.city || 'Twoje miasto';
+  const heroSalonName = heroService?.companyName || heroService?.company?.companyName || t('home.featuredSalonFallback');
+  const heroServiceName = heroService?.serviceName || t('home.exampleServiceFallback');
+  const heroCity = heroService?.city || heroService?.branch?.city || t('home.yourCityFallback');
   const heroDuration = heroService?.durationMinutes ? `${heroService.durationMinutes} min` : null;
   const heroPrice = Number.isFinite(Number(heroService?.price)) ? `${heroService.price} zł` : null;
 
@@ -138,32 +140,30 @@ function HomePage() {
     : user?.companyId
       ? '/company-panel'
       : '/account?openCompanyForm=1';
-  const businessCtaLabel = !isAuthenticated
-    ? 'Zaloguj się i dodaj firmę'
-    : user?.companyId
-      ? 'Przejdź do panelu firmy'
-      : 'Dodaj swoją firmę';
 
   return (
     <div className="home-page">
       <section className="home-cta home-cta-top">
         <div className="home-cta-card">
           <div>
-            <h2>Masz firmę usługową?</h2>
-            <p>Dodaj ofertę, ustaw grafik i przyjmuj rezerwacje online — bez telefonów.</p>
+            <h2>{t('home.businessHeading')}</h2>
+            <p>{t('home.businessText')}</p>
           </div>
           <Link to={businessLink} className="btn btn-primary">
-            {businessCtaLabel}
+            {!isAuthenticated
+              ? t('home.businessCtaLogin')
+              : user?.companyId
+                ? t('home.businessCtaPanel')
+                : t('home.businessCtaAdd')}
           </Link>
         </div>
       </section>
 
       <section className="home-hero">
         <div className="home-hero-text">
-          <h1>Umów wizytę online</h1>
+          <h1>{t('home.heroTitle')}</h1>
           <p>
-            Prosty system rezerwacji dla małych firm usługowych. Salony fryzjerskie,
-            stylizacja paznokci, salony piękności i inne usługi lokalne w jednym miejscu.
+            {t('home.heroText')}
           </p>
 
           <form
@@ -175,26 +175,26 @@ function HomePage() {
           >
             <div className="home-search-field">
               <label className="home-search-label" htmlFor="home-search-query">
-                Czego szukasz?
+                {t('home.searchQueryLabel')}
               </label>
               <input
                 id="home-search-query"
                 type="text"
                 className="home-search-input"
-                placeholder="Np. strzyżenie, masaż, manicure..."
+                placeholder={t('home.searchQueryPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <div className="home-search-field">
               <label className="home-search-label" htmlFor="home-search-city">
-                Miasto
+                {t('home.searchCityLabel')}
               </label>
               <input
                 id="home-search-city"
                 type="text"
                 className="home-search-input"
-                placeholder="Np. Warszawa"
+                placeholder={t('home.searchCityPlaceholder')}
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 list="home-city-options"
@@ -206,29 +206,29 @@ function HomePage() {
               </datalist>
             </div>
             <button type="submit" className="btn btn-primary home-search-submit">
-              Szukaj
+              {t('common.search')}
             </button>
           </form>
 
           <div className="home-hero-actions">
             <Link to="/services" className="btn btn-primary">
-              Przeglądaj usługi
+              {t('home.browseServices')}
             </Link>
             <Link to="/salons" className="btn btn-outline">
-              Przeglądaj firmy
+              {t('home.browseCompanies')}
             </Link>
             {!isAuthenticated ? (
               <>
                 <Link to="/login" className="btn btn-ghost">
-                  Zaloguj się
+                  {t('home.login')}
                 </Link>
                 <Link to="/register" className="btn btn-outline">
-                  Załóż konto
+                  {t('home.register')}
                 </Link>
               </>
             ) : (
               <Link to="/dashboard" className="btn btn-ghost">
-                Moje rezerwacje
+                {t('home.myBookings')}
               </Link>
             )}
           </div>
@@ -253,7 +253,7 @@ function HomePage() {
                 <div className="home-hero-service-meta">
                   {[heroDuration, heroService?.branchName || heroService?.branch?.branchName]
                     .filter(Boolean)
-                    .join(' | ') || 'Sprawdź szczegóły usługi'}
+                    .join(' | ') || t('home.serviceDetailsHint')}
                 </div>
               </div>
               <div className="home-hero-service-price">{heroPrice || '—'}</div>
@@ -261,8 +261,8 @@ function HomePage() {
             <div className="home-hero-footer">
               <span>
                 {featuredLoading
-                  ? 'Ładowanie polecanych usług...'
-                  : 'Top usługi zmieniają się automatycznie — kliknij, aby przejść do rezerwacji.'}
+                  ? t('home.featuredServiceLoading')
+                  : t('home.featuredServiceHint')}
               </span>
             </div>
           </div>
@@ -271,8 +271,8 @@ function HomePage() {
 
       <section className="home-section">
         <div className="home-section-header">
-          <h2>Kategorie</h2>
-          <p>Najczęściej wybierane usługi — kliknij i zobacz dostępne terminy.</p>
+          <h2>{t('home.categoriesTitle')}</h2>
+          <p>{t('home.categoriesSubtitle')}</p>
         </div>
         <div className="home-categories-grid">
           {categories.map((cat) => (
@@ -291,14 +291,14 @@ function HomePage() {
 
       <section className="home-section">
         <div className="home-section-header">
-          <h2>Polecane usługi</h2>
-          <p>Top 10 usług z najwyższymi ocenami.</p>
+          <h2>{t('home.featuredServicesTitle')}</h2>
+          <p>{t('home.featuredServicesSubtitle')}</p>
         </div>
 
         {featuredLoading ? (
-          <div className="list-state">Ładowanie polecanych usług...</div>
+          <div className="list-state">{t('home.featuredServiceLoading')}</div>
         ) : featuredServices.length === 0 ? (
-          <div className="list-state">Brak danych do wyświetlenia. Sprawdź zakładkę „Usługi”.</div>
+          <div className="list-state">{t('home.noFeaturedServices')}</div>
         ) : (
           <section className="card-grid">
             {featuredServices.map((service) => (
@@ -326,7 +326,7 @@ function HomePage() {
                   <span className="service-duration">{service.durationMinutes} min</span>
                 </div>
                 <div className="service-actions">
-                  <span className="service-note">Kliknij, aby przejść do rezerwacji.</span>
+                  <span className="service-note">{t('home.clickToBook')}</span>
                 </div>
               </article>
             ))}
@@ -336,19 +336,19 @@ function HomePage() {
 
       <section className="home-section">
         <div className="home-section-header">
-          <h2>Polecane firmy</h2>
-          <p>Top 10 firm z najwyższymi ocenami.</p>
+          <h2>{t('home.featuredCompaniesTitle')}</h2>
+          <p>{t('home.featuredCompaniesSubtitle')}</p>
         </div>
 
         {featuredLoading ? (
-          <div className="list-state">Ładowanie firm...</div>
+          <div className="list-state">{t('home.featuredCompaniesLoading')}</div>
         ) : featuredSalons.length === 0 ? (
-          <div className="list-state">Brak firm do wyświetlenia. Sprawdź zakładkę „Firmy”.</div>
+          <div className="list-state">{t('home.noFeaturedCompanies')}</div>
         ) : (
           <section className="card-grid">
             {featuredSalons.map((salon) => {
-              const name = salon.name || salon.companyName || 'Firma usługowa';
-              const description = salon.description || 'Zobacz dostępne usługi i terminy.';
+              const name = salon.name || salon.companyName || t('home.featuredCompanyFallbackName');
+              const description = salon.description || t('home.featuredCompanyFallbackDescription');
               const cityLabel = salon.city || '—';
 
               return (
@@ -374,7 +374,7 @@ function HomePage() {
                   </div>
                   <p className="salon-description">{description}</p>
                   <div className="salon-footer">
-                    <span>Kliknij, aby zobaczyć szczegóły.</span>
+                    <span>{t('home.clickToDetails')}</span>
                   </div>
                 </article>
               );
@@ -384,19 +384,19 @@ function HomePage() {
       </section>
 
       <section className="home-features">
-        <h2>Co oferuje system</h2>
+        <h2>{t('home.featuresTitle')}</h2>
         <div className="home-features-grid">
           <div className="home-feature">
-            <h3>Kalendarz online</h3>
-            <p>Przeglądaj wszystkie nadchodzące wizyty w jednym miejscu.</p>
+            <h3>{t('home.featureCalendarTitle')}</h3>
+            <p>{t('home.featureCalendarText')}</p>
           </div>
           <div className="home-feature">
-            <h3>Usługi i cennik</h3>
-            <p>Definiuj własne usługi, czas trwania oraz ceny.</p>
+            <h3>{t('home.featureServicesTitle')}</h3>
+            <p>{t('home.featureServicesText')}</p>
           </div>
           <div className="home-feature">
-            <h3>Panel klienta</h3>
-            <p>Klient może samodzielnie rezerwować i przeglądać swoje wizyty.</p>
+            <h3>{t('home.featureCustomerPanelTitle')}</h3>
+            <p>{t('home.featureCustomerPanelText')}</p>
           </div>
         </div>
       </section>

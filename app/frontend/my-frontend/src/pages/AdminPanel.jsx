@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import "../admin.css";
+import { useI18n } from "../i18n/I18nContext";
 import {
   adminAPI,
   companiesAPI,
@@ -46,11 +47,22 @@ const formatPhoneDisplay = (value) => {
 };
 
 const AdminPanel = () => {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(() => tabFromUrl || "users");
   const currentUser = tokenManager.getUser();
   const isSystemAdmin = (currentUser?.roles || []).includes("Admin");
+
+  const tx = (value) => {
+    if (!value) return "";
+    if (typeof value === "object" && value.key) {
+      return t(value.key, value.vars);
+    }
+    const s = String(value);
+    if (s.startsWith("adminPanel.") || s.startsWith("common.")) return t(s);
+    return s;
+  };
 
   const templateTypeOptions = [
     { value: 0, label: "AppointmentReminder" },
@@ -147,72 +159,83 @@ const AdminPanel = () => {
   const renderTemplatesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Szablony powiadomień</h2>
+        <h2 className="admin-section__title">{t("adminPanel.templates.title")}</h2>
         <div className="admin-section__actions">
           <button
             type="button"
             className="btn btn-primary"
             onClick={handleOpenCreateTemplate}
+            disabled={!isSystemAdmin}
           >
-            Dodaj szablon
+            {t("adminPanel.templates.add")}
           </button>
         </div>
       </div>
 
       {templatesError && (
-        <div className="admin-alert admin-alert--error">{templatesError}</div>
+        <div className="admin-alert admin-alert--error">{tx(templatesError)}</div>
       )}
 
       {!isSystemAdmin ? (
         <div className="admin-alert admin-alert--error">
-          Brak uprawnień. Szablony mogą być zarządzane tylko przez administratora systemu.
+          {t("adminPanel.templates.noPermissions")}
         </div>
       ) : null}
 
       <div className="admin-card">
         {templatesLoading && templates.length === 0 ? (
-          <p>Ładowanie szablonów...</p>
+          <p>{t("adminPanel.templates.loading")}</p>
         ) : templates.length === 0 ? (
-          <p>Brak szablonów do wyświetlenia.</p>
+          <p>{t("adminPanel.templates.empty")}</p>
         ) : (
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Nazwa</th>
-                <th>Typ</th>
-                <th>Kanał</th>
-                <th>Aktywny</th>
-                <th>Akcje</th>
+                <th>{t("adminPanel.templates.table.name")}</th>
+                <th>{t("adminPanel.templates.table.type")}</th>
+                <th>{t("adminPanel.templates.table.channel")}</th>
+                <th>{t("adminPanel.templates.table.active")}</th>
+                <th>{t("common.actions")}</th>
               </tr>
             </thead>
             <tbody>
-              {templates.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.name}</td>
+              {templates.map((tpl) => (
+                <tr key={tpl.id}>
+                  <td>{tpl.name}</td>
                   <td>
-                    {templateTypeOptions.find((x) => x.value === t.type)?.label ||
-                      String(t.type)}
+                    {(() => {
+                      const label = templateTypeOptions.find((x) => x.value === tpl.type)?.label;
+                      return label
+                        ? t(`adminPanel.templates.types.${label}`)
+                        : String(tpl.type);
+                    })()}
                   </td>
                   <td>
-                    {templateChannelOptions.find((x) => x.value === t.channel)?.label ||
-                      String(t.channel ?? "")}
+                    {(() => {
+                      const label = templateChannelOptions.find((x) => x.value === tpl.channel)?.label;
+                      return label
+                        ? t(`adminPanel.templates.channels.${label}`)
+                        : String(tpl.channel ?? "");
+                    })()}
                   </td>
-                  <td>{t.isActive ? "TAK" : "NIE"}</td>
+                  <td>{tpl.isActive ? t("common.yes") : t("common.no")}</td>
                   <td>
                     <div className="admin-user-actions">
                       <button
                         type="button"
                         className="btn btn-outline btn-xs"
-                        onClick={() => handleOpenEditTemplate(t)}
+                        onClick={() => handleOpenEditTemplate(tpl)}
+                        disabled={!isSystemAdmin}
                       >
-                        Edytuj
+                        {t("common.edit")}
                       </button>
                       <button
                         type="button"
                         className="btn btn-outline btn-xs admin-table__delete-btn"
-                        onClick={() => handleDeleteTemplate(t)}
+                        onClick={() => handleDeleteTemplate(tpl)}
+                        disabled={!isSystemAdmin}
                       >
-                        Usuń
+                        {t("common.delete")}
                       </button>
                     </div>
                   </td>
@@ -227,13 +250,17 @@ const AdminPanel = () => {
         <div className="admin-card--form-container">
           <div className="admin-card admin-card--form">
             <div className="admin-form__header">
-              <h2>{editingTemplate.id == null ? "Dodaj szablon" : "Edytuj szablon"}</h2>
-              <button type="button" className="btn-close" onClick={handleCloseTemplateForm} aria-label="Zamknij" />
+              <h2>
+                {editingTemplate.id == null
+                  ? t("adminPanel.templates.form.titleCreate")
+                  : t("adminPanel.templates.form.titleEdit")}
+              </h2>
+              <button type="button" className="btn-close" onClick={handleCloseTemplateForm} aria-label={t("common.close")} />
             </div>
             <form className="admin-form" onSubmit={handleTemplateFormSubmit}>
             <div className="admin-form__grid">
               <label className="admin-form__field">
-                <span>Nazwa</span>
+                <span>{t("adminPanel.templates.form.name")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -247,7 +274,7 @@ const AdminPanel = () => {
               </label>
 
               <label className="admin-form__field">
-                <span>Typ</span>
+                <span>{t("adminPanel.templates.form.type")}</span>
                 <select
                   className="admin-input"
                   value={String(editingTemplate.type)}
@@ -257,14 +284,14 @@ const AdminPanel = () => {
                 >
                   {templateTypeOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(`adminPanel.templates.types.${opt.label}`)}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="admin-form__field">
-                <span>Kanał</span>
+                <span>{t("adminPanel.templates.form.channel")}</span>
                 <select
                   className="admin-input"
                   value={String(editingTemplate.channel ?? 0)}
@@ -274,14 +301,14 @@ const AdminPanel = () => {
                 >
                   {templateChannelOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(`adminPanel.templates.channels.${opt.label}`)}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="admin-form__field admin-form__field--full">
-                <span>Temat (Subject)</span>
+                <span>{t("adminPanel.templates.form.subject")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -295,7 +322,7 @@ const AdminPanel = () => {
               </label>
 
               <label className="admin-form__field admin-form__field--full">
-                <span>Treść (Body)</span>
+                <span>{t("adminPanel.templates.form.body")}</span>
                 <textarea
                   className="admin-input"
                   rows={5}
@@ -310,7 +337,12 @@ const AdminPanel = () => {
 
               <div className="admin-form__field admin-form__field--full">
                 <span className="admin-muted">
-                  Wstaw zmienną (aktywne pole: {activeTemplateField === "subject" ? "Subject" : "Body"})
+                  {t("adminPanel.templates.insertVariable", {
+                    field:
+                      activeTemplateField === "subject"
+                        ? t("adminPanel.templates.fields.subject")
+                        : t("adminPanel.templates.fields.body"),
+                  })}
                 </span>
                 <div className="admin-user-actions" style={{ flexWrap: "wrap" }}>
                   {templatePlaceholders.map((p) => (
@@ -327,7 +359,7 @@ const AdminPanel = () => {
               </div>
 
               <label className="admin-form__field">
-                <span>Aktywny</span>
+                <span>{t("adminPanel.templates.form.active")}</span>
                 <select
                   className="admin-input"
                   value={editingTemplate.isActive ? "true" : "false"}
@@ -338,8 +370,8 @@ const AdminPanel = () => {
                     )
                   }
                 >
-                  <option value="true">TAK</option>
-                  <option value="false">NIE</option>
+                  <option value="true">{t("common.yes")}</option>
+                  <option value="false">{t("common.no")}</option>
                 </select>
               </label>
             </div>
@@ -350,10 +382,10 @@ const AdminPanel = () => {
                 className="btn btn-outline"
                 onClick={handleCloseTemplateForm}
               >
-                Anuluj
+                {t("common.cancel")}
               </button>
               <button type="submit" className="btn btn-primary">
-                Zapisz
+                {t("common.save")}
               </button>
             </div>
             </form>
@@ -439,7 +471,7 @@ const AdminPanel = () => {
       setTemplates(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
       console.error("Error loading templates", error);
-      setTemplatesError(getHttpErrorMessage(error, "Nie udało się pobrać listy szablonów."));
+      setTemplatesError(getHttpErrorMessage(error, t("adminPanel.templates.loadError")));
     } finally {
       setTemplatesLoading(false);
     }
@@ -483,7 +515,7 @@ const AdminPanel = () => {
     if (!editingTemplate) return;
 
     if (!isSystemAdmin) {
-      window.alert("Brak uprawnień. Szablony może zapisywać tylko administrator.");
+      window.alert(t("adminPanel.templates.noPermissionsSave"));
       return;
     }
 
@@ -497,7 +529,7 @@ const AdminPanel = () => {
     };
 
     if (!payload.name) {
-      window.alert("Nazwa szablonu jest wymagana.");
+      window.alert(t("adminPanel.templates.validation.nameRequired"));
       return;
     }
 
@@ -511,14 +543,14 @@ const AdminPanel = () => {
       await loadTemplates();
     } catch (error) {
       console.error("Save template error", error);
-      window.alert(getHttpErrorMessage(error, "Nie udało się zapisać szablonu."));
+      window.alert(getHttpErrorMessage(error, t("adminPanel.templates.saveError")));
     }
   };
 
   const handleDeleteTemplate = async (template) => {
     if (
       !window.confirm(
-        `Na pewno chcesz usunąć szablon "${template.name}"? Ta operacja jest nieodwracalna.`,
+        t("adminPanel.templates.deleteConfirm", { name: template.name }),
       )
     ) {
       return;
@@ -528,7 +560,7 @@ const AdminPanel = () => {
       await loadTemplates();
     } catch (error) {
       console.error("Delete template error", error);
-      window.alert("Nie udało się usunąć szablonu.");
+      window.alert(t("adminPanel.templates.deleteError"));
     }
   };
 
@@ -543,7 +575,7 @@ const AdminPanel = () => {
       loadTemplates();
     } else {
       setTemplates([]);
-      setTemplatesError("Brak uprawnień. Szablony mogą być zarządzane tylko przez administratora systemu.");
+      setTemplatesError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, isSystemAdmin]);
@@ -599,7 +631,7 @@ const AdminPanel = () => {
       setUsersPage(data.page || page);
     } catch (error) {
       console.error("Error loading users", error);
-      setUsersError("Nie udało się pobrać listy użytkowników.");
+      setUsersError("adminPanel.users.loadError");
     } finally {
       setUsersLoading(false);
     }
@@ -622,7 +654,7 @@ const AdminPanel = () => {
       setCompaniesPage(data.page || data.Page || page);
     } catch (error) {
       console.error("Error loading companies", error);
-      setCompaniesError("Nie udało się pobrać listy firm.");
+      setCompaniesError("adminPanel.companies.loadError");
     } finally {
       setCompaniesLoading(false);
     }
@@ -649,14 +681,14 @@ const AdminPanel = () => {
       await loadUsers(usersPage);
     } catch (error) {
       console.error("Grant admin error", error);
-      window.alert("Nie udało się nadać roli administratora.");
+      window.alert(t("adminPanel.users.grantAdminError"));
     }
   };
 
   const handleRevokeAdmin = async (userId) => {
     if (
       !window.confirm(
-        "Na pewno chcesz odebrać rolę administratora temu użytkownikowi?",
+        t("adminPanel.users.revokeAdminConfirm"),
       )
     ) {
       return;
@@ -666,14 +698,14 @@ const AdminPanel = () => {
       await loadUsers(usersPage);
     } catch (error) {
       console.error("Revoke admin error", error);
-      window.alert("Nie udało się odebrać roli administratora.");
+      window.alert(t("adminPanel.users.revokeAdminError"));
     }
   };
 
   const handleDeleteUser = async (user) => {
     if (
       !window.confirm(
-        `Na pewno chcesz usunąć konto użytkownika "${user.email}"? Ta operacja jest nieodwracalna.`,
+        t("adminPanel.users.deleteConfirm", { email: user.email }),
       )
     ) {
       return;
@@ -684,7 +716,7 @@ const AdminPanel = () => {
       await loadUsers(usersPage);
     } catch (error) {
       console.error("Delete user error", error);
-      window.alert("Nie udało się usunąć użytkownika.");
+      window.alert(t("adminPanel.users.deleteError"));
     }
   };
 
@@ -764,7 +796,7 @@ const AdminPanel = () => {
       await loadCompanies(companiesPage);
     } catch (error) {
       console.error("Save company error", error);
-      window.alert("Nie udało się zapisać danych firmy.");
+      window.alert(t("adminPanel.companies.saveError"));
     } finally {
       setCompanyFormSubmitting(false);
     }
@@ -803,7 +835,7 @@ const AdminPanel = () => {
   const handleDeleteCompany = async (company) => {
     if (
       !window.confirm(
-        `Na pewno chcesz usunąć firmę "${company.companyName}"? Operacja może usunąć także powiązane dane.`,
+        t("adminPanel.companies.deleteConfirm", { name: company.companyName }),
       )
     ) {
       return;
@@ -814,43 +846,43 @@ const AdminPanel = () => {
       await loadCompanies(companiesPage);
     } catch (error) {
       console.error("Delete company error", error);
-      window.alert("Nie udało się usunąć firmy.");
+      window.alert(t("adminPanel.companies.deleteError"));
     }
   };
 
   const renderUsersTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Użytkownicy</h2>
+        <h2 className="admin-section__title">{t("adminPanel.tabs.users")}</h2>
         <input
           type="text"
           className="admin-input"
-          placeholder="Szukaj po emailu lub nazwisku..."
+          placeholder={t("adminPanel.users.searchPlaceholder")}
           value={userQuery}
           onChange={(e) => setUserQuery(e.target.value)}
         />
       </div>
 
       {usersError && (
-        <div className="admin-alert admin-alert--error">{usersError}</div>
+        <div className="admin-alert admin-alert--error">{tx(usersError)}</div>
       )}
 
       <div className="admin-card">
         {usersLoading && users.length === 0 ? (
-          <p>Ładowanie użytkowników...</p>
+          <p>{t("adminPanel.users.loading")}</p>
         ) : users.length === 0 ? (
-          <p>Brak użytkowników do wyświetlenia.</p>
+          <p>{t("adminPanel.users.empty")}</p>
         ) : (
           <>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Email</th>
-                  <th>Imię i nazwisko</th>
-                  <th>Firma (CompanyId)</th>
-                  <th>Typ konta</th>
-                  <th>Uprawnienia administratora</th>
-                  <th>Akcje</th>
+                  <th>{t("adminPanel.users.table.email")}</th>
+                  <th>{t("adminPanel.users.table.name")}</th>
+                  <th>{t("adminPanel.users.table.companyId")}</th>
+                  <th>{t("adminPanel.users.table.accountType")}</th>
+                  <th>{t("adminPanel.users.table.adminPermissions")}</th>
+                  <th>{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -862,14 +894,14 @@ const AdminPanel = () => {
 
                   let accountType;
                   if (isAdmin) {
-                    accountType = "Administrator";
+                    accountType = t("adminPanel.users.accountType.admin");
                   } else if (
                     roles.includes("Company") ||
                     roles.includes("CompanyOwner")
                   ) {
-                    accountType = "Firma";
+                    accountType = t("adminPanel.users.accountType.company");
                   } else {
-                    accountType = "Użytkownik";
+                    accountType = t("adminPanel.users.accountType.user");
                   }
                   return (
                     <tr key={user.id}>
@@ -877,7 +909,7 @@ const AdminPanel = () => {
                       <td>
                         {user.firstName} {user.lastName}
                       </td>
-                      <td>{user.companyId ?? "-"}</td>
+                      <td>{user.companyId ?? t("common.dash")}</td>
                       <td>{accountType}</td>
                       <td>
                         {isAdmin ? (
@@ -888,11 +920,11 @@ const AdminPanel = () => {
                             disabled={isCurrentUser}
                             title={
                               isCurrentUser
-                                ? "Nie możesz odebrać sobie uprawnień administratora"
+                                ? t("adminPanel.users.cantRevokeSelf")
                                 : undefined
                             }
                           >
-                            Odbierz
+                            {t("adminPanel.users.revoke")}
                           </button>
                         ) : (
                           <button
@@ -900,7 +932,7 @@ const AdminPanel = () => {
                             className="btn btn-primary btn-xs"
                             onClick={() => handleGrantAdmin(user.id)}
                           >
-                            Nadaj
+                            {t("adminPanel.users.grant")}
                           </button>
                         )}
                       </td>
@@ -913,11 +945,11 @@ const AdminPanel = () => {
                             disabled={isCurrentUser}
                             title={
                               isCurrentUser
-                                ? "Nie możesz usunąć własnego konta z poziomu panelu administratora"
-                                : "Usuń użytkownika"
+                                ? t("adminPanel.users.cantDeleteSelf")
+                                : t("adminPanel.users.deleteTitle")
                             }
                           >
-                            Usuń
+                            {t("common.delete")}
                           </button>
                         </div>
                       </td>
@@ -934,10 +966,10 @@ const AdminPanel = () => {
                 onClick={() => handleUsersPageChange(usersPage - 1)}
                 disabled={usersPage <= 1}
               >
-                Poprzednia
+                {t("common.previous")}
               </button>
               <span>
-                Strona {usersPage} z{" "}
+                {t("common.page")} {usersPage} {t("common.of")}{" "}
                 {Math.max(1, Math.ceil(usersTotalCount / usersPageSize))}
               </span>
               <button
@@ -946,7 +978,7 @@ const AdminPanel = () => {
                 onClick={() => handleUsersPageChange(usersPage + 1)}
                 disabled={usersPage * usersPageSize >= usersTotalCount}
               >
-                Następna
+                {t("common.next")}
               </button>
             </div>
           </>
@@ -958,20 +990,20 @@ const AdminPanel = () => {
   const renderCompaniesTab = () => (
     <section className="admin-section">
       <div className="admin-section__header">
-        <h2 className="admin-section__title">Firmy</h2>
+        <h2 className="admin-section__title">{t("adminPanel.tabs.companies")}</h2>
         <div className="admin-section__actions">
           <div className="admin-section__filters">
             <input
               type="text"
               className="admin-input"
-              placeholder="Szukaj po nazwie lub opisie..."
+              placeholder={t("adminPanel.companies.searchPlaceholder")}
               value={companyQuery}
               onChange={(e) => setCompanyQuery(e.target.value)}
             />
             <input
               type="text"
               className="admin-input"
-              placeholder="Miasto"
+              placeholder={t("common.city")}
               value={companyCity}
               onChange={(e) => setCompanyCity(e.target.value)}
               list="admin-companies-filter-city-options"
@@ -987,37 +1019,37 @@ const AdminPanel = () => {
             className="btn btn-primary"
             onClick={handleOpenCreateCompany}
           >
-            Dodaj firmę
+            {t("adminPanel.companies.add")}
           </button>
         </div>
       </div>
 
       {companiesError && (
-        <div className="admin-alert admin-alert--error">{companiesError}</div>
+        <div className="admin-alert admin-alert--error">{tx(companiesError)}</div>
       )}
 
       <div className="admin-card">
         {companiesLoading && companies.length === 0 ? (
-          <p>Ładowanie firm...</p>
+          <p>{t("adminPanel.companies.loading")}</p>
         ) : companies.length === 0 ? (
-          <p>Brak firm do wyświetlenia.</p>
+          <p>{t("adminPanel.companies.empty")}</p>
         ) : (
           <>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Nazwa</th>
-                  <th>Miasto</th>
-                  <th>Opis</th>
-                  <th>Akcje</th>
+                  <th>{t("adminPanel.companies.table.name")}</th>
+                  <th>{t("adminPanel.companies.table.city")}</th>
+                  <th>{t("adminPanel.companies.table.description")}</th>
+                  <th>{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
                 {companies.map((company) => (
                   <tr key={company.id}>
                     <td>{company.companyName}</td>
-                    <td>{company.city || "-"}</td>
-                    <td>{company.description || "-"}</td>
+                    <td>{company.city || t("common.dash")}</td>
+                    <td>{company.description || t("common.dash")}</td>
                     <td>
                       <div className="admin-user-actions">
                         <button
@@ -1025,14 +1057,14 @@ const AdminPanel = () => {
                           className="btn btn-outline btn-xs"
                           onClick={() => handleOpenEditCompany(company)}
                         >
-                          Edytuj
+                          {t("common.edit")}
                         </button>
                         <button
                           type="button"
                           className="btn btn-outline btn-xs admin-table__delete-btn"
                           onClick={() => handleDeleteCompany(company)}
                         >
-                          Usuń
+                          {t("common.delete")}
                         </button>
                       </div>
                     </td>
@@ -1048,10 +1080,10 @@ const AdminPanel = () => {
                 onClick={() => loadCompanies(Math.max(1, companiesPage - 1))}
                 disabled={companiesPage <= 1}
               >
-                Poprzednia
+                {t("common.previous")}
               </button>
               <span>
-                Strona {companiesPage} z{" "}
+                {t("common.page")} {companiesPage} {t("common.of")}{" "}
                 {Math.max(
                   1,
                   Math.ceil(companiesTotalCount / companiesPageSize),
@@ -1065,7 +1097,7 @@ const AdminPanel = () => {
                   companiesPage * companiesPageSize >= companiesTotalCount
                 }
               >
-                Następna
+                {t("common.next")}
               </button>
             </div>
           </>
@@ -1076,13 +1108,17 @@ const AdminPanel = () => {
         <div className="admin-card--form-container">
           <div className="admin-card admin-card--form">
             <div className="admin-form__header">
-              <h2>{editingCompany.id == null ? "Dodaj firmę" : "Edytuj firmę"}</h2>
-              <button type="button" className="btn-close" onClick={handleCloseCompanyForm} aria-label="Zamknij" disabled={companyFormSubmitting} />
+              <h2>
+                {editingCompany.id == null
+                  ? t("adminPanel.companies.form.titleCreate")
+                  : t("adminPanel.companies.form.titleEdit")}
+              </h2>
+              <button type="button" className="btn-close" onClick={handleCloseCompanyForm} aria-label={t("common.close")} disabled={companyFormSubmitting} />
             </div>
             <form className="admin-form" onSubmit={handleCompanyFormSubmit}>
             <div className="admin-form__grid">
               <label className="admin-form__field">
-                <span>Nazwa firmy</span>
+                <span>{t("adminPanel.companies.form.companyName")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1095,7 +1131,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field">
-                <span>Email</span>
+                <span>{t("adminPanel.companies.form.email")}</span>
                 <input
                   type="email"
                   className="admin-input"
@@ -1106,7 +1142,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field">
-                <span>Telefon</span>
+                <span>{t("adminPanel.companies.form.phone")}</span>
                 <input
                   type="tel"
                   className="admin-input"
@@ -1114,11 +1150,11 @@ const AdminPanel = () => {
                   onChange={(e) =>
                     handleCompanyFormChange("phone", e.target.value)
                   }
-                  placeholder="+48 111 222 333"
+                  placeholder={t("adminPanel.companies.form.phonePlaceholder")}
                 />
               </label>
               <label className="admin-form__field">
-                <span>Ulica</span>
+                <span>{t("adminPanel.companies.form.street")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1130,7 +1166,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field">
-                <span>Numer budynku</span>
+                <span>{t("adminPanel.companies.form.buildingNumber")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1142,7 +1178,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field">
-                <span>Nr lokalu (opcjonalnie)</span>
+                <span>{t("adminPanel.companies.form.apartmentOptional")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1153,7 +1189,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field">
-                <span>Miasto</span>
+                <span>{t("common.city")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1170,7 +1206,7 @@ const AdminPanel = () => {
                 </datalist>
               </label>
               <label className="admin-form__field">
-                <span>Kod pocztowy</span>
+                <span>{t("adminPanel.companies.form.postalCode")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1181,11 +1217,11 @@ const AdminPanel = () => {
                   placeholder="00-000"
                   pattern="^[0-9]{2}-[0-9]{3}$"
                   maxLength={6}
-                  title="Kod pocztowy w formacie 00-000"
+                  title={t("adminPanel.companies.form.postalCodeTitle")}
                 />
               </label>
               <label className="admin-form__field">
-                <span>Kraj</span>
+                <span>{t("adminPanel.companies.form.country")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1196,7 +1232,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field admin-form__field--full">
-                <span>Strona WWW</span>
+                <span>{t("adminPanel.companies.form.website")}</span>
                 <input
                   type="text"
                   className="admin-input"
@@ -1207,7 +1243,7 @@ const AdminPanel = () => {
                 />
               </label>
               <label className="admin-form__field admin-form__field--full">
-                <span>Opis (max. 1000 znaków)</span>
+                <span>{t("adminPanel.companies.form.description")}</span>
                 <textarea
                   className="admin-input"
                   rows={3}
@@ -1226,14 +1262,14 @@ const AdminPanel = () => {
                 onClick={handleCloseCompanyForm}
                 disabled={companyFormSubmitting}
               >
-                Anuluj
+                {t("common.cancel")}
               </button>
               <button
                 type="submit"
                 className="btn btn-primary"
                 disabled={companyFormSubmitting}
               >
-                {companyFormSubmitting ? "Zapisywanie..." : "Zapisz"}
+                {companyFormSubmitting ? t("common.saving") : t("common.save")}
               </button>
             </div>
             </form>
@@ -1246,9 +1282,9 @@ const AdminPanel = () => {
   return (
     <div className="admin-page">
       <header className="admin-page__header">
-        <h1 className="admin-page__title">Panel administratora</h1>
+        <h1 className="admin-page__title">{t("adminPanel.title")}</h1>
         <p className="admin-page__subtitle">
-          Zarządzaj użytkownikami i firmami w systemie rezerwacji.
+          {t("adminPanel.subtitle")}
         </p>
       </header>
 
@@ -1260,7 +1296,7 @@ const AdminPanel = () => {
           }
           onClick={() => setTab("users")}
         >
-          Użytkownicy
+          {t("adminPanel.tabs.users")}
         </button>
         <button
           type="button"
@@ -1271,7 +1307,7 @@ const AdminPanel = () => {
           }
           onClick={() => setTab("companies")}
         >
-          Firmy
+          {t("adminPanel.tabs.companies")}
         </button>
         {isSystemAdmin ? (
           <button
@@ -1283,7 +1319,7 @@ const AdminPanel = () => {
             }
             onClick={() => setTab("templates")}
           >
-            Szablony
+            {t("adminPanel.tabs.templates")}
           </button>
         ) : null}
       </div>

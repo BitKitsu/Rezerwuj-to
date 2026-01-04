@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authAPI, auditAPI, companiesAPI, tokenManager } from '../services/api';
 import '../admin.css'; // Reuse some admin styles for the form
+import { useI18n } from '../i18n/I18nContext';
 
 const normalizePostalCodeInput = (value) => {
   const digits = String(value || '')
@@ -47,6 +48,15 @@ const formatPhoneDisplay = (value) => {
 function AccountPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { t, locale } = useI18n();
+
+  const tx = (value) => {
+    if (!value) return '';
+    const s = String(value);
+    if (s.startsWith('account.') || s.startsWith('common.')) return t(s);
+    return s;
+  };
+
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState('');
@@ -110,7 +120,7 @@ function AccountPage() {
       setAuditPage(1);
     } catch (err) {
       console.error('Audit logs load error:', err);
-      setAuditError('Nie udało się załadować historii aktywności.');
+      setAuditError('account.audit.loadError');
     } finally {
       setAuditLoading(false);
     }
@@ -134,7 +144,7 @@ function AccountPage() {
         });
       } catch (err) {
         console.error('Profile load error:', err);
-        setProfileError('Nie udało się załadować danych profilu.');
+        setProfileError('account.profile.loadError');
       } finally {
         setProfileLoading(false);
       }
@@ -174,12 +184,12 @@ function AccountPage() {
       };
 
       if (!payload.firstName || !payload.lastName) {
-        setProfileError('Imię i nazwisko są wymagane.');
+        setProfileError('account.profile.validation.nameRequired');
         return;
       }
 
       if (!payload.username) {
-        setProfileError('Nazwa użytkownika jest wymagana.');
+        setProfileError('account.profile.validation.usernameRequired');
         return;
       }
 
@@ -205,7 +215,7 @@ function AccountPage() {
         window.dispatchEvent(new Event('authChanged'));
       }
 
-      setProfileSuccess('Zapisano zmiany profilu.');
+      setProfileSuccess('account.profile.saved');
       loadAuditLogs();
     } catch (err) {
       console.error('Profile update error:', err);
@@ -218,7 +228,7 @@ function AccountPage() {
       } else if (err.response?.data?.message) {
         setProfileError(err.response.data.message);
       } else {
-        setProfileError('Nie udało się zapisać zmian profilu.');
+        setProfileError('account.profile.saveError');
       }
     } finally {
       setSavingProfile(false);
@@ -239,7 +249,7 @@ function AccountPage() {
     setPasswordSuccess('');
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('Nowe hasło i potwierdzenie muszą być takie same.');
+      setPasswordError('account.password.mismatch');
       return;
     }
 
@@ -251,7 +261,7 @@ function AccountPage() {
         newPassword: passwordForm.newPassword,
       });
 
-      setPasswordSuccess('Hasło zostało pomyślnie zmienione.');
+      setPasswordSuccess('account.password.success');
       setPasswordForm({
         currentPassword: '',
         newPassword: '',
@@ -270,7 +280,7 @@ function AccountPage() {
       } else if (err.response?.data?.message) {
         setPasswordError(err.response.data.message);
       } else {
-        setPasswordError('Nie udało się zmienić hasła.');
+        setPasswordError('account.password.error');
       }
     } finally {
       setChangingPassword(false);
@@ -312,7 +322,7 @@ function AccountPage() {
       companyForm.closingHour &&
       companyForm.closingHour <= companyForm.openingHour
     ) {
-      setCompanyFormError('Godzina zamknięcia musi być późniejsza niż godzina otwarcia.');
+      setCompanyFormError('account.company.hoursError');
       return;
     }
     setCompanyFormLoading(true);
@@ -326,7 +336,7 @@ function AccountPage() {
       const newCompanyId = createCompanyResponse.data.id;
 
       if (!newCompanyId) {
-        throw new Error('Nie udało się uzyskać ID nowej firmy.');
+        throw new Error('account.company.missingId');
       }
 
       // Step 2: Assign the new company to the user in IdentityService
@@ -337,8 +347,14 @@ function AccountPage() {
       // The user's state is updated by assignCompany, no need to reload page
     } catch (err) {
       console.error('Create company error:', err);
+
+      if (typeof err?.message === 'string' && err.message.startsWith('account.')) {
+        setCompanyFormError(err.message);
+        return;
+      }
+
       if (err.response?.status === 403) {
-        setCompanyFormError('Aby utworzyć firmę, musisz najpierw potwierdzić adres email.');
+        setCompanyFormError('account.company.emailConfirmRequired');
         return;
       }
       if (err.response?.data?.errors) {
@@ -347,7 +363,7 @@ function AccountPage() {
       } else if (err.response?.data?.message) {
         setCompanyFormError(err.response.data.message);
       } else {
-        setCompanyFormError('Wystąpił nieoczekiwany błąd podczas tworzenia firmy.');
+        setCompanyFormError('account.company.createUnexpectedError');
       }
     } finally {
       setCompanyFormLoading(false);
@@ -382,7 +398,7 @@ function AccountPage() {
   const handleDeleteAccount = async () => {
     if (
       !window.confirm(
-        'Na pewno chcesz trwale usunąć swoje konto? Ta operacja jest nieodwracalna.',
+        t('account.delete.confirm'),
       )
     ) {
       return;
@@ -414,7 +430,7 @@ function AccountPage() {
       } else if (err.response?.data?.message) {
         setDeleteError(err.response.data.message);
       } else {
-        setDeleteError('Nie udało się usunąć konta.');
+        setDeleteError('account.delete.error');
       }
     } finally {
       setDeleteLoading(false);
@@ -430,7 +446,7 @@ function AccountPage() {
     if (profileLoading) return;
 
     if (profile && profile.emailConfirmed === false) {
-      setProfileError('Aby utworzyć firmę, musisz najpierw potwierdzić adres email.');
+      setProfileError('account.company.emailConfirmRequired');
       return;
     }
 
@@ -441,13 +457,13 @@ function AccountPage() {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleString();
+    return date.toLocaleString(locale);
   };
 
   const formatAuditAction = (log) => {
     if (!log) return '';
-    if (log.action === 'Login') return 'Nowe logowanie';
-    if (log.action === 'Update' && log.entityName === 'Password') return 'Zmiana hasła';
+    if (log.action === 'Login') return t('account.audit.login');
+    if (log.action === 'Update' && log.entityName === 'Password') return t('account.audit.passwordChanged');
     if (log.action === 'Update' && log.entityName === 'ApplicationUser') {
       try {
         const raw = log.changes;
@@ -463,13 +479,13 @@ function AccountPage() {
             'Email',
           ]);
           const labels = {
-            UserName: 'nazwy użytkownika',
-            Username: 'nazwy użytkownika',
-            FirstName: 'imienia',
-            LastName: 'nazwiska',
-            PhoneNumber: 'numeru telefonu',
-            Phone: 'numeru telefonu',
-            Email: 'adresu e-mail',
+            UserName: t('account.audit.field.username'),
+            Username: t('account.audit.field.username'),
+            FirstName: t('account.audit.field.firstName'),
+            LastName: t('account.audit.field.lastName'),
+            PhoneNumber: t('account.audit.field.phone'),
+            Phone: t('account.audit.field.phone'),
+            Email: t('account.audit.field.email'),
           };
 
           const fields = changes
@@ -479,14 +495,15 @@ function AccountPage() {
             .map((f) => labels[f] || f);
 
           const unique = Array.from(new Set(fields));
-          if (unique.length === 1) return `Zmiana ${unique[0]}`;
-          if (unique.length > 1) return `Zmiana profilu (${unique.join(', ')})`;
+          if (unique.length === 1) return t('account.audit.profileUpdatedField', { field: unique[0] });
+          if (unique.length > 1) return t('account.audit.profileUpdatedFields', { fields: unique.join(', ') });
         }
       } catch {
       }
 
-      return 'Zmiana profilu';
+      return t('account.audit.profileUpdated');
     }
+    if (log.action === 'Delete' && log.entityName === 'ApplicationUser') return t('account.audit.accountDeleted');
     return `${log.action || ''}`;
   };
 
@@ -564,29 +581,29 @@ function AccountPage() {
     <section className="dashboard-card">
       <div className="admin-section" style={{ gap: '0.75rem' }}>
         <div className="admin-section__header">
-          <h2 className="admin-section__title">Historia aktywności</h2>
+          <h2 className="admin-section__title">{t('account.audit.title')}</h2>
           <div className="admin-section__actions">
             <button type="button" className="btn btn-outline" onClick={loadAuditLogs} disabled={auditLoading}>
-              Odśwież
+              {t('common.refresh')}
             </button>
           </div>
         </div>
 
-        {auditError && <div className="admin-alert admin-alert--error">{auditError}</div>}
+        {auditError && <div className="admin-alert admin-alert--error">{tx(auditError)}</div>}
 
         {auditLoading ? (
-          <p>Ładowanie...</p>
+          <p>{t('common.loading')}</p>
         ) : criticalAuditLogs.length === 0 ? (
-          <p>Brak wpisów.</p>
+          <p>{t('account.audit.empty')}</p>
         ) : (
           <>
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Data</th>
-                  <th>Akcja</th>
-                  <th>IP</th>
-                  <th>Przeglądarka</th>
+                  <th>{t('account.audit.date')}</th>
+                  <th>{t('account.audit.action')}</th>
+                  <th>{t('account.audit.ip')}</th>
+                  <th>{t('account.audit.browser')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -605,7 +622,7 @@ function AccountPage() {
 
             <div className="list-pagination">
               <div className="list-page-size">
-                <span>Na stronie:</span>
+                <span>{t('common.perPage')}</span>
                 <select value={auditPageSize} onChange={handleAuditPageSizeChange}>
                   <option value={10}>10</option>
                   <option value={15}>15</option>
@@ -620,10 +637,10 @@ function AccountPage() {
                   disabled={auditCurrentPage === 1}
                   onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
                 >
-                  Poprzednia
+                  {t('common.previous')}
                 </button>
                 <span>
-                  Strona {auditCurrentPage} z {auditPageCount}
+                  {t('account.audit.pageInfo', { page: auditCurrentPage, count: auditPageCount })}
                 </span>
                 <button
                   type="button"
@@ -631,7 +648,7 @@ function AccountPage() {
                   disabled={auditCurrentPage === auditPageCount}
                   onClick={() => setAuditPage((p) => Math.min(auditPageCount, p + 1))}
                 >
-                  Następna
+                  {t('common.next')}
                 </button>
               </div>
             </div>
@@ -644,18 +661,18 @@ function AccountPage() {
   const renderCreateCompanyForm = () => (
     <div className="auth-modal-overlay" onClick={closeCompanyForm}>
       <div className="auth-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <button type="button" className="auth-modal-close" onClick={closeCompanyForm} aria-label="Zamknij">
+        <button type="button" className="auth-modal-close" onClick={closeCompanyForm} aria-label={t('common.close')}>
           ×
         </button>
         <div className="auth-modal-body">
-          <h2 className="auth-modal-title">Zarejestruj swoją firmę</h2>
-          <p className="auth-modal-subtitle">Dodaj firmę, aby tworzyć usługi i przyjmować rezerwacje online.</p>
+          <h2 className="auth-modal-title">{t('account.companyForm.title')}</h2>
+          <p className="auth-modal-subtitle">{t('account.companyForm.subtitle')}</p>
 
           <form onSubmit={handleCompanyFormSubmit} className="admin-form">
-            {companyFormError && <div className="admin-alert admin-alert--error">{companyFormError}</div>}
+            {companyFormError && <div className="admin-alert admin-alert--error">{tx(companyFormError)}</div>}
             <div className="admin-form__grid">
               <div className="admin-form__field admin-form__field--full">
-                <label htmlFor="companyName">Nazwa firmy</label>
+                <label htmlFor="companyName">{t('account.companyForm.companyName')}</label>
                 <input
                   id="companyName"
                   name="companyName"
@@ -668,11 +685,11 @@ function AccountPage() {
                 />
               </div>
             <div className="admin-form__field">
-              <label htmlFor="email">Email kontaktowy</label>
+              <label htmlFor="email">{t('account.companyForm.email')}</label>
               <input id="email" name="email" type="email" value={companyForm.email} onChange={handleCompanyFormChange} required className="admin-input" />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="phone">Telefon kontaktowy</label>
+              <label htmlFor="phone">{t('account.companyForm.phone')}</label>
               <input
                 id="phone"
                 name="phone"
@@ -681,11 +698,11 @@ function AccountPage() {
                 onChange={handleCompanyFormChange}
                 required
                 className="admin-input"
-                placeholder="+48 111 222 333"
+                placeholder={t('account.companyForm.phonePlaceholder')}
               />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="city">Miasto</label>
+              <label htmlFor="city">{t('account.companyForm.city')}</label>
               <input
                 id="city"
                 name="city"
@@ -703,7 +720,7 @@ function AccountPage() {
               </datalist>
             </div>
             <div className="admin-form__field">
-              <label htmlFor="streetName">Ulica</label>
+              <label htmlFor="streetName">{t('account.companyForm.street')}</label>
               <input
                 id="streetName"
                 name="streetName"
@@ -715,7 +732,7 @@ function AccountPage() {
               />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="streetNumber">Numer budynku</label>
+              <label htmlFor="streetNumber">{t('account.companyForm.streetNumber')}</label>
               <input
                 id="streetNumber"
                 name="streetNumber"
@@ -727,7 +744,7 @@ function AccountPage() {
               />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="apartmentNumber">Nr lokalu (opcjonalnie)</label>
+              <label htmlFor="apartmentNumber">{t('account.companyForm.apartmentNumber')}</label>
               <input
                 id="apartmentNumber"
                 name="apartmentNumber"
@@ -738,7 +755,7 @@ function AccountPage() {
               />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="postalCode">Kod pocztowy</label>
+              <label htmlFor="postalCode">{t('account.companyForm.postalCode')}</label>
               <input
                 id="postalCode"
                 name="postalCode"
@@ -750,11 +767,11 @@ function AccountPage() {
                 placeholder="00-000"
                 pattern="^[0-9]{2}-[0-9]{3}$"
                 maxLength={6}
-                title="Kod pocztowy w formacie 00-000"
+                title={t('account.companyForm.postalCodeTitle')}
               />
             </div>
             <div className="admin-form__field admin-form__field--full">
-              <label htmlFor="description">Opis firmy (max. 1000 znaków)</label>
+              <label htmlFor="description">{t('account.companyForm.description')}</label>
               <textarea
                 id="description"
                 name="description"
@@ -766,18 +783,18 @@ function AccountPage() {
               ></textarea>
             </div>
             <div className="admin-form__field">
-              <label htmlFor="openingHour">Godzina otwarcia</label>
+              <label htmlFor="openingHour">{t('account.companyForm.openingHour')}</label>
               <input id="openingHour" name="openingHour" type="time" value={companyForm.openingHour} onChange={handleCompanyFormChange} required className="admin-input" />
             </div>
             <div className="admin-form__field">
-              <label htmlFor="closingHour">Godzina zamknięcia</label>
+              <label htmlFor="closingHour">{t('account.companyForm.closingHour')}</label>
               <input id="closingHour" name="closingHour" type="time" value={companyForm.closingHour} onChange={handleCompanyFormChange} required className="admin-input" />
             </div>
             </div>
             <div className="admin-form__actions">
-              <button type="button" className="btn btn-outline" onClick={closeCompanyForm}>Anuluj</button>
+              <button type="button" className="btn btn-outline" onClick={closeCompanyForm}>{t('account.companyForm.cancel')}</button>
               <button type="submit" className="btn btn-primary" disabled={companyFormLoading}>
-                {companyFormLoading ? 'Tworzenie firmy...' : 'Utwórz firmę'}
+                {companyFormLoading ? t('account.companyForm.creating') : t('account.companyForm.create')}
               </button>
             </div>
           </form>
@@ -791,47 +808,47 @@ function AccountPage() {
       {showCompanyForm && renderCreateCompanyForm()}
       <header className="dashboard-header">
         <div>
-          <h1>Ustawienia konta</h1>
+          <h1>{t('account.title')}</h1>
           <p className="dashboard-greeting">
-            Zarządzaj podstawowymi informacjami o swoim koncie REZERWUJ.TO
+            {t('account.subtitle')}
           </p>
         </div>
       </header>
 
       <section className="dashboard-card">
-        <h2>Dane profilu</h2>
+        <h2>{t('account.profile.title')}</h2>
 
-        {profileLoading && <p>Ładowanie danych profilu...</p>}
+        {profileLoading && <p>{t('account.profile.loading')}</p>}
 
         {!profileLoading && (
           <>
             {profileError && (
               <div className="form-message form-message-error">
-                {profileError}
+                {tx(profileError)}
               </div>
             )}
             {profileSuccess && (
               <div className="form-message form-message-success">
-                {profileSuccess}
+                {tx(profileSuccess)}
               </div>
             )}
 
             {profile && (
               <>
                 <p>
-                  <strong>Nazwa użytkownika:</strong> {profile.username}
+                  <strong>{t('account.profile.summary.username')}</strong> {profile.username}
                 </p>
                 <p>
-                  <strong>Email:</strong> {profile.email}
+                  <strong>{t('account.profile.summary.email')}</strong> {profile.email}
                 </p>
                 <p>
-                  <strong>Imię:</strong> {profile.firstName}
+                  <strong>{t('account.profile.summary.firstName')}</strong> {profile.firstName}
                 </p>
 
                 <form onSubmit={handleProfileSubmit} className="form">
                   <div className="form-field">
                     <label className="form-label" htmlFor="username">
-                      Nazwa użytkownika
+                      {t('account.profile.form.username')}
                     </label>
                     <input
                       id="username"
@@ -840,7 +857,7 @@ function AccountPage() {
                       className="form-input"
                       value={profileForm.username}
                       onChange={handleProfileInputChange}
-                      placeholder="Twoja nazwa użytkownika"
+                      placeholder={t('account.profile.form.usernamePlaceholder')}
                       minLength="3"
                       maxLength="50"
                     />
@@ -848,7 +865,7 @@ function AccountPage() {
 
                   <div className="form-field">
                     <label className="form-label" htmlFor="firstName">
-                      Imię
+                      {t('account.profile.form.firstName')}
                     </label>
                     <input
                       id="firstName"
@@ -857,13 +874,13 @@ function AccountPage() {
                       className="form-input"
                       value={profileForm.firstName}
                       onChange={handleProfileInputChange}
-                      placeholder="Twoje imię"
+                      placeholder={t('account.profile.form.firstNamePlaceholder')}
                     />
                   </div>
 
                   <div className="form-field">
                     <label className="form-label" htmlFor="lastName">
-                      Nazwisko
+                      {t('account.profile.form.lastName')}
                     </label>
                     <input
                       id="lastName"
@@ -872,13 +889,13 @@ function AccountPage() {
                       className="form-input"
                       value={profileForm.lastName}
                       onChange={handleProfileInputChange}
-                      placeholder="Twoje nazwisko"
+                      placeholder={t('account.profile.form.lastNamePlaceholder')}
                     />
                   </div>
 
                   <div className="form-field">
                     <label className="form-label" htmlFor="phone">
-                      Telefon
+                      {t('account.profile.form.phone')}
                     </label>
                     <input
                       id="phone"
@@ -887,7 +904,7 @@ function AccountPage() {
                       className="form-input"
                       value={profileForm.phone}
                       onChange={handleProfileInputChange}
-                      placeholder="+48 123 456 789"
+                      placeholder={t('account.profile.form.phonePlaceholder')}
                     />
                   </div>
 
@@ -896,7 +913,7 @@ function AccountPage() {
                     className="btn btn-primary form-button"
                     disabled={savingProfile}
                   >
-                    {savingProfile ? 'Zapisywanie...' : 'Zapisz zmiany'}
+                    {savingProfile ? t('account.profile.form.saving') : t('account.profile.form.save')}
                   </button>
                 </form>
               </>
@@ -908,23 +925,23 @@ function AccountPage() {
       {renderAuditLogs()}
 
       <section className="dashboard-card">
-        <h2>Zmiana hasła</h2>
+        <h2>{t('account.password.title')}</h2>
 
         {passwordError && (
           <div className="form-message form-message-error">
-            {passwordError}
+            {tx(passwordError)}
           </div>
         )}
         {passwordSuccess && (
           <div className="form-message form-message-success">
-            {passwordSuccess}
+            {tx(passwordSuccess)}
           </div>
         )}
 
         <form onSubmit={handlePasswordSubmit} className="form">
           <div className="form-field">
             <label className="form-label" htmlFor="currentPassword">
-              Obecne hasło
+              {t('account.password.current')}
             </label>
             <input
               id="currentPassword"
@@ -939,7 +956,7 @@ function AccountPage() {
 
           <div className="form-field">
             <label className="form-label" htmlFor="newPassword">
-              Nowe hasło
+              {t('account.password.new')}
             </label>
             <input
               id="newPassword"
@@ -954,7 +971,7 @@ function AccountPage() {
 
           <div className="form-field">
             <label className="form-label" htmlFor="confirmPassword">
-              Powtórz nowe hasło
+              {t('account.password.confirm')}
             </label>
             <input
               id="confirmPassword"
@@ -972,20 +989,19 @@ function AccountPage() {
             className="btn btn-primary form-button"
             disabled={changingPassword}
           >
-            {changingPassword ? 'Zmiana hasła...' : 'Zmień hasło'}
+            {changingPassword ? t('account.password.changing') : t('account.password.change')}
           </button>
         </form>
       </section>
 
       <section className="dashboard-card">
-        <h2>Usunięcie konta</h2>
+        <h2>{t('account.delete.title')}</h2>
         <p>
-          Usunięcie konta spowoduje trwałe skasowanie Twoich danych logowania i dostępu do
-          historii rezerwacji. Tej operacji nie można cofnąć.
+          {t('account.delete.description')}
         </p>
 
         {deleteError && (
-          <div className="form-message form-message-error">{deleteError}</div>
+          <div className="form-message form-message-error">{tx(deleteError)}</div>
         )}
 
         <button
@@ -995,7 +1011,7 @@ function AccountPage() {
           onClick={handleDeleteAccount}
           disabled={deleteLoading}
         >
-          {deleteLoading ? 'Usuwanie konta...' : 'Usuń konto'}
+          {deleteLoading ? t('account.delete.deleting') : t('account.delete.action')}
         </button>
       </section>
     </div>

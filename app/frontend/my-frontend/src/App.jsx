@@ -14,6 +14,7 @@ import AdminPanel from './pages/AdminPanel'
 import CompanyPanel from './pages/CompanyPanel'
 import ProtectedRoute from './components/ProtectedRoute'
 import MainLayout from './components/MainLayout'
+import { I18nProvider } from './i18n/I18nContext'
 import './App.css'
 
 function App() {
@@ -39,52 +40,54 @@ function App() {
   }
 
   return (
-    <Router>
-      <MainLayout theme={theme} toggleTheme={toggleTheme}>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/services" element={<ServicesPage />} />
-          <Route path="/services/:id" element={<ServiceDetailsPage />} />
-          <Route path="/services/:id/book" element={<BookingPage />} />
-          <Route path="/salons" element={<SalonsPage />} />
-          <Route path="/salons/:id" element={<CompanyDetailsPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/account"
-            element={
-              <ProtectedRoute>
-                <AccountPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute requiredRole="Admin">
-                <AdminPanel />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/company-panel"
-            element={
-              <ProtectedRoute requireCompany>
-                <CompanyPanel />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </MainLayout>
-    </Router>
+    <I18nProvider>
+      <Router>
+        <MainLayout theme={theme} toggleTheme={toggleTheme}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:id" element={<ServiceDetailsPage />} />
+            <Route path="/services/:id/book" element={<BookingPage />} />
+            <Route path="/salons" element={<SalonsPage />} />
+            <Route path="/salons/:id" element={<CompanyDetailsPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="Admin">
+                  <AdminPanel />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/company-panel"
+              element={
+                <ProtectedRoute requireCompany>
+                  <CompanyPanel />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </MainLayout>
+      </Router>
+    </I18nProvider>
   )
 }
 

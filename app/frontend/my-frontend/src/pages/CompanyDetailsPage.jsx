@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { branchesAPI, companiesAPI } from "../services/api";
+import { useI18n } from "../i18n/I18nContext";
 
 function CompanyDetailsPage() {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   const initialCompany = location.state?.salon || location.state?.company || null;
 
@@ -13,6 +15,13 @@ function CompanyDetailsPage() {
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const tx = (value) => {
+    if (!value) return "";
+    const s = String(value);
+    if (s.startsWith('companyDetails.')) return t(s);
+    return s;
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +42,7 @@ function CompanyDetailsPage() {
         }
       } catch (err) {
         if (!cancelled) {
-          setError("Nie udało się pobrać szczegółów firmy.");
+          setError("companyDetails.loadError");
         }
       } finally {
         if (!cancelled) {
@@ -49,7 +58,7 @@ function CompanyDetailsPage() {
     };
   }, [id]);
 
-  const companyName = company?.companyName || company?.name || "Firma";
+  const companyName = company?.companyName || company?.name || t('companyDetails.fallbackName');
 
   const addressText = useMemo(() => {
     if (!company) return null;
@@ -71,15 +80,15 @@ function CompanyDetailsPage() {
   }, [company?.openingHour, company?.closingHour]);
 
   if (loading) {
-    return <div className="list-page">Ładowanie szczegółów firmy...</div>;
+    return <div className="list-page">{t('companyDetails.loading')}</div>;
   }
 
   if (error) {
     return (
       <div className="list-page">
-        <div className="list-state list-state-error">{error}</div>
+        <div className="list-state list-state-error">{tx(error)}</div>
         <Link to="/salons" className="btn btn-outline">
-          Wróć do listy firm
+          {t('companyDetails.backToList')}
         </Link>
       </div>
     );
@@ -88,9 +97,9 @@ function CompanyDetailsPage() {
   if (!company) {
     return (
       <div className="list-page">
-        <div className="list-state">Nie znaleziono firmy.</div>
+        <div className="list-state">{t('companyDetails.notFound')}</div>
         <Link to="/salons" className="btn btn-outline">
-          Wróć do listy firm
+          {t('companyDetails.backToList')}
         </Link>
       </div>
     );
@@ -108,40 +117,40 @@ function CompanyDetailsPage() {
 
         {addressText && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Adres:</strong> {addressText}
+            <strong>{t('companyDetails.address')}</strong> {addressText}
           </div>
         )}
 
         {company.phone && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Telefon:</strong> {company.phone}
+            <strong>{t('companyDetails.phone')}</strong> {company.phone}
           </div>
         )}
 
         {hoursText && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Godziny otwarcia:</strong> {hoursText}
+            <strong>{t('companyDetails.hours')}</strong> {hoursText}
           </div>
         )}
 
         {company.email && (
           <div style={{ marginBottom: "8px" }}>
-            <strong>Email:</strong> {company.email}
+            <strong>{t('companyDetails.email')}</strong> {company.email}
           </div>
         )}
 
         <div style={{ marginTop: "16px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <Link to="/salons" className="btn btn-outline">
-            Wróć
+            {t('companyDetails.back')}
           </Link>
         </div>
       </div>
 
       <div className="card" style={{ padding: "16px", marginBottom: "16px" }}>
-        <h2 style={{ marginTop: 0 }}>Oddziały</h2>
+        <h2 style={{ marginTop: 0 }}>{t('companyDetails.branches')}</h2>
 
         {branches.length === 0 ? (
-          <p>Brak zdefiniowanych oddziałów.</p>
+          <p>{t('companyDetails.noBranches')}</p>
         ) : (
           <ul style={{ margin: 0, paddingLeft: "18px" }}>
             {branches.map((branch) => {
@@ -177,7 +186,7 @@ function CompanyDetailsPage() {
         )}
 
         <div style={{ marginTop: "12px", opacity: 0.85 }}>
-          Kliknij usługę na liście usług, aby zobaczyć szczegóły i zarezerwować termin.
+          {t('companyDetails.clickHint')}
         </div>
       </div>
     </div>

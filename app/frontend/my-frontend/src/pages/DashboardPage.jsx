@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { appointmentsAPI, tokenManager } from '../services/api';
+import { useI18n } from '../i18n/I18nContext';
 
 function DashboardPage() {
+  const { t, locale } = useI18n();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,7 +33,7 @@ function DashboardPage() {
       setAppointments(appointmentsRes.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
-      setError('Nie udało się pobrać rezerwacji.');
+      setError('dashboard.loadError');
     } finally {
       setLoading(false);
     }
@@ -42,7 +44,7 @@ function DashboardPage() {
     if (!id) return;
     if (appointment?.status === 'cancelled') return;
 
-    if (!window.confirm('Na pewno anulować rezerwację?')) return;
+    if (!window.confirm(t('dashboard.cancelConfirm'))) return;
 
     setSubmittingCancelId(id);
     setError('');
@@ -54,7 +56,7 @@ function DashboardPage() {
       setError(
         err?.response?.data?.message ||
           (typeof err?.response?.data === 'string' ? err.response.data : '') ||
-          'Nie udało się anulować rezerwacji.',
+          'dashboard.cancelError',
       );
     } finally {
       setSubmittingCancelId(null);
@@ -62,17 +64,25 @@ function DashboardPage() {
   };
 
   if (loading) {
-    return <div className="dashboard-loading">Ładowanie...</div>;
+    return <div className="dashboard-loading">{t('common.loading')}</div>;
   }
+
+  const errorText = error
+    ? (String(error).startsWith('dashboard.') ? t(error) : error)
+    : '';
 
   return (
     <div className="dashboard-page">
       <header className="dashboard-header">
         <div>
-          <h1>Moje rezerwacje</h1>
+          <h1>{t('dashboard.title')}</h1>
           {user && (
             <p className="dashboard-greeting">
-              Witaj, {user.firstName} {user.lastName} ({user.email})
+              {t('dashboard.greeting', {
+                firstName: user.firstName || '',
+                lastName: user.lastName || '',
+                email: user.email || '',
+              })}
             </p>
           )}
         </div>
@@ -80,24 +90,24 @@ function DashboardPage() {
 
       <section className="dashboard-card dashboard-appointments">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <h2 style={{ margin: 0 }}>Lista rezerwacji</h2>
+          <h2 style={{ margin: 0 }}>{t('dashboard.listTitle')}</h2>
           <button type="button" className="btn btn-outline" onClick={loadData}>
-            Odśwież
+            {t('common.refresh')}
           </button>
         </div>
 
-        {error ? <div className="dashboard-empty">{error}</div> : null}
+        {errorText ? <div className="dashboard-empty">{errorText}</div> : null}
 
         {sortedAppointments.length > 0 ? (
           <table className="dashboard-table">
             <thead>
               <tr>
-                <th>Firma</th>
-                <th>Usługa</th>
-                <th>Data</th>
-                <th>Godzina</th>
-                <th>Status</th>
-                <th>Akcje</th>
+                <th>{t('dashboard.company')}</th>
+                <th>{t('dashboard.service')}</th>
+                <th>{t('dashboard.date')}</th>
+                <th>{t('dashboard.time')}</th>
+                <th>{t('dashboard.status')}</th>
+                <th>{t('dashboard.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -105,9 +115,9 @@ function DashboardPage() {
                 <tr key={appointment.id}>
                   <td>{appointment.company?.companyName || '—'}</td>
                   <td>{appointment.service?.serviceName || 'Usługa #' + appointment.serviceId}</td>
-                  <td>{new Date(appointment.dateStart).toLocaleDateString('pl-PL')}</td>
+                  <td>{new Date(appointment.dateStart).toLocaleDateString(locale)}</td>
                   <td>
-                    {new Date(appointment.dateStart).toLocaleTimeString('pl-PL', {
+                    {new Date(appointment.dateStart).toLocaleTimeString(locale, {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
@@ -124,10 +134,10 @@ function DashboardPage() {
                       }
                     >
                       {appointment.status === 'confirmed'
-                        ? 'Potwierdzone'
+                        ? t('dashboard.statusConfirmed')
                         : appointment.status === 'pending'
-                        ? 'Oczekuje'
-                        : 'Anulowane'}
+                        ? t('dashboard.statusPending')
+                        : t('dashboard.statusCancelled')}
                     </span>
                   </td>
                   <td>
@@ -137,7 +147,7 @@ function DashboardPage() {
                       disabled={appointment.status === 'cancelled' || submittingCancelId === appointment.id}
                       onClick={() => handleCancel(appointment)}
                     >
-                      {submittingCancelId === appointment.id ? 'Anulowanie...' : 'Anuluj'}
+                      {submittingCancelId === appointment.id ? t('dashboard.cancelling') : t('dashboard.cancel')}
                     </button>
                   </td>
                 </tr>
@@ -145,7 +155,7 @@ function DashboardPage() {
             </tbody>
           </table>
         ) : (
-          <p className="dashboard-empty">Nie masz jeszcze żadnych rezerwacji</p>
+          <p className="dashboard-empty">{t('dashboard.empty')}</p>
         )}
       </section>
     </div>

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { companiesAPI } from '../services/api';
+import { useI18n } from '../i18n/I18nContext';
 
 function SalonsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
   const appliedPrefillKeyRef = useRef(null);
   const [salons, setSalons] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -69,7 +71,7 @@ function SalonsPage() {
         setTotalCount(total);
       } catch (err) {
         console.error('Error loading salons', err);
-        setError('Nie udało się pobrać listy salonów. Sprawdź, czy backend działa.');
+        setError('salons.loadError');
       } finally {
         setLoading(false);
       }
@@ -130,29 +132,29 @@ function SalonsPage() {
   return (
     <div className="list-page">
       <header className="list-header">
-        <h1>Firmy usługowe</h1>
-        <p>Znajdź firmę w swoim mieście i umów wizytę w kilka kliknięć.</p>
+        <h1>{t('salons.title')}</h1>
+        <p>{t('salons.subtitle')}</p>
       </header>
 
       <section className="list-filters">
         <div className="list-filters-row">
           <div className="list-filter-group">
-            <label className="list-filter-label">Czego szukasz?</label>
+            <label className="list-filter-label">{t('common.whatAreYouLookingFor')}</label>
             <input
               type="text"
               className="list-filter-input"
-              placeholder="Nazwa firmy lub usługi"
+              placeholder={t('salons.queryPlaceholder')}
               value={query}
               onChange={handleQueryChange}
             />
           </div>
 
           <div className="list-filter-group">
-            <label className="list-filter-label">Miasto</label>
+            <label className="list-filter-label">{t('common.city')}</label>
             <input
               type="text"
               className="list-filter-input"
-              placeholder="np. Warszawa"
+              placeholder={t('salons.cityPlaceholder')}
               value={city}
               onChange={handleCityChange}
               list="salons-city-options"
@@ -165,31 +167,31 @@ function SalonsPage() {
           </div>
 
           <div className="list-filter-group">
-            <label className="list-filter-label">Sortowanie</label>
+            <label className="list-filter-label">{t('salons.sorting')}</label>
             <select className="list-filter-select" value={sortBy} onChange={handleSortChange}>
-              <option value="recommended">Polecane (placeholder)</option>
-              <option value="name_asc">Nazwa (A–Z)</option>
-              <option value="rating">Najwyżej oceniane</option>
+              <option value="recommended">{t('salons.sortRecommended')}</option>
+              <option value="name_asc">{t('salons.sortNameAsc')}</option>
+              <option value="rating">{t('salons.sortRating')}</option>
             </select>
           </div>
         </div>
       </section>
 
-      {loading && <div className="list-state">Ładowanie firm...</div>}
+      {loading && <div className="list-state">{t('salons.loading')}</div>}
 
-      {error && !loading && <div className="list-state list-state-error">{error}</div>}
+      {error && !loading && <div className="list-state list-state-error">{t(error)}</div>}
 
       {!loading && !error && salons.length === 0 && (
-        <div className="list-state">Brak dopasowanych firm. Zmień kryteria wyszukiwania.</div>
+        <div className="list-state">{t('salons.empty')}</div>
       )}
 
       {!loading && !error && salons.length > 0 && (
         <>
           <section className="card-grid">
             {visibleSalons.map((salon) => {
-              const name = salon.name || salon.companyName || 'Salon fryzjerski';
-              const description = salon.description || 'Profesjonalne usługi fryzjerskie.';
-              const cityLabel = salon.city || 'Miasto nieznane';
+              const name = salon.name || salon.companyName || t('salons.fallbackName');
+              const description = salon.description || t('salons.fallbackDescription');
+              const cityLabel = salon.city || t('salons.cityUnknown');
 
               return (
                 <article
@@ -222,7 +224,7 @@ function SalonsPage() {
                   <p className="salon-description">{description}</p>
 
                   <div className="salon-footer">
-                    <span>Kliknij firmę, aby zobaczyć oddziały i szczegóły.</span>
+                    <span>{t('salons.cardHint')}</span>
                   </div>
                 </article>
               );
@@ -231,7 +233,7 @@ function SalonsPage() {
 
           <div className="list-pagination">
             <div className="list-page-size">
-              <span>Na stronie:</span>
+              <span>{t('common.perPage')}</span>
               <select value={pageSize} onChange={handlePageSizeChange}>
                 <option value={10}>10</option>
                 <option value={15}>15</option>
@@ -246,10 +248,10 @@ function SalonsPage() {
                 disabled={currentPage === 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                Poprzednia
+                {t('common.previous')}
               </button>
               <span>
-                Strona {currentPage} z {pageCount}
+                {t('common.page')} {currentPage} {t('common.of')} {pageCount}
               </span>
               <button
                 type="button"
@@ -257,7 +259,7 @@ function SalonsPage() {
                 disabled={currentPage === pageCount}
                 onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               >
-                Następna
+                {t('common.next')}
               </button>
             </div>
           </div>

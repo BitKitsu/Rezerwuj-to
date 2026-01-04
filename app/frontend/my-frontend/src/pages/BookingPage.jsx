@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { appointmentsAPI, authAPI, servicesAPI, tokenManager } from "../services/api";
+import { useI18n } from "../i18n/I18nContext";
 
 const sanitizePhoneNumberInput = (value) => {
   const raw = String(value || "").trim();
@@ -30,6 +31,7 @@ const formatPhoneDisplay = (value) => {
 function BookingPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
 
   const [service, setService] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -70,10 +72,17 @@ function BookingPage() {
     const phoneOk = !hasPhone || /^\+\d{8,15}$/.test(phone);
 
     return {
-      customerEmail: emailOk ? "" : "Niepoprawny email.",
-      customerPhone: phoneOk ? "" : "Niepoprawny numer telefonu.",
-      _bothMissing: !hasEmail && !hasPhone ? "Podaj email lub numer telefonu." : "",
+      customerEmail: emailOk ? "" : "booking.invalidEmail",
+      customerPhone: phoneOk ? "" : "booking.invalidPhone",
+      _bothMissing: !hasEmail && !hasPhone ? "booking.provideContact" : "",
     };
+  };
+
+  const tx = (value) => {
+    if (!value) return "";
+    const s = String(value);
+    if (s.startsWith("booking.")) return t(s);
+    return s;
   };
 
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -93,7 +102,7 @@ function BookingPage() {
       } catch (err) {
         if (cancelled) return;
         setService(null);
-        setError("Nie udało się pobrać szczegółów usługi.");
+        setError("booking.serviceLoadError");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -136,7 +145,7 @@ function BookingPage() {
         }));
       } catch (err) {
         if (!cancelled) {
-          setProfileError("Nie udało się pobrać numeru telefonu z profilu.");
+          setProfileError("booking.profilePhoneError");
         }
       } finally {
         if (!cancelled) setProfileLoading(false);
@@ -173,9 +182,9 @@ function BookingPage() {
     }
     return Array.from(map.entries())
       .map(([staffId, staffName]) => ({ id: staffId, name: staffName }))
-      .sort((a, b) => String(a.name).localeCompare(String(b.name), "pl"));
+      .sort((a, b) => String(a.name).localeCompare(String(b.name), locale));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableSlots]);
+  }, [availableSlots, locale]);
 
   useEffect(() => {
     if (!serviceId || !form.date) {
@@ -202,7 +211,7 @@ function BookingPage() {
             err?.response?.data?.message ||
             (typeof err?.response?.data === "string" ? err.response.data : "") ||
             (err?.response?.status ? `HTTP ${err.response.status}` : "") ||
-            "Nie udało się załadować dostępnych terminów.";
+            "booking.slotsLoadError";
           setAvailableSlotsError(String(msg));
         }
       } finally {
@@ -311,7 +320,7 @@ function BookingPage() {
 
     try {
       if (!serviceId) {
-        setSubmitError("Nieprawidłowa usługa.");
+        setSubmitError("booking.invalidService");
         return;
       }
 
@@ -320,18 +329,18 @@ function BookingPage() {
       const dateStart = selectedSlot?.start || form.dateStart;
 
       if (!dateStart || !staffId) {
-        setSubmitError("Wybierz dostępny termin.");
+        setSubmitError("booking.chooseSlot");
         return;
       }
 
       const startDate = new Date(dateStart);
       if (Number.isNaN(startDate.getTime())) {
-        setSubmitError("Nieprawidłowa data rezerwacji.");
+        setSubmitError("booking.invalidDate");
         return;
       }
 
       if (startDate.getTime() < Date.now()) {
-        setSubmitError("Nie można zarezerwować terminu w przeszłości.");
+        setSubmitError("booking.pastDate");
         return;
       }
 
@@ -342,17 +351,17 @@ function BookingPage() {
       const hasPhone = phone.length > 0;
 
       if (!hasEmail && !hasPhone) {
-        setSubmitError("Podaj email lub numer telefonu.");
+        setSubmitError("booking.provideContact");
         return;
       }
 
       if (hasEmail && !isValidEmail(email)) {
-        setSubmitError("Niepoprawny email.");
+        setSubmitError("booking.invalidEmail");
         return;
       }
 
       if (hasPhone && !isValidPhone(phone)) {
-        setSubmitError("Niepoprawny numer telefonu.");
+        setSubmitError("booking.invalidPhone");
         return;
       }
 
@@ -364,7 +373,7 @@ function BookingPage() {
         customerPhone: hasPhone ? phone : null,
       });
 
-      setSubmitSuccess("Rezerwacja została utworzona.");
+      setSubmitSuccess("booking.created");
       setTimeout(() => {
         navigate(`/services/${serviceId}`, { replace: true });
       }, 1200);
@@ -372,7 +381,7 @@ function BookingPage() {
       const msg =
         err?.response?.data?.message ||
         (typeof err?.response?.data === "string" ? err.response.data : "") ||
-        "Nie udało się utworzyć rezerwacji.";
+        "booking.createError";
       setSubmitError(String(msg));
     } finally {
       setSubmitLoading(false);
@@ -400,12 +409,12 @@ function BookingPage() {
     return (
       <div className="auth-modal-overlay" onClick={handleClose}>
         <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
             ×
           </button>
           <div className="auth-modal-body">
-            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
-            <p className="auth-modal-subtitle">Ładowanie...</p>
+            <h1 className="auth-modal-title">{t('booking.title')}</h1>
+            <p className="auth-modal-subtitle">{t('booking.loading')}</p>
           </div>
         </div>
       </div>
@@ -416,16 +425,16 @@ function BookingPage() {
     return (
       <div className="auth-modal-overlay" onClick={handleClose}>
         <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
             ×
           </button>
           <div className="auth-modal-body">
-            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+            <h1 className="auth-modal-title">{t('booking.title')}</h1>
             <div className="services-state services-state-error" style={{ marginBottom: 12 }}>
-              {error}
+              {tx(error)}
             </div>
             <Link to="/services" className="btn btn-outline">
-              Wróć do usług
+              {t('booking.backToServices')}
             </Link>
           </div>
         </div>
@@ -437,16 +446,16 @@ function BookingPage() {
     return (
       <div className="auth-modal-overlay" onClick={handleClose}>
         <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+          <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
             ×
           </button>
           <div className="auth-modal-body">
-            <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+            <h1 className="auth-modal-title">{t('booking.title')}</h1>
             <div className="services-state" style={{ marginBottom: 12 }}>
-              Nie znaleziono usługi.
+              {t('booking.serviceNotFound')}
             </div>
             <Link to="/services" className="btn btn-outline">
-              Wróć do usług
+              {t('booking.backToServices')}
             </Link>
           </div>
         </div>
@@ -457,39 +466,39 @@ function BookingPage() {
   return (
     <div className="auth-modal-overlay" onClick={handleClose}>
       <div className="auth-modal auth-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
           ×
         </button>
         <div className="auth-modal-body">
-          <h1 className="auth-modal-title">Rezerwacja terminu</h1>
+          <h1 className="auth-modal-title">{t('booking.title')}</h1>
           <p className="auth-modal-subtitle">{service.serviceName}</p>
         {isAuthenticated ? (
           <div style={{ marginBottom: 8 }}>
-            <strong>Zalogowano.</strong> Dane kontaktowe zostały wstępnie uzupełnione.
+            <strong>{t('booking.loggedIn')}</strong> {t('booking.loggedInHint')}
           </div>
         ) : (
           <div style={{ marginBottom: 8 }}>
-            <strong>Nie jesteś zalogowany.</strong> Podaj email lub numer telefonu.
+            <strong>{t('booking.loggedOut')}</strong> {t('booking.loggedOutHint')}
           </div>
         )}
 
-        {profileError ? <div className="list-state list-state-error">{profileError}</div> : null}
+        {profileError ? <div className="list-state list-state-error">{tx(profileError)}</div> : null}
 
         <form onSubmit={handleSubmit}>
           {submitError ? (
             <div className="list-state list-state-error" style={{ marginBottom: 12 }}>
-              {submitError}
+              {tx(submitError)}
             </div>
           ) : null}
           {submitSuccess ? (
             <div className="list-state" style={{ marginBottom: 12 }}>
-              {submitSuccess}
+              {tx(submitSuccess)}
             </div>
           ) : null}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
             <div>
-              <label style={{ display: "block", marginBottom: 6 }}>Data</label>
+              <label style={{ display: "block", marginBottom: 6 }}>{t('booking.date')}</label>
               <input
                 type="date"
                 name="date"
@@ -500,12 +509,12 @@ function BookingPage() {
                 required
               />
               {availableSlotsError ? (
-                <div style={{ marginTop: 6, opacity: 0.85 }}>{availableSlotsError}</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{tx(availableSlotsError)}</div>
               ) : null}
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 6 }}>Pracownik</label>
+              <label style={{ display: "block", marginBottom: 6 }}>{t('booking.staff')}</label>
               <select
                 name="staffId"
                 value={form.staffId}
@@ -514,7 +523,7 @@ function BookingPage() {
                 disabled={availableSlotsLoading || !form.date}
                 required
               >
-                <option value="">(wybierz)</option>
+                <option value="">{t('booking.select')}</option>
                 {staffOptions.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
@@ -522,12 +531,12 @@ function BookingPage() {
                 ))}
               </select>
               {!availableSlotsLoading && form.date && staffOptions.length === 0 ? (
-                <div style={{ marginTop: 6, opacity: 0.85 }}>Brak pracowników w wybranym dniu.</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{t('booking.noStaff')}</div>
               ) : null}
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 6 }}>Termin</label>
+              <label style={{ display: "block", marginBottom: 6 }}>{t('booking.slot')}</label>
               <select
                 name="slotIndex"
                 value={form.slotIndex}
@@ -536,21 +545,21 @@ function BookingPage() {
                 disabled={availableSlotsLoading}
                 required
               >
-                <option value="">(wybierz)</option>
+                <option value="">{t('booking.select')}</option>
                 {filteredAvailableSlots.map((slot, idx) => (
                   <option key={`${slot.start}-${slot.staffId}-${idx}`} value={String(idx)}>
-                    {new Date(slot.start).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })} - {new Date(slot.end).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" })}
+                    {new Date(slot.start).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })} - {new Date(slot.end).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
                     {slot.staffName ? ` | ${slot.staffName}` : ""}
                   </option>
                 ))}
               </select>
               {!availableSlotsLoading && form.date && filteredAvailableSlots.length === 0 ? (
-                <div style={{ marginTop: 6, opacity: 0.85 }}>Brak terminów w wybranym dniu.</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{t('booking.noSlots')}</div>
               ) : null}
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 6 }}>Email</label>
+              <label style={{ display: "block", marginBottom: 6 }}>{t('booking.email')}</label>
               <input
                 type="email"
                 name="customerEmail"
@@ -558,37 +567,37 @@ function BookingPage() {
                 onChange={handleChange}
                 onBlur={handleBlur}
                 className="list-filter-input"
-                placeholder="np. jan@x.pl"
+                placeholder={t('booking.emailPlaceholder')}
                 disabled={profileLoading}
               />
               {contactErrors.customerEmail ? (
-                <div style={{ marginTop: 6, opacity: 0.85 }}>{contactErrors.customerEmail}</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{tx(contactErrors.customerEmail)}</div>
               ) : null}
             </div>
 
             <div>
-              <label style={{ display: "block", marginBottom: 6 }}>Telefon</label>
+              <label style={{ display: "block", marginBottom: 6 }}>{t('booking.phone')}</label>
               <input
                 type="text"
                 name="customerPhone"
                 value={form.customerPhone}
                 onChange={handleChange}
                 className="list-filter-input"
-                placeholder="np. +48 123 123 123"
+                placeholder={t('booking.phonePlaceholder')}
                 disabled={profileLoading}
               />
               {contactErrors.customerPhone ? (
-                <div style={{ marginTop: 6, opacity: 0.85 }}>{contactErrors.customerPhone}</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{tx(contactErrors.customerPhone)}</div>
               ) : null}
             </div>
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16 }}>
             <Link to={`/services/${serviceId}`} className="btn btn-outline">
-              Wróć
+              {t('booking.back')}
             </Link>
             <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-              {submitLoading ? "Rezerwuję..." : "Zarezerwuj"}
+              {submitLoading ? t('booking.submitting') : t('booking.submit')}
             </button>
           </div>
         </form>

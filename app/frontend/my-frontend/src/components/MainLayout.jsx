@@ -4,15 +4,12 @@ import { IconMoon, IconSun } from './ThemeIcons';
 import { authAPI, tokenManager, notificationsAPI } from '../services/api';
 import { useEffect, useState } from 'react';
 import * as signalR from '@microsoft/signalr';
+import { useI18n } from '../i18n/I18nContext';
 
 function MainLayout({ children, theme, toggleTheme }) {
   const location = useLocation();
 
-  const [language, setLanguage] = useState(() => {
-    if (typeof window === 'undefined') return 'PL';
-    const stored = localStorage.getItem('language');
-    return stored === 'EN' ? 'EN' : 'PL';
-  });
+  const { language, toggleLanguage, t, locale } = useI18n();
 
   const [authState, setAuthState] = useState(() => ({
     isAuthenticated: tokenManager.isAuthenticated(),
@@ -115,8 +112,8 @@ function MainLayout({ children, theme, toggleTheme }) {
   const displayNameRaw = user
     ? user.firstName && user.lastName
       ? `${user.firstName} ${user.lastName}`
-      : user.firstName || user.email || 'Użytkowniku'
-    : 'Użytkowniku';
+      : user.firstName || user.email || t('header.userFallback')
+    : t('header.userFallback');
 
   const displayName =
     displayNameRaw.length > 24 ? `${displayNameRaw.slice(0, 21)}…` : displayNameRaw;
@@ -127,17 +124,8 @@ function MainLayout({ children, theme, toggleTheme }) {
 
   const initials = initialsSource.toUpperCase().slice(0, 2);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('language', language);
-  }, [language]);
-
-  const toggleLanguage = () => {
-    setLanguage((prev) => (prev === 'PL' ? 'EN' : 'PL'));
-  };
-
-  const headerAuthLabel = language === 'PL' ? 'Zaloguj / Rejestruj' : 'Log in / Sign Up';
-  const headerBusinessLabel = language === 'PL' ? 'Dodaj firmę' : 'List your business';
+  const headerAuthLabel = t('header.auth');
+  const headerBusinessLabel = t('header.business');
 
   const showListYourBusiness = !isAuthenticated || !user?.companyId;
   const listYourBusinessTo = !isAuthenticated
@@ -165,7 +153,7 @@ function MainLayout({ children, theme, toggleTheme }) {
     <div className="app-root">
       <header className="app-header">
         <div className="app-header-inner">
-          <Link to="/" className="app-logo" aria-label="Przejdź do strony głównej">
+          <Link to="/" className="app-logo" aria-label={t('header.logoAria')}>
             <span className="logo-mark">
               <LogoIcon />
             </span>
@@ -173,28 +161,28 @@ function MainLayout({ children, theme, toggleTheme }) {
           </Link>
 
           <nav className="app-nav">
-            <Link to="/" className={navLinkClass('/')}>
-              Strona główna
+            <Link to="/" className={navLinkClass('/')}> 
+              {t('header.home')}
             </Link>
             <Link to="/services" className={navLinkClass('/services')}>
-              Usługi
+              {t('header.services')}
             </Link>
             <Link to="/salons" className={navLinkClass('/salons')}>
-              Firmy
+              {t('header.companies')}
             </Link>
             {isAuthenticated && (
               <Link to="/dashboard" className={navLinkClass('/dashboard')}>
-                Moje rezerwacje
+                {t('header.myBookings')}
               </Link>
             )}
             {isAuthenticated && user?.roles?.includes('Admin') && (
               <Link to="/admin" className={navLinkClass('/admin')}>
-                Panel administratora
+                {t('header.adminPanel')}
               </Link>
             )}
             {(isAuthenticated && user?.companyId) && (
               <Link to="/company-panel" className={navLinkClass('/company-panel')}>
-                Panel Firmy
+                {t('header.companyPanel')}
               </Link>
             )}
           </nav>
@@ -205,7 +193,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                 <button
                   type="button"
                   className="header-lang-btn"
-                  aria-label="Wybór języka (placeholder)"
+                  aria-label={t('header.languageToggleAria')}
                   onClick={toggleLanguage}
                 >
                   {language}
@@ -227,7 +215,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                       : 'theme-toggle theme-toggle--icon theme-toggle--dark'
                   }
                   onClick={toggleTheme}
-                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                  aria-label={theme === 'light' ? t('header.themeDark') : t('header.themeLight')}
                 >
                   <span
                     className={
@@ -274,7 +262,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                 <button
                   type="button"
                   className="header-lang-btn"
-                  aria-label="Wybór języka (placeholder)"
+                  aria-label={t('header.languageToggleAria')}
                   onClick={toggleLanguage}
                 >
                   {language}
@@ -290,7 +278,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                       : 'theme-toggle theme-toggle--icon theme-toggle--dark'
                   }
                   onClick={toggleTheme}
-                  aria-label={theme === 'light' ? 'Włącz tryb ciemny' : 'Włącz tryb jasny'}
+                  aria-label={theme === 'light' ? t('header.themeDark') : t('header.themeLight')}
                 >
                   <span
                     className={
@@ -318,7 +306,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                   <button
                     type="button"
                     onClick={() => setNotificationsOpen((v) => !v)}
-                    aria-label="Powiadomienia"
+                    aria-label={t('header.notifications')}
                     className="header-icon-btn header-notifications-btn"
                   >
                     <svg
@@ -373,19 +361,19 @@ function MainLayout({ children, theme, toggleTheme }) {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <div style={{ fontWeight: 700 }}>Powiadomienia</div>
+                        <div style={{ fontWeight: 700 }}>{t('header.notifications')}</div>
                         <button
                           type="button"
                           onClick={() => setNotificationsOpen(false)}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'inherit' }}
-                          aria-label="Zamknij"
+                          aria-label={t('common.close')}
                         >
                           ×
                         </button>
                       </div>
 
                       {notifications.length === 0 ? (
-                        <div style={{ opacity: 0.75, padding: 10 }}>Brak powiadomień.</div>
+                        <div style={{ opacity: 0.75, padding: 10 }}>{t('header.notificationsEmpty')}</div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflow: 'auto' }}>
                           {notifications.map((n) => (
@@ -405,7 +393,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                                 <div style={{ fontWeight: 700, fontSize: 13 }}>{n.title}</div>
                                 <div style={{ color: 'var(--color-text-muted)', fontSize: 12 }}>
-                                  {n.createdAt ? new Date(n.createdAt).toLocaleString('pl-PL') : ''}
+                                  {n.createdAt ? new Date(n.createdAt).toLocaleString(locale) : ''}
                                 </div>
                               </div>
                               <div style={{ opacity: 0.9, marginTop: 6, fontSize: 13, whiteSpace: 'pre-wrap' }}>{n.message}</div>
@@ -420,11 +408,11 @@ function MainLayout({ children, theme, toggleTheme }) {
                 <Link
                   to="/account"
                   className="header-user"
-                  aria-label="Przejdź do ustawień konta"
+                  aria-label={t('header.accountAria')}
                 >
                   <div className="header-user-avatar">{initials}</div>
                   <div className="header-user-text">
-                    <span className="header-user-greeting">Witaj,</span>
+                    <span className="header-user-greeting">{t('header.hello')}</span>
                     <span className="header-user-name">{displayName}</span>
                   </div>
                 </Link>
@@ -434,7 +422,7 @@ function MainLayout({ children, theme, toggleTheme }) {
                   className="btn btn-ghost header-login-btn header-logout-btn"
                   onClick={handleLogout}
                 >
-                  Wyloguj
+                  {t('header.logout')}
                 </button>
               </>
             )}

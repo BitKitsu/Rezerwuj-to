@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import { useI18n } from '../i18n/I18nContext';
 
 const normalizeHumanNameInput = (value) => {
   return String(value || '').trim().replace(/\s+/g, ' ');
@@ -32,6 +33,7 @@ const formatPhoneDisplay = (value) => {
 };
 
 function RegisterPage() {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
@@ -85,22 +87,22 @@ function RegisterPage() {
 
     if (step === 1) {
       if (!email) {
-        setError('Email jest wymagany!');
+        setError(t('register.requiredEmail'));
         return;
       }
 
       if (!username) {
-        setError('Nazwa użytkownika jest wymagana!');
+        setError(t('register.requiredUsername'));
         return;
       }
 
       if (!firstName || !lastName) {
-        setError('Imię i nazwisko są wymagane!');
+        setError(t('register.requiredName'));
         return;
       }
 
       if (!phone) {
-        setError('Numer telefonu jest wymagany!');
+        setError(t('register.requiredPhone'));
         return;
       }
 
@@ -111,7 +113,7 @@ function RegisterPage() {
     if (step === 3) {
       const code = String(verificationCode || '').replace(/\D/g, '').slice(0, 6);
       if (code.length !== 6) {
-        setError('Kod musi mieć 6 cyfr.');
+        setError(t('register.codeDigits'));
         return;
       }
 
@@ -122,12 +124,12 @@ function RegisterPage() {
           code
         });
         setVerified(true);
-        setVerificationMessage('Email potwierdzony. Przekierowywanie do logowania...');
+        setVerificationMessage(t('register.verifiedRedirect'));
         setTimeout(() => {
           navigate('/login');
         }, 1500);
       } catch (err) {
-        setError(err.response?.data?.message || 'Nie udało się potwierdzić email.');
+        setError(err.response?.data?.message || t('register.verifyFailed'));
       } finally {
         setLoading(false);
       }
@@ -136,40 +138,40 @@ function RegisterPage() {
     }
 
     if (!email) {
-      setError('Email jest wymagany!');
+      setError(t('register.requiredEmail'));
       return;
     }
 
     if (!username) {
-      setError('Nazwa użytkownika jest wymagana!');
+      setError(t('register.requiredUsername'));
       return;
     }
 
     // Walidacja pól wymaganych
     if (!firstName || !lastName) {
-      setError('Imię i nazwisko są wymagane!');
+      setError(t('register.requiredName'));
       return;
     }
 
     if (!phone) {
-      setError('Numer telefonu jest wymagany!');
+      setError(t('register.requiredPhone'));
       return;
     }
 
     // Walidacja hasła
     if (formData.password !== formData.confirmPassword) {
-      setError('Hasła nie są identyczne!');
+      setError(t('register.passwordsMismatch'));
       return;
     }
 
     if (formData.password.length < 6) {
-      setError('Hasło musi mieć minimum 6 znaków!');
+      setError(t('register.passwordMin'));
       return;
     }
     
     // Sprawdź czy hasło ma cyfrę
     if (!/\d/.test(formData.password)) {
-      setError('Hasło musi zawierać przynajmniej jedną cyfrę!');
+      setError(t('register.passwordDigit'));
       return;
     }
 
@@ -191,11 +193,11 @@ function RegisterPage() {
       const sent = Boolean(response?.data?.emailVerificationSent);
       const details = response?.data?.emailVerificationDetails;
       if (sent) {
-        setVerificationMessage('Wysłaliśmy kod potwierdzający na email. Wpisz go poniżej.');
+        setVerificationMessage(t('register.verificationSent'));
       } else {
-        setVerificationMessage('Konto utworzone, ale nie udało się wysłać kodu. Użyj opcji "Wyślij kod ponownie".');
+        setVerificationMessage(t('register.verificationNotSent'));
         setError(
-          `Nie udało się wysłać kodu email.${details ? ` Szczegóły: ${details}` : ''}`
+          `${t('register.emailCodeSendFailed')}.${details ? ` Szczegóły: ${details}` : ''}`
         );
       }
       
@@ -224,7 +226,7 @@ function RegisterPage() {
         if (errorMessages.length > 0) {
           setError(
             <div>
-              <strong>Błędy walidacji:</strong>
+              <strong>{t('register.validationErrorsTitle')}</strong>
               <ul className="form-error-list">
                 {errorMessages.map((msg, idx) => (
                   <li key={idx}>{msg}</li>
@@ -233,10 +235,10 @@ function RegisterPage() {
             </div>
           );
         } else {
-          setError('Błąd rejestracji. Sprawdź poprawność danych.');
+          setError(t('register.registrationError'));
         }
       } else {
-        setError(err.response?.data?.title || 'Błąd rejestracji. Spróbuj ponownie.');
+        setError(err.response?.data?.title || t('register.registrationErrorRetry'));
       }
     } finally {
       setLoading(false);
@@ -246,12 +248,12 @@ function RegisterPage() {
   return (
     <div className="auth-modal-overlay" onClick={handleClose}>
       <div className="auth-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label="Zamknij">
+        <button type="button" className="auth-modal-close" onClick={handleClose} aria-label={t('common.close')}>
           ×
         </button>
         <div className="auth-modal-body">
-          <h2 className="auth-modal-title">Załóż konto</h2>
-          <p className="auth-modal-subtitle">Utwórz konto, aby rezerwować i zarządzać wizytami.</p>
+          <h2 className="auth-modal-title">{t('auth.registerTitle')}</h2>
+          <p className="auth-modal-subtitle">{t('auth.registerSubtitle')}</p>
           
           {error && (
             <div className="form-message form-message-error">
@@ -270,7 +272,7 @@ function RegisterPage() {
               <>
                 <div className="form-field">
                   <label className="form-label" htmlFor="firstName">
-                    Imię: *
+                    {t('register.firstName')}: *
                   </label>
                   <input
                     id="firstName"
@@ -286,7 +288,7 @@ function RegisterPage() {
 
                 <div className="form-field">
                   <label className="form-label" htmlFor="lastName">
-                    Nazwisko: *
+                    {t('register.lastName')}: *
                   </label>
                   <input
                     id="lastName"
@@ -319,7 +321,7 @@ function RegisterPage() {
 
                 <div className="form-field">
                   <label className="form-label" htmlFor="username">
-                    Nazwa użytkownika: *
+                    {t('register.username')}: *
                   </label>
                   <input
                     id="username"
@@ -338,7 +340,7 @@ function RegisterPage() {
 
                 <div className="form-field">
                   <label className="form-label" htmlFor="phone">
-                    Telefon: *
+                    {t('register.phone')}: *
                   </label>
                   <input
                     id="phone"
@@ -354,14 +356,14 @@ function RegisterPage() {
                 </div>
 
                 <button type="submit" disabled={registered || verified} className="btn btn-primary form-button">
-                  Dalej
+                  {t('register.next')}
                 </button>
               </>
             ) : step === 2 ? (
               <>
                 <div className="form-field">
                   <label className="form-label" htmlFor="password">
-                    Hasło: *
+                    {t('auth.password')}: *
                   </label>
                   <input
                     id="password"
@@ -371,14 +373,14 @@ function RegisterPage() {
                     onChange={handleChange}
                     required
                     className="form-input"
-                    placeholder="Min. 6 znaków + cyfra"
+                    placeholder={t('register.passwordPlaceholder')}
                     autoComplete="new-password"
                   />
                 </div>
 
                 <div className="form-field">
                   <label className="form-label" htmlFor="confirmPassword">
-                    Potwierdź hasło:
+                    {t('register.confirmPassword')}:
                   </label>
                   <input
                     id="confirmPassword"
@@ -388,14 +390,14 @@ function RegisterPage() {
                     onChange={handleChange}
                     required
                     className="form-input"
-                    placeholder="Powtórz hasło"
+                    placeholder={t('register.confirmPasswordPlaceholder')}
                     autoComplete="new-password"
                   />
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button type="submit" disabled={loading || registered || verified} className="btn btn-primary form-button" style={{ marginTop: 0, flex: 1 }}>
-                    {loading ? 'Rejestrowanie...' : 'Zarejestruj'}
+                    {loading ? t('register.registering') : t('register.registerAction')}
                   </button>
                 </div>
               </>
@@ -403,7 +405,7 @@ function RegisterPage() {
               <>
                 <div className="form-field">
                   <label className="form-label" htmlFor="verificationCode">
-                    Kod z emaila (6 cyfr):
+                    {t('register.verificationCodeLabel')}
                   </label>
                   <input
                     id="verificationCode"
@@ -426,7 +428,7 @@ function RegisterPage() {
                     className="btn btn-primary form-button"
                     style={{ marginTop: 0, flex: 1 }}
                   >
-                    {loading ? 'Potwierdzanie...' : 'Potwierdź email'}
+                    {loading ? t('register.verifying') : t('register.verifyAction')}
                   </button>
 
                   <button
@@ -444,26 +446,26 @@ function RegisterPage() {
                         const sent = Boolean(resp?.data?.sent);
                         const details = resp?.data?.details;
                         if (sent) {
-                          setVerificationMessage('Wysłaliśmy nowy kod. Sprawdź email.');
+                          setVerificationMessage(t('register.resendSent'));
                         } else {
                           const isRateLimited = typeof details === 'string' && details.includes('Możesz wysłać kod ponownie');
                           if (isRateLimited) {
                             setVerificationMessage(details);
                           } else {
-                            setVerificationMessage('Nie udało się wysłać kodu ponownie.');
+                            setVerificationMessage(t('register.resendFailed'));
                             setError(
-                              `Nie udało się wysłać kodu ponownie.${details ? ` Szczegóły: ${details}` : ''}`
+                              `${t('register.resendFailedDetailedPrefix')}${details ? ` Szczegóły: ${details}` : ''}`
                             );
                           }
                         }
                       } catch (err) {
-                        setError(err.response?.data?.message || 'Nie udało się wysłać kodu ponownie.');
+                        setError(err.response?.data?.message || t('register.resendFailed'));
                       } finally {
                         setLoading(false);
                       }
                     }}
                   >
-                    Wyślij kod ponownie
+                    {t('register.resendCode')}
                   </button>
                 </div>
               </>
@@ -471,7 +473,7 @@ function RegisterPage() {
           </form>
 
           <div className="form-footer">
-            <p>Masz już konto? <Link to="/login">Zaloguj się</Link></p>
+            <p>{t('register.haveAccount')} <Link to="/login">{t('register.goToLogin')}</Link></p>
           </div>
 
           <div className="auth-stepper">
@@ -480,27 +482,27 @@ function RegisterPage() {
               className="auth-stepper-back"
               onClick={() => setStep((prev) => Math.max(1, prev - 1))}
               disabled={step === 1 || loading || registered || verified}
-              aria-label="Wróć do poprzedniego kroku"
+              aria-label={t('register.backStepAria')}
             />
             <div className="auth-stepper-indicator">{step}/3</div>
           </div>
 
           {step === 2 ? (
             <div className="form-help">
-              <strong>Wymagania hasła:</strong>
+              <strong>{t('register.passwordRequirementsTitle')}</strong>
               <ul className="form-help-list">
-                <li>Minimum 6 znaków</li>
-                <li>Przynajmniej 1 cyfra</li>
+                <li>{t('register.passwordRequirementMin')}</li>
+                <li>{t('register.passwordRequirementDigit')}</li>
               </ul>
             </div>
           ) : null}
 
           {step === 3 ? (
             <div className="form-help">
-              <strong>Potwierdzenie email:</strong>
+              <strong>{t('register.emailConfirmTitle')}</strong>
               <ul className="form-help-list">
-                <li>Kod jest ważny przez 15 minut</li>
-                <li>Możesz wysłać nowy kod, jeśli poprzedni nie dotarł</li>
+                <li>{t('register.emailConfirmHint1')}</li>
+                <li>{t('register.emailConfirmHint2')}</li>
               </ul>
             </div>
           ) : null}

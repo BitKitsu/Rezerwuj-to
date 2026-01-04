@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { servicesAPI, companiesAPI, branchesAPI } from "../services/api";
+import { useI18n } from "../i18n/I18nContext";
 
 function ServicesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useI18n();
   const appliedPrefillKeyRef = useRef(null);
   const [services, setServices] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -110,9 +112,7 @@ function ServicesPage() {
         setTotalCount(total);
       } catch (err) {
         console.error("Error loading services", err);
-        setError(
-          "Nie udało się pobrać listy usług. Sprawdź, czy backend działa.",
-        );
+        setError("services.loadError");
         setServices([]);
         setTotalCount(0);
       } finally {
@@ -183,29 +183,29 @@ function ServicesPage() {
   return (
     <div className="list-page">
       <header className="list-header">
-        <h1>Umów wizytę w salonie</h1>
-        <p>Przeglądaj dostępne usługi i znajdź idealny termin dla siebie.</p>
+        <h1>{t('services.title')}</h1>
+        <p>{t('services.subtitle')}</p>
       </header>
 
       <section className="list-filters">
         <div className="list-filters-row">
           <div className="list-filter-group">
-            <label className="list-filter-label">Czego szukasz?</label>
+            <label className="list-filter-label">{t('common.whatAreYouLookingFor')}</label>
             <input
               type="text"
               className="list-filter-input"
-              placeholder="Nazwa usługi lub salonu"
+              placeholder={t('services.queryPlaceholder')}
               value={query}
               onChange={handleQueryChange}
             />
           </div>
 
           <div className="list-filter-group">
-            <label className="list-filter-label">Miasto</label>
+            <label className="list-filter-label">{t('common.city')}</label>
             <input
               type="text"
               className="list-filter-input"
-              placeholder="np. Warszawa"
+              placeholder={t('services.cityPlaceholder')}
               value={city}
               onChange={handleCityChange}
               list="services-city-options"
@@ -218,18 +218,18 @@ function ServicesPage() {
           </div>
 
           <div className="list-filter-group">
-            <label className="list-filter-label">Sortowanie</label>
+            <label className="list-filter-label">{t('services.sorting')}</label>
             <select
               className="list-filter-select"
               value={sortBy}
               onChange={handleSortChange}
             >
-              <option value="recommended">Polecane (placeholder)</option>
-              <option value="price_asc">Cena: od najniższej</option>
-              <option value="price_desc">Cena: od najwyższej</option>
-              <option value="duration_asc">Czas trwania: najkrótszy</option>
-              <option value="name_asc">Nazwa usługi (A–Z)</option>
-              <option value="rating">Najwyżej oceniane</option>
+              <option value="recommended">{t('services.sortRecommended')}</option>
+              <option value="price_asc">{t('services.sortPriceAsc')}</option>
+              <option value="price_desc">{t('services.sortPriceDesc')}</option>
+              <option value="duration_asc">{t('services.sortDurationAsc')}</option>
+              <option value="name_asc">{t('services.sortNameAsc')}</option>
+              <option value="rating">{t('services.sortRating')}</option>
             </select>
           </div>
         </div>
@@ -238,28 +238,26 @@ function ServicesPage() {
       {branchIdFromQuery != null && (
         <div className="list-state" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
           <div>
-            Filtr oddziału aktywny
+            {t('services.branchFilterActive')}
             {filteredBranch?.branchName
               ? ` (${filteredBranch.branchName}${filteredBranch.city ? `, ${filteredBranch.city}` : ""})`
               : ""}
-            . Wyniki mogą być ograniczone.
+            . {t('services.branchFilterLimited')}
           </div>
           <button type="button" className="btn btn-outline" onClick={handleClearBranchFilter}>
-            Wyczyść filtr oddziału
+            {t('services.clearBranchFilter')}
           </button>
         </div>
       )}
 
-      {loading && <div className="list-state">Ładowanie usług...</div>}
+      {loading && <div className="list-state">{t('services.loading')}</div>}
 
       {error && !loading && (
-        <div className="list-state list-state-error">{error}</div>
+        <div className="list-state list-state-error">{t(error)}</div>
       )}
 
       {!loading && !error && services.length === 0 && (
-        <div className="list-state">
-          Brak dopasowanych usług. Zmień kryteria wyszukiwania.
-        </div>
+        <div className="list-state">{t('services.empty')}</div>
       )}
 
       {!loading && !error && services.length > 0 && (
@@ -311,7 +309,7 @@ function ServicesPage() {
 
                 <div className="service-actions">
                   <span className="service-note">
-                    Kliknij usługę, aby zobaczyć szczegóły i zarezerwować termin.
+                    {t('services.cardHint')}
                   </span>
                 </div>
               </article>
@@ -320,7 +318,7 @@ function ServicesPage() {
 
           <div className="list-pagination">
             <div className="list-page-size">
-              <span>Na stronie:</span>
+              <span>{t('common.perPage')}</span>
               <select value={pageSize} onChange={handlePageSizeChange}>
                 <option value={10}>10</option>
                 <option value={15}>15</option>
@@ -335,10 +333,10 @@ function ServicesPage() {
                 disabled={currentPage === 1}
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
               >
-                Poprzednia
+                {t('common.previous')}
               </button>
               <span>
-                Strona {currentPage} z {pageCount}
+                {t('common.page')} {currentPage} {t('common.of')} {pageCount}
               </span>
               <button
                 type="button"
@@ -346,7 +344,7 @@ function ServicesPage() {
                 disabled={currentPage === pageCount}
                 onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
               >
-                Następna
+                {t('common.next')}
               </button>
             </div>
           </div>

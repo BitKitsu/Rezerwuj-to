@@ -26,16 +26,17 @@
 
 ```mermaid
 flowchart LR
-  FE[Frontend\nReact]
-  GW[API Gateway\n:5000]
-  ID[Identity Service\n:5001]
-  RS[Reservation Service\n:5002]
-  NS[Notification Service\n:5003]
-  MQ[(RabbitMQ\nAMQP :5672)]
-  HUB[[SignalR Hub\n/notification/hub]]
+  FE[Frontend<br/>React]
+  GW[API Gateway<br/>:5000]
+  ID[Identity Service<br/>:5001]
+  RS[Reservation Service<br/>:5002]
+  NS[Notification Service<br/>:5003]
+  MQ[(RabbitMQ<br/>AMQP :5672)]
+  HUB[[SignalR Hub<br/>/notification/hub]]
 
   %% REST
-  FE <-->|REST (HTTP)| GW
+  FE -->|REST (HTTP)| GW
+  GW -->|REST (HTTP)| FE
   GW -->|REST| ID
   GW -->|REST| RS
   GW -->|REST| NS
@@ -45,8 +46,10 @@ flowchart LR
   MQ -->|consume events| NS
 
   %% SignalR (WebSocket)
-  FE <-->|SignalR WebSocket\nws(s) /notification/hub| GW
-  GW <-->|WS proxy pass-through| HUB
+  FE -->|SignalR WebSocket<br/>ws(s) /notification/hub| GW
+  GW -->|SignalR WebSocket| FE
+  GW -->|WS proxy pass-through| HUB
+  HUB -->|WS| GW
   HUB --- NS
 ```
 
@@ -130,8 +133,8 @@ erDiagram
     int CompanyId FK
     int BranchId FK
     int ServiceId FK
-    string CustomerId "Identity userId"
-    string StaffId "Identity userId"
+    string CustomerId
+    string StaffId
   }
 
   BRANCH_REVIEW {
@@ -141,8 +144,8 @@ erDiagram
     datetime CreatedAt
     int CompanyId FK
     int BranchId FK
-    int AppointmentId FK "unique"
-    string CustomerId "Identity userId"
+    int AppointmentId FK
+    string CustomerId
   }
 
   SCHEDULE {
@@ -150,7 +153,7 @@ erDiagram
     int CompanyId FK
     int BranchId FK
     int ServiceId FK
-    string StaffId "Identity userId?"
+    string StaffId
     int DayOfWeek
     time StartTime
     time EndTime
@@ -161,7 +164,7 @@ erDiagram
     int Id PK
     int CompanyId FK
     int BranchId FK
-    string StaffId "Identity userId"
+    string StaffId
     int DayOfWeek
     time StartTime
     time EndTime
@@ -173,26 +176,32 @@ erDiagram
     int CompanyId FK
     int BranchId FK
     int ServiceId FK
-    string StaffId "Identity userId?"
+    string StaffId
     datetime SlotStart
     datetime SlotEnd
     bool IsAvailable
     bool IsBlocked
-    int AppointmentId FK "nullable"
+    int AppointmentId FK
   }
 
   EVENT_STORE {
     long Id PK
-    guid EventId "unique"
+    guid EventId
     string AggregateId
     string EventType
     string EventData
-    string UserId "Identity userId?"
+    string UserId
     datetime OccurredAt
     datetime StoredAt
     int Version
   }
 ```
+
+Uwagi do ERD (ReservationService):
+
+- **CustomerId/StaffId** to identyfikatory użytkowników z IdentityService.
+- **AppointmentId** w `BranchReview` jest unikalny (jeden review na wizytę).
+- **AppointmentId** w `TimeSlot` jest opcjonalny (slot może być wolny).
 
 ### ERD (NotificationService DB)
 
@@ -202,7 +211,7 @@ erDiagram
 
   NOTIFICATION {
     int Id PK
-    string UserId "Identity userId/email/phone (legacy)"
+    string UserId
     string Title
     string Message
     int Type
@@ -211,7 +220,7 @@ erDiagram
     datetime CreatedAt
     datetime SentAt
     datetime ReadAt
-    int RelatedAppointmentId "Reservation appointmentId?"
+    int RelatedAppointmentId
     string Metadata
   }
 
@@ -237,13 +246,19 @@ erDiagram
 
   PROCESSED_MESSAGE {
     int Id PK
-    string DedupeKey "unique"
+    string DedupeKey
     string MessageId
     string RoutingKey
     string BodyHash
     datetime ProcessedAt
   }
 ```
+
+Uwagi do ERD (NotificationService):
+
+- `UserId` może być GUID z IdentityService; historycznie mogło też przyjmować email/telefon.
+- `RelatedAppointmentId` wskazuje na `Appointment.Id` z ReservationService (powiązanie logiczne między bazami).
+- `DedupeKey` w `ProcessedMessage` jest unikalny (idempotencja konsumenta RabbitMQ).
 
 ### ERD (IdentityService DB - uproszczone)
 
@@ -260,13 +275,13 @@ erDiagram
     string PhoneNumber
     string FirstName
     string LastName
-    int CompanyId "nullable"
+    int CompanyId
   }
 
   REFRESH_TOKEN {
     int Id PK
     string UserId FK
-    string Token "unique"
+    string Token
     string JwtId
     datetime CreatedAt
     datetime ExpiresAt
@@ -296,7 +311,7 @@ erDiagram
 
   AUDIT_LOG {
     long Id PK
-    string UserId FK "nullable"
+    string UserId FK
     string EntityName
     string EntityId
     string Action
@@ -308,6 +323,12 @@ erDiagram
     datetime CreatedAt
   }
 ```
+
+Uwagi do ERD (IdentityService):
+
+- `CompanyId` w `ApplicationUser` jest opcjonalny.
+- `Token` w `RefreshToken` jest unikalny.
+- `UserId` w `AuditLog` jest opcjonalny (np. akcje systemowe).
 
 ### Widok logiczny między serwisami (cross-service)
 

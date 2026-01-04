@@ -252,6 +252,7 @@ const CompanyPanel = () => {
   const [appointmentEventsError, setAppointmentEventsError] = useState("");
 
   const [createAppointmentVisible, setCreateAppointmentVisible] = useState(false);
+  const [appointmentFormMode, setAppointmentFormMode] = useState("create");
   const [createAppointmentSubmitting, setCreateAppointmentSubmitting] = useState(false);
   const [createAppointmentError, setCreateAppointmentError] = useState("");
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -1069,6 +1070,7 @@ const CompanyPanel = () => {
   };
 
   const openCreateAppointment = () => {
+    setAppointmentFormMode("create");
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
@@ -1091,6 +1093,38 @@ const CompanyPanel = () => {
       customerPhone: "",
       staffId: defaultStaffId,
     });
+    setCreateAppointmentVisible(true);
+  };
+
+  const openRescheduleSelectedAppointment = () => {
+    if (!selectedAppointmentId || !selectedAppointment) return;
+    if (selectedAppointment.status === "cancelled") return;
+
+    setAppointmentFormMode("reschedule");
+
+    const dateStart = selectedAppointment.dateStart ? new Date(selectedAppointment.dateStart) : null;
+    const yyyy = dateStart ? dateStart.getFullYear() : new Date().getFullYear();
+    const mm = String((dateStart ? dateStart.getMonth() : new Date().getMonth()) + 1).padStart(2, "0");
+    const dd = String(dateStart ? dateStart.getDate() : new Date().getDate()).padStart(2, "0");
+    const defaultDate = `${yyyy}-${mm}-${dd}`;
+
+    const serviceId = String(selectedAppointment.serviceId || selectedAppointment.service?.id || "");
+    const staffId = String(selectedAppointment.staffId || currentUserId || employeeOptions[0]?.id || "");
+
+    setCreateAppointmentError("");
+    setAvailableSlots([]);
+    setAvailableSlotsError("");
+    setCreateAppointmentForm({
+      serviceId,
+      date: defaultDate,
+      slotIndex: "",
+      dateStart: "",
+      dateEnd: "",
+      customerEmail: "",
+      customerPhone: "",
+      staffId,
+    });
+
     setCreateAppointmentVisible(true);
   };
 
@@ -1239,19 +1273,21 @@ const CompanyPanel = () => {
       const hasEmail = Boolean(email);
       const hasPhone = Boolean(phone);
 
-      if (!hasEmail && !hasPhone) {
-        setCreateAppointmentError("companyPanel.reservations.validation.customerContactRequired");
-        return;
-      }
+      if (appointmentFormMode !== "reschedule") {
+        if (!hasEmail && !hasPhone) {
+          setCreateAppointmentError("companyPanel.reservations.validation.customerContactRequired");
+          return;
+        }
 
-      if (hasEmail && !isValidEmail(email)) {
-        setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerEmail");
-        return;
-      }
+        if (hasEmail && !isValidEmail(email)) {
+          setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerEmail");
+          return;
+        }
 
-      if (hasPhone && !isValidPhone(phone)) {
-        setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerPhone");
-        return;
+        if (hasPhone && !isValidPhone(phone)) {
+          setCreateAppointmentError("companyPanel.reservations.validation.invalidCustomerPhone");
+          return;
+        }
       }
 
       const customerId = hasEmail ? email : phone;
@@ -1263,27 +1299,51 @@ const CompanyPanel = () => {
         return;
       }
 
-      const res = await appointmentsAPI.create({
-        serviceId,
-        staffId,
-        customerId,
-        customerEmail: hasEmail ? email : null,
-        customerPhone: hasPhone ? phone : null,
-        dateStart,
-        dateEnd,
-      });
+      if (appointmentFormMode === "reschedule") {
+        if (!selectedAppointmentId) {
+          setCreateAppointmentError("companyPanel.reservations.rescheduleError");
+          return;
+        }
 
-      const createdId = res?.data?.id;
-      setPanelSuccess("companyPanel.reservations.created");
-      setCreateAppointmentVisible(false);
-      await loadCompanyAppointments();
-      if (createdId) {
-        setSelectedAppointmentId(createdId);
-        await loadAppointmentEvents(createdId);
+        await appointmentsAPI.reschedule(selectedAppointmentId, {
+          dateStart,
+          staffId,
+        });
+
+        setPanelSuccess("companyPanel.reservations.rescheduled");
+        setCreateAppointmentVisible(false);
+        await loadCompanyAppointments();
+        await loadAppointmentEvents(selectedAppointmentId);
+      } else {
+        const res = await appointmentsAPI.create({
+          serviceId,
+          staffId,
+          customerId,
+          customerEmail: hasEmail ? email : null,
+          customerPhone: hasPhone ? phone : null,
+          dateStart,
+          dateEnd,
+        });
+
+        const createdId = res?.data?.id;
+        setPanelSuccess("companyPanel.reservations.created");
+        setCreateAppointmentVisible(false);
+        await loadCompanyAppointments();
+        if (createdId) {
+          setSelectedAppointmentId(createdId);
+          await loadAppointmentEvents(createdId);
+        }
       }
     } catch (err) {
       console.error("Failed to create appointment", err);
-      setCreateAppointmentError(getHttpErrorMessage(err, "companyPanel.reservations.createError"));
+      setCreateAppointmentError(
+        getHttpErrorMessage(
+          err,
+          appointmentFormMode === "reschedule"
+            ? "companyPanel.reservations.rescheduleError"
+            : "companyPanel.reservations.createError"
+        )
+      );
     } finally {
       setCreateAppointmentSubmitting(false);
     }
@@ -1549,6 +1609,14 @@ const CompanyPanel = () => {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
               <h4 style={{ marginTop: 0, marginBottom: 0 }}>{t('companyPanel.reservations.timeline')}</h4>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={openRescheduleSelectedAppointment}
+                  disabled={!selectedAppointmentId || selectedAppointment?.status === "cancelled"}
+                >
+                  {t('companyPanel.reservations.reschedule')}
+                </button>
                 <button
                   type="button"
                   className="btn btn-outline"
@@ -1867,7 +1935,7 @@ const CompanyPanel = () => {
     <div className="admin-card--form-container">
       <div className="admin-card admin-card--form">
         <div className="admin-form__header">
-          <h2>{t('companyPanel.reservations.formTitle')}</h2>
+          <h2>{appointmentFormMode === "reschedule" ? t('companyPanel.reservations.rescheduleTitle') : t('companyPanel.reservations.formTitle')}</h2>
           <button type="button" className="btn-close" onClick={closeCreateAppointment}></button>
         </div>
         <form onSubmit={handleCreateAppointmentSubmit} className="admin-form">
@@ -1884,6 +1952,7 @@ const CompanyPanel = () => {
                 onChange={handleCreateAppointmentFormChange}
                 className="admin-input"
                 required
+                disabled={appointmentFormMode === "reschedule"}
               >
                 {services.map((s) => {
                   const branch = branches.find((b) => b.id === s.branchId);
@@ -1961,29 +2030,33 @@ const CompanyPanel = () => {
               ) : null}
             </div>
 
-            <div className="admin-form__field">
-              <label>{t('companyPanel.reservations.customerEmail')}</label>
-              <input
-                type="email"
-                name="customerEmail"
-                value={createAppointmentForm.customerEmail}
-                onChange={handleCreateAppointmentFormChange}
-                className="admin-input"
-                placeholder={t('companyPanel.reservations.emailPlaceholder')}
-              />
-            </div>
+            {appointmentFormMode !== "reschedule" ? (
+              <>
+                <div className="admin-form__field">
+                  <label>{t('companyPanel.reservations.customerEmail')}</label>
+                  <input
+                    type="email"
+                    name="customerEmail"
+                    value={createAppointmentForm.customerEmail}
+                    onChange={handleCreateAppointmentFormChange}
+                    className="admin-input"
+                    placeholder={t('companyPanel.reservations.emailPlaceholder')}
+                  />
+                </div>
 
-            <div className="admin-form__field">
-              <label>{t('companyPanel.reservations.customerPhone')}</label>
-              <input
-                type="text"
-                name="customerPhone"
-                value={createAppointmentForm.customerPhone}
-                onChange={handleCreateAppointmentFormChange}
-                className="admin-input"
-                placeholder={t('companyPanel.reservations.phonePlaceholder')}
-              />
-            </div>
+                <div className="admin-form__field">
+                  <label>{t('companyPanel.reservations.customerPhone')}</label>
+                  <input
+                    type="text"
+                    name="customerPhone"
+                    value={createAppointmentForm.customerPhone}
+                    onChange={handleCreateAppointmentFormChange}
+                    className="admin-input"
+                    placeholder={t('companyPanel.reservations.phonePlaceholder')}
+                  />
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="admin-form__actions">
@@ -1991,7 +2064,11 @@ const CompanyPanel = () => {
               {t('common.cancel')}
             </button>
             <button type="submit" className="btn btn-primary" disabled={createAppointmentSubmitting}>
-              {createAppointmentSubmitting ? t('common.saving') : t('companyPanel.reservations.create')}
+              {createAppointmentSubmitting
+                ? t('common.saving')
+                : appointmentFormMode === "reschedule"
+                  ? t('companyPanel.reservations.reschedule')
+                  : t('companyPanel.reservations.create')}
             </button>
           </div>
         </form>

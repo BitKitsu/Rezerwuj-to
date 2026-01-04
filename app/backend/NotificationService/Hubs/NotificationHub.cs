@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NotificationService.Models;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace NotificationService.Hubs;
 
@@ -18,10 +19,30 @@ public class NotificationHub : Hub
     public override async Task OnConnectedAsync()
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var email = Context.User?.FindFirst("email")?.Value
+            ?? Context.User?.FindFirstValue(ClaimTypes.Email);
+        email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+
+        var phone = Context.User?.FindFirst("phone")?.Value
+            ?? Context.User?.FindFirstValue(ClaimTypes.MobilePhone);
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            phone = Regex.Replace(phone.Trim(), "[^0-9+]", "");
+            if (string.IsNullOrWhiteSpace(phone)) phone = null;
+        }
         
         if (!string.IsNullOrEmpty(userId))
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{userId}");
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{email}");
+            }
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"user-{phone}");
+            }
             _logger.LogInformation("Użytkownik {UserId} połączył się z hubem", userId);
         }
         else
@@ -37,10 +58,30 @@ public class NotificationHub : Hub
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var email = Context.User?.FindFirst("email")?.Value
+            ?? Context.User?.FindFirstValue(ClaimTypes.Email);
+        email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+
+        var phone = Context.User?.FindFirst("phone")?.Value
+            ?? Context.User?.FindFirstValue(ClaimTypes.MobilePhone);
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            phone = Regex.Replace(phone.Trim(), "[^0-9+]", "");
+            if (string.IsNullOrWhiteSpace(phone)) phone = null;
+        }
         
         if (!string.IsNullOrEmpty(userId))
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{userId}");
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{email}");
+            }
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user-{phone}");
+            }
             _logger.LogInformation("Użytkownik {UserId} rozłączył się z hubem", userId);
         }
         

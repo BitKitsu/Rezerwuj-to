@@ -5,6 +5,7 @@ using NotificationService.Data;
 using NotificationService.Models;
 using NotificationService.Services;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace NotificationService.Controllers;
 
@@ -29,6 +30,45 @@ public class NotificationsController : ControllerBase
 
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    private string? GetUserEmail()
+    {
+        var email = User.FindFirst("email")?.Value ?? User.FindFirstValue(ClaimTypes.Email);
+        email = email?.Trim();
+        return string.IsNullOrWhiteSpace(email) ? null : email;
+    }
+
+    private string? GetUserPhone()
+    {
+        var phone = User.FindFirst("phone")?.Value ?? User.FindFirstValue(ClaimTypes.MobilePhone);
+        if (string.IsNullOrWhiteSpace(phone)) return null;
+        phone = phone.Trim();
+        phone = Regex.Replace(phone, "[^0-9+]", "");
+        return string.IsNullOrWhiteSpace(phone) ? null : phone;
+    }
+
+    private List<string> GetMyIdentifiers()
+    {
+        var ids = new List<string>();
+
+        var userId = GetUserId();
+        if (!string.IsNullOrWhiteSpace(userId)) ids.Add(userId);
+
+        var email = GetUserEmail();
+        if (!string.IsNullOrWhiteSpace(email)) ids.Add(email);
+
+        var phone = GetUserPhone();
+        if (!string.IsNullOrWhiteSpace(phone)) ids.Add(phone);
+
+        return ids;
+    }
+
+    private bool IsMyNotificationUserId(string? notificationUserId)
+    {
+        if (string.IsNullOrWhiteSpace(notificationUserId)) return false;
+        var ids = GetMyIdentifiers();
+        return ids.Contains(notificationUserId, StringComparer.Ordinal);
+    }
+
     private bool IsAdmin() => User.IsInRole("Admin");
 
     private static int ClampTake(int take)
@@ -44,8 +84,8 @@ public class NotificationsController : ControllerBase
         [FromQuery] int skip = 0,
         [FromQuery] int take = 50)
     {
-        var userId = GetUserId();
-        if (string.IsNullOrWhiteSpace(userId))
+        var myIds = GetMyIdentifiers();
+        if (myIds.Count == 0)
         {
             return Unauthorized();
         }
@@ -55,7 +95,7 @@ public class NotificationsController : ControllerBase
 
         IQueryable<Notification> query = _context.Notifications
             .AsNoTracking()
-            .Where(n => n.UserId == userId);
+            .Where(n => myIds.Contains(n.UserId));
 
         if (unreadOnly)
         {
@@ -79,7 +119,7 @@ public class NotificationsController : ControllerBase
         [FromQuery] int take = 50)
     {
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(callerUserId, userId, StringComparison.Ordinal))
+        if (!IsAdmin() && !string.Equals(callerUserId, userId, StringComparison.Ordinal) && !IsMyNotificationUserId(userId))
         {
             return Forbid();
         }
@@ -116,7 +156,7 @@ public class NotificationsController : ControllerBase
         }
 
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal) && !IsMyNotificationUserId(notification.UserId))
         {
             return Forbid();
         }
@@ -129,7 +169,7 @@ public class NotificationsController : ControllerBase
     public async Task<ActionResult<Notification>> CreateNotification(CreateNotificationDto dto)
     {
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal))
+        if (!IsAdmin() && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal) && !IsMyNotificationUserId(dto.UserId))
         {
             return Forbid();
         }
@@ -186,7 +226,9 @@ public class NotificationsController : ControllerBase
         }
 
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        if (!IsAdmin()
+            && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal)
+            && !IsMyNotificationUserId(notification.UserId))
         {
             return Forbid();
         }
@@ -204,7 +246,9 @@ public class NotificationsController : ControllerBase
     public async Task<ActionResult<Notification>> SendAppointmentReminder([FromBody] AppointmentReminderDto dto)
     {
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal))
+        if (!IsAdmin()
+            && !string.Equals(dto.UserId, callerUserId, StringComparison.Ordinal)
+            && !IsMyNotificationUserId(dto.UserId))
         {
             return Forbid();
         }
@@ -250,7 +294,9 @@ public class NotificationsController : ControllerBase
         }
 
         var callerUserId = GetUserId();
-        if (!IsAdmin() && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal))
+        if (!IsAdmin()
+            && !string.Equals(notification.UserId, callerUserId, StringComparison.Ordinal)
+            && !IsMyNotificationUserId(notification.UserId))
         {
             return Forbid();
         }

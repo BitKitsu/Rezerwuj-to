@@ -222,6 +222,26 @@ using (var scope = app.Services.CreateScope())
                         Body = "Przypomnienie: {{serviceName}} | {{companyAddressShort}} | {{appointmentShort}}",
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow
+                    },
+                    new NotificationTemplate
+                    {
+                        Name = "AppointmentRescheduled (SMS)",
+                        Type = NotificationType.AppointmentRescheduled,
+                        Channel = NotificationChannel.SMS,
+                        Subject = "Rezerwacja",
+                        Body = "Zmieniono termin: {{serviceName}} | {{companyAddressShort}} | {{oldAppointmentShort}}->{{appointmentShort}}",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    new NotificationTemplate
+                    {
+                        Name = "AppointmentRescheduled (InApp)",
+                        Type = NotificationType.AppointmentRescheduled,
+                        Channel = NotificationChannel.InApp,
+                        Subject = "Zmiana terminu wizyty",
+                        Body = "Zmieniono termin: {{serviceName}} | {{companyAddressShort}} | {{oldAppointmentShort}} → {{appointmentShort}}",
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
                     }
                 };
 

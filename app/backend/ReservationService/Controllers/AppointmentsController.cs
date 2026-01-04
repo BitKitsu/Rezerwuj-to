@@ -824,12 +824,16 @@ public class AppointmentsController : ControllerBase
         return NoContent();
     }
 
-    // DELETE: api/appointments/5
-    [HttpDelete("{id}")]
+    [HttpPut("{id}/reschedule")]
     [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
-    public async Task<IActionResult> DeleteAppointment(int id)
+    public async Task<IActionResult> RescheduleAppointment(int id, AppointmentRescheduleDto dto)
     {
-        var appointment = await _context.Appointments.FindAsync(id);
+        var appointment = await _context.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Company)
+            .Include(a => a.Branch)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
         if (appointment == null)
         {
             return NotFound();
@@ -839,6 +843,226 @@ public class AppointmentsController : ControllerBase
         {
             return Forbid();
         }
+
+        if (dto.DateStart == default)
+        {
+            return BadRequest("DateStart is required");
+        }
+
+        if (dto.DateStart < DateTime.UtcNow)
+        {
+            return BadRequest("Cannot move appointment to the past");
+        }
+
+        if (appointment.Status == "cancelled")
+        {
+            return BadRequest("Cannot reschedule cancelled appointment");
+        }
+
+        var service = appointment.Service;
+        if (service == null)
+        {
+            return BadRequest("Service not found");
+        }
+
+        var staffId = !string.IsNullOrWhiteSpace(dto.StaffId)
+            ? dto.StaffId.Trim()
+            : (appointment.StaffId ?? string.Empty).Trim();
+
+        if (string.IsNullOrWhiteSpace(staffId))
+        {
+            return BadRequest("StaffId is required");
+        }
+
+        var newDateStart = dto.DateStart;
+        var newDateEnd = newDateStart.AddMinutes(service.DurationMinutes);
+
+        if (appointment.DateStart == newDateStart && string.Equals(appointment.StaffId, staffId, StringComparison.Ordinal))
+        {
+            return NoContent();
+        }
+
+        var daySlots = await _scheduleService.GetAvailableSlotsAsync(
+            appointment.CompanyId,
+            appointment.BranchId,
+            appointment.ServiceId,
+            newDateStart);
+
+        var isAllowed = daySlots.Any(s => s.StaffId == staffId && s.Start == newDateStart);
+        if (!isAllowed)
+        {
+            return BadRequest("Selected start time is not available");
+        }
+
+        var newBlockedEnd = newDateEnd.AddMinutes(service.BufferMinutesAfter);
+
+        var existingAppointments = await _context.Appointments
+            .AsNoTracking()
+            .Include(a => a.Service)
+            .Where(a => a.Id != appointment.Id
+                && a.CompanyId == appointment.CompanyId
+                && a.BranchId == appointment.BranchId
+                && a.StaffId == staffId
+                && a.Status != "cancelled")
+            .ToListAsync();
+
+        var conflictingAppointment = existingAppointments.Any(a =>
+        {
+            var buffer = a.Service?.BufferMinutesAfter ?? 0;
+            var aBlockedEnd = a.DateEnd.AddMinutes(buffer);
+            return newDateStart < aBlockedEnd && newBlockedEnd > a.DateStart;
+        });
+
+        if (conflictingAppointment)
+        {
+            return BadRequest("This time slot is already booked");
+        }
+
+        var oldDateStart = appointment.DateStart;
+        var oldDateEnd = appointment.DateEnd;
+
+        appointment.DateStart = newDateStart;
+        appointment.DateEnd = newDateEnd;
+        appointment.StaffId = staffId;
+
+        await _context.SaveChangesAsync();
+
+        await TryStoreEventAsync(new AppointmentRescheduledEvent
+        {
+            AggregateId = GetAppointmentAggregateId(appointment.Id),
+            AppointmentId = appointment.Id,
+            CompanyId = appointment.CompanyId,
+            OldDateStart = oldDateStart,
+            OldDateEnd = oldDateEnd,
+            NewDateStart = appointment.DateStart,
+            NewDateEnd = appointment.DateEnd,
+            UserId = GetUserId(User)
+        });
+
+        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+        var customerIdPhone = SanitizePhoneNumber(appointment.CustomerId);
+        var recipientPhone = IsValidPhone(customerIdPhone) ? customerIdPhone : null;
+
+        var customerUserId = (!string.IsNullOrWhiteSpace(appointment.CustomerId)
+            && !appointment.CustomerId.Contains('@')
+            && !appointment.CustomerId.StartsWith("+"))
+            ? appointment.CustomerId
+            : null;
+
+        var userIdForEvent = customerUserId
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
+
+        var companyAddressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber);
+
+        var companyAddress = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.ApartmentNumber : appointment.Company?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.PostalCode : appointment.Company?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            country: !string.IsNullOrWhiteSpace(appointment.Branch?.Country) ? appointment.Branch!.Country : appointment.Company?.Country);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(appointment.Branch?.Phone)
+            ? appointment.Branch!.Phone
+            : appointment.Company?.Phone;
+
+        _eventPublisher.Publish("appointment.rescheduled", new
+        {
+            appointmentId = appointment.Id,
+            userId = userIdForEvent,
+            appointmentDate = appointment.DateStart,
+            oldAppointmentDate = oldDateStart,
+            userFirstName = (string?)null,
+            userLastName = (string?)null,
+            serviceName = appointment.Service?.ServiceName ?? string.Empty,
+            companyName = appointment.Company?.CompanyName ?? string.Empty,
+            branchName = appointment.Branch?.BranchName,
+            companyEmail = appointment.Company?.Email,
+            companyPhone = companyPhone,
+            companyAddress = companyAddress,
+            companyAddressShort = companyAddressShort,
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone
+        });
+
+        return NoContent();
+    }
+
+    // DELETE: api/appointments/5
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "CompanyEmployeeOrHigherOrAdmin")]
+    public async Task<IActionResult> DeleteAppointment(int id)
+    {
+        var appointment = await _context.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Company)
+            .Include(a => a.Branch)
+            .FirstOrDefaultAsync(a => a.Id == id);
+        if (appointment == null)
+        {
+            return NotFound();
+        }
+
+        if (!IsCompanyAuthorized(appointment.CompanyId))
+        {
+            return Forbid();
+        }
+
+        var recipientEmail = IsValidEmail(appointment.CustomerId) ? appointment.CustomerId : null;
+        var customerIdPhone = SanitizePhoneNumber(appointment.CustomerId);
+        var recipientPhone = IsValidPhone(customerIdPhone) ? customerIdPhone : null;
+
+        var customerUserId = (!string.IsNullOrWhiteSpace(appointment.CustomerId)
+            && !appointment.CustomerId.Contains('@')
+            && !appointment.CustomerId.StartsWith("+"))
+            ? appointment.CustomerId
+            : null;
+
+        var userIdForEvent = customerUserId
+            ?? recipientEmail
+            ?? recipientPhone
+            ?? string.Empty;
+
+        var addressFull = BuildAddress(
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber,
+            apartmentNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.ApartmentNumber : appointment.Company?.ApartmentNumber,
+            postalCode: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.PostalCode : appointment.Company?.PostalCode,
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            country: !string.IsNullOrWhiteSpace(appointment.Branch?.Country) ? appointment.Branch!.Country : appointment.Company?.Country);
+
+        var addressShort = BuildAddressShort(
+            city: !string.IsNullOrWhiteSpace(appointment.Branch?.City) ? appointment.Branch!.City : appointment.Company?.City,
+            streetName: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetName : appointment.Company?.StreetName,
+            streetNumber: !string.IsNullOrWhiteSpace(appointment.Branch?.StreetName) ? appointment.Branch!.StreetNumber : appointment.Company?.StreetNumber);
+
+        var companyPhone = !string.IsNullOrWhiteSpace(appointment.Branch?.Phone)
+            ? appointment.Branch!.Phone
+            : appointment.Company?.Phone;
+
+        _eventPublisher.Publish("appointment.cancelled", new
+        {
+            appointmentId = appointment.Id,
+            userId = userIdForEvent,
+            appointmentDate = appointment.DateStart,
+            userFirstName = (string?)null,
+            userLastName = (string?)null,
+            serviceName = appointment.Service?.ServiceName ?? string.Empty,
+            companyName = appointment.Company?.CompanyName ?? string.Empty,
+            branchName = appointment.Branch?.BranchName,
+            companyEmail = appointment.Company?.Email,
+            companyPhone = companyPhone,
+            companyAddress = addressFull,
+            companyAddressShort = addressShort,
+            recipientEmail = recipientEmail,
+            recipientPhone = recipientPhone,
+            reason = "deleted"
+        });
 
         _context.Appointments.Remove(appointment);
         await _context.SaveChangesAsync();
@@ -1020,6 +1244,12 @@ public class AppointmentCreateDto
     public string StaffId { get; set; } = string.Empty;
     public DateTime DateStart { get; set; }
     public DateTime DateEnd { get; set; }
+}
+
+public class AppointmentRescheduleDto
+{
+    public DateTime DateStart { get; set; }
+    public string? StaffId { get; set; }
 }
 
 public class PublicAppointmentCreateDto

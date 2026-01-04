@@ -347,6 +347,12 @@ public class RabbitMQConsumer : BackgroundService
         var appointmentTime = d.AppointmentDate.ToString("HH:mm");
         var appointmentDateTime = d.AppointmentDate.ToString("dd.MM.yyyy HH:mm");
         var appointmentShort = d.AppointmentDate.ToString("dd.MM HH:mm");
+
+        var rescheduled = d as AppointmentRescheduledEventData;
+        var oldAppointmentDate = rescheduled?.OldAppointmentDate?.ToString("dd.MM.yyyy") ?? string.Empty;
+        var oldAppointmentTime = rescheduled?.OldAppointmentDate?.ToString("HH:mm") ?? string.Empty;
+        var oldAppointmentDateTime = rescheduled?.OldAppointmentDate?.ToString("dd.MM.yyyy HH:mm") ?? string.Empty;
+        var oldAppointmentShort = rescheduled?.OldAppointmentDate?.ToString("dd.MM HH:mm") ?? string.Empty;
         var companyAddress = !string.IsNullOrWhiteSpace(d.CompanyAddress)
             ? d.CompanyAddress!
             : (!string.IsNullOrWhiteSpace(d.CompanyAddressShort) ? d.CompanyAddressShort! : string.Empty);
@@ -368,6 +374,10 @@ public class RabbitMQConsumer : BackgroundService
             ["appointmentTime"] = appointmentTime,
             ["appointmentDateTime"] = appointmentDateTime,
             ["appointmentShort"] = appointmentShort,
+            ["oldAppointmentDate"] = oldAppointmentDate,
+            ["oldAppointmentTime"] = oldAppointmentTime,
+            ["oldAppointmentDateTime"] = oldAppointmentDateTime,
+            ["oldAppointmentShort"] = oldAppointmentShort,
             ["serviceName"] = d.ServiceName ?? string.Empty,
             ["companyName"] = d.CompanyName ?? string.Empty,
             ["branchName"] = d.BranchName ?? string.Empty,
@@ -410,6 +420,9 @@ public class RabbitMQConsumer : BackgroundService
                 break;
             case "appointment.cancelled":
                 await HandleAppointmentCancelled(message, context, notificationSender);
+                break;
+            case "appointment.rescheduled":
+                await HandleAppointmentRescheduled(message, context, notificationSender);
                 break;
             case "appointment.reminder":
                 await HandleAppointmentReminder(message, context, notificationSender);
@@ -586,6 +599,90 @@ public class RabbitMQConsumer : BackgroundService
         _logger.LogInformation("Utworzono powiadomienie o anulowaniu dla użytkownika {UserId}", appointmentData.UserId);
     }
 
+    private async Task HandleAppointmentRescheduled(string message, Data.NotificationDbContext context, INotificationSender sender)
+    {
+        var appointmentData = JsonSerializer.Deserialize<AppointmentRescheduledEventData>(message, SerializerOptions);
+        if (appointmentData == null) return;
+
+        var templates = await context.NotificationTemplates
+            .AsNoTracking()
+            .Where(t => t.Type == NotificationType.AppointmentRescheduled && t.IsActive)
+            .ToListAsync();
+
+        var templateByChannel = templates
+            .GroupBy(t => t.Channel)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var channels = new List<NotificationChannel>();
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientEmail)) channels.Add(NotificationChannel.Email);
+        if (!string.IsNullOrWhiteSpace(appointmentData.RecipientPhone)) channels.Add(NotificationChannel.SMS);
+        if (AppointmentMessageBuilder.IsRealUserId(appointmentData.UserId)) channels.Add(NotificationChannel.InApp);
+        if (channels.Count == 0) channels.Add(NotificationChannel.InApp);
+
+        var metadata = JsonSerializer.Serialize(new
+        {
+            routingKey = "appointment.rescheduled",
+            recipientEmail = appointmentData.RecipientEmail,
+            recipientPhone = appointmentData.RecipientPhone,
+            companyName = appointmentData.CompanyName,
+            serviceName = appointmentData.ServiceName,
+            appointmentId = appointmentData.AppointmentId,
+            branchName = appointmentData.BranchName,
+            companyEmail = appointmentData.CompanyEmail,
+            companyPhone = appointmentData.CompanyPhone,
+            companyAddress = appointmentData.CompanyAddress,
+            companyAddressShort = appointmentData.CompanyAddressShort,
+            oldAppointmentDate = appointmentData.OldAppointmentDate
+        }, MetadataSerializerOptions);
+
+        var notifications = channels.Select(ch =>
+        {
+            var fallbackTitle = ch == NotificationChannel.SMS ? "Rezerwacja" : "Zmiana terminu wizyty";
+            var fallbackBody = ch == NotificationChannel.Email
+                ? AppointmentMessageBuilder.BuildEmailBodyRescheduled(appointmentData)
+                : ch == NotificationChannel.SMS
+                    ? AppointmentMessageBuilder.BuildSmsBodyRescheduled(appointmentData)
+                    : AppointmentMessageBuilder.BuildInAppBodyRescheduled(appointmentData);
+
+            var title = fallbackTitle;
+            var body = fallbackBody;
+
+            if (templateByChannel.TryGetValue(ch, out var template) && template != null)
+            {
+                if (!string.IsNullOrWhiteSpace(template.Subject))
+                {
+                    title = ApplyTemplate(template.Subject, appointmentData);
+                }
+
+                if (!string.IsNullOrWhiteSpace(template.Body))
+                {
+                    body = ApplyTemplate(template.Body, appointmentData);
+                }
+            }
+
+            return new Notification
+            {
+                UserId = appointmentData.UserId,
+                Title = title,
+                Message = body,
+                Type = NotificationType.AppointmentRescheduled,
+                Channel = ch,
+                RelatedAppointmentId = appointmentData.AppointmentId,
+                Metadata = metadata
+            };
+        }).ToList();
+
+        context.Notifications.AddRange(notifications);
+        await context.SaveChangesAsync();
+
+        foreach (var n in notifications)
+        {
+            await sender.SendNotificationAsync(n);
+        }
+
+        _logger.LogInformation("Utworzono powiadomienie o zmianie terminu dla użytkownika {UserId}", appointmentData.UserId);
+    }
+
     private async Task HandleAppointmentReminder(string message, Data.NotificationDbContext context, INotificationSender sender)
     {
         var appointmentData = JsonSerializer.Deserialize<AppointmentEventData>(message, SerializerOptions);
@@ -708,6 +805,11 @@ public class AppointmentEventData
     public string? CompanyAddressShort { get; set; }
 }
 
+public class AppointmentRescheduledEventData : AppointmentEventData
+{
+    public DateTime? OldAppointmentDate { get; set; }
+}
+
 internal static class AppointmentMessageBuilder
 {
     public static bool IsRealUserId(string userId)
@@ -805,6 +907,52 @@ internal static class AppointmentMessageBuilder
     public static string BuildInAppBodyCancelled(AppointmentEventData d)
     {
         return $"Anulowano: {d.ServiceName} | {LocationShort(d)} | {d.AppointmentDate:dd.MM HH:mm}";
+    }
+
+    public static string BuildEmailBodyRescheduled(AppointmentRescheduledEventData d)
+    {
+        var newWhen = d.AppointmentDate.ToString("dd.MM.yyyy HH:mm");
+        var oldWhen = d.OldAppointmentDate.HasValue ? d.OldAppointmentDate.Value.ToString("dd.MM.yyyy HH:mm") : "";
+        var location = LocationFull(d);
+        var contact = string.Join(" ", new[] { d.CompanyPhone, d.CompanyEmail }
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()));
+
+        var lines = new List<string>
+        {
+            "Twoja rezerwacja została przełożona.",
+            "",
+            $"Usługa: {d.ServiceName}",
+            $"Firma: {d.CompanyName}",
+            string.IsNullOrWhiteSpace(d.BranchName) ? $"Lokalizacja: {location}" : $"Oddział: {d.BranchName} | Lokalizacja: {location}",
+            string.IsNullOrWhiteSpace(oldWhen) ? $"Nowy termin: {newWhen}" : $"Termin: {oldWhen} → {newWhen}",
+            $"ID rezerwacji: {d.AppointmentId}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(contact))
+        {
+            lines.Add($"Kontakt: {contact}");
+        }
+
+        return string.Join("\n", lines);
+    }
+
+    public static string BuildSmsBodyRescheduled(AppointmentRescheduledEventData d)
+    {
+        var old = d.OldAppointmentDate.HasValue ? d.OldAppointmentDate.Value.ToString("dd.MM HH:mm") : "";
+        var next = d.AppointmentDate.ToString("dd.MM HH:mm");
+        return string.IsNullOrWhiteSpace(old)
+            ? $"{d.ServiceName} | {LocationShort(d)} | {next}"
+            : $"{d.ServiceName} | {LocationShort(d)} | {old}->{next}";
+    }
+
+    public static string BuildInAppBodyRescheduled(AppointmentRescheduledEventData d)
+    {
+        var old = d.OldAppointmentDate.HasValue ? d.OldAppointmentDate.Value.ToString("dd.MM HH:mm") : "";
+        var next = d.AppointmentDate.ToString("dd.MM HH:mm");
+        return string.IsNullOrWhiteSpace(old)
+            ? $"Zmieniono termin: {d.ServiceName} | {LocationShort(d)} | {next}"
+            : $"Zmieniono termin: {d.ServiceName} | {LocationShort(d)} | {old} → {next}";
     }
 
     public static string BuildEmailBodyReminder(AppointmentEventData d)

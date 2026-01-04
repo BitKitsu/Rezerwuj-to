@@ -197,7 +197,26 @@ const handleTokenRefresh = async (error, apiInstance) => {
   const originalRequest = error.config;
 
   if (error.response?.status === 401 && !originalRequest._retry) {
+    const url = String(originalRequest?.url ?? '');
+
+    if (
+      url.includes('/account/login')
+      || url.includes('/account/register')
+      || url.includes('/account/verify-email')
+      || url.includes('/account/resend-verification')
+    ) {
+      return Promise.reject(error);
+    }
+
     if (originalRequest?.url?.includes('/refreshtoken/refresh')) {
+      return Promise.reject(error);
+    }
+
+    if (!tokenManager.getRefreshToken()) {
+      tokenManager.clearTokens();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
       return Promise.reject(error);
     }
 
@@ -433,6 +452,7 @@ export const appointmentsAPI = {
   confirm: (id) => reservationAPI.put(`/appointments/${id}/confirm`),
   cancel: (id) => reservationAPI.put(`/appointments/${id}/cancel`),
   cancelMy: (id) => reservationAPI.put(`/appointments/${id}/cancel-my`),
+  reschedule: (id, data) => reservationAPI.put(`/appointments/${id}/reschedule`, data),
   delete: (id) => reservationAPI.delete(`/appointments/${id}`),
 };
 

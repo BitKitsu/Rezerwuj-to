@@ -55,7 +55,8 @@ function MainLayout({ children, theme, toggleTheme }) {
         if (cancelled) return;
         setNotifications(items.slice(0, 20));
         setUnreadCount(items.filter((n) => !n.readAt).length);
-      } catch {
+      } catch (err) {
+        console.error('Failed to load notifications', err);
       }
     };
 
@@ -88,7 +89,8 @@ function MainLayout({ children, theme, toggleTheme }) {
       }
     });
 
-    connection.start().catch(() => {
+    connection.start().catch((err) => {
+      console.error('SignalR notifications connection failed', err);
     });
 
     return () => {

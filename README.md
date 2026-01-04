@@ -25,22 +25,19 @@
 ### InterService Communication (Flow)
 
 ```mermaid
-flowchart LR
-  FE[Frontend]
-  GW[API Gateway]
-  ID[Identity Service]
-  RS[Reservation Service]
-  NS[Notification Service]
-  MQ[RabbitMQ]
-
-  FE --> GW
-  GW --> ID
-  GW --> RS
-  GW --> NS
-
-  RS --> MQ
-  MQ --> NS
-
+graph LR
+FE[Frontend]
+GW[API Gateway]
+ID[Identity Service]
+RS[Reservation Service]
+NS[Notification Service]
+MQ[RabbitMQ]
+FE --> GW
+GW --> ID
+GW --> RS
+GW --> NS
+RS --> MQ
+MQ --> NS
 ```
 
 Legenda:
@@ -329,20 +326,19 @@ Uwagi do ERD (IdentityService):
 ### Widok logiczny między serwisami (cross-service)
 
 ```mermaid
-flowchart LR
-  U[ApplicationUser Id]
-  C[Company Id]
-  A[Appointment CustomerId StaffId]
-  N[Notification UserId]
-  NA[Notification RelatedAppointmentId]
-  UCR[UserCompanyRole CompanyId]
-  B[Branch CompanyId]
-
-  U --> A
-  U --> N
-  C --> UCR
-  C --> B
-  A --> NA
+graph LR
+U[ApplicationUser Id]
+C[Company Id]
+A[Appointment CustomerId StaffId]
+N[Notification UserId]
+NA[Notification RelatedAppointmentId]
+UCR[UserCompanyRole CompanyId]
+B[Branch CompanyId]
+U --> A
+U --> N
+C --> UCR
+C --> B
+A --> NA
 ```
 
 ## Zaimplementowane Funkcjonalności

@@ -49,6 +49,7 @@ jobs:
           dotnet restore IdentityService/IdentityService.csproj
           dotnet restore ReservationService/ReservationService.csproj
           dotnet restore NotificationService/NotificationService.csproj
+          dotnet restore ApiGateway/ApiGateway.csproj
       
       - name: Build services
         run: |
@@ -56,14 +57,14 @@ jobs:
           dotnet build IdentityService/IdentityService.csproj --no-restore -c Release
           dotnet build ReservationService/ReservationService.csproj --no-restore -c Release
           dotnet build NotificationService/NotificationService.csproj --no-restore -c Release
+          dotnet build ApiGateway/ApiGateway.csproj --no-restore -c Release
       
       - name: Run tests
         run: |
           cd app/backend
-          # Dodaj testy jednostkowe gdy będą gotowe
-          # dotnet test IdentityService.Tests/IdentityService.Tests.csproj --no-build --verbosity normal
-          # dotnet test ReservationService.Tests/ReservationService.Tests.csproj --no-build --verbosity normal
-          echo "Tests will be added in future commits"
+          dotnet test IdentityService.Tests/IdentityService.Tests.csproj --verbosity normal
+          dotnet test ReservationService.Tests/ReservationService.Tests.csproj --verbosity normal
+          dotnet test NotificationService.Tests/NotificationService.Tests.csproj --verbosity normal
 
   # ========================================
   # 2. TESTOWANIE FRONTEND
@@ -141,8 +142,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    if: false  # WYŁĄCZONE - obrazy Docker będą potrzebne gdy będziesz mieć serwer
-    # if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     
     strategy:
       matrix:
@@ -155,6 +155,8 @@ jobs:
             context: ./app/backend/ReservationService
           - name: notification-service
             context: ./app/backend/NotificationService
+          - name: frontend
+            context: ./app/frontend/my-frontend
     
     steps:
       - uses: actions/checkout@v4

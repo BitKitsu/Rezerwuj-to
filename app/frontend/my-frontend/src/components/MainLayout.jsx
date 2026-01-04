@@ -71,7 +71,7 @@ function MainLayout({ children, theme, toggleTheme }) {
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(`http://localhost:5000/notification/hub`, {
-        accessTokenFactory: () => tokenManager.getAccessToken() || '',
+        accessTokenFactory: async () => await tokenManager.getValidAccessToken(),
       })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Error)

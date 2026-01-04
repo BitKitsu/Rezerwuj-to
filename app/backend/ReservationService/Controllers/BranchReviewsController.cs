@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ReservationService.Data;
 using ReservationService.Models;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace ReservationService.Controllers;
 
@@ -58,6 +61,7 @@ public class BranchReviewsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize]
     public async Task<ActionResult<object>> CreateReview(CreateBranchReviewDto dto)
     {
         if (dto.Rating < 1 || dto.Rating > 5)
@@ -89,9 +93,39 @@ public class BranchReviewsController : ControllerBase
             return BadRequest(new { message = "Możesz ocenić dopiero po zakończeniu wizyty." });
         }
 
-        if (!string.Equals(dto.CustomerId, appointment.CustomerId, StringComparison.Ordinal))
+        var appointmentCustomerId = (appointment.CustomerId ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(appointmentCustomerId))
         {
             return BadRequest(new { message = "Ocena musi być powiązana z klientem z wizyty." });
+        }
+
+        var emailClaim = User.FindFirst(JwtRegisteredClaimNames.Email)?.Value
+            ?? User.FindFirst(ClaimTypes.Email)?.Value;
+
+        var phoneClaim = User.FindFirst("phone")?.Value
+            ?? User.FindFirst(ClaimTypes.MobilePhone)?.Value;
+
+        var matches = false;
+
+        if (!string.IsNullOrWhiteSpace(emailClaim) && appointmentCustomerId.Contains('@'))
+        {
+            matches = string.Equals(
+                NormalizeEmail(appointmentCustomerId),
+                NormalizeEmail(emailClaim),
+                StringComparison.Ordinal);
+        }
+
+        if (!matches && !string.IsNullOrWhiteSpace(phoneClaim) && !appointmentCustomerId.Contains('@'))
+        {
+            matches = string.Equals(
+                SanitizePhoneNumber(appointmentCustomerId),
+                SanitizePhoneNumber(phoneClaim),
+                StringComparison.Ordinal);
+        }
+
+        if (!matches)
+        {
+            return Forbid();
         }
 
         var alreadyReviewed = await _context.BranchReviews
@@ -152,6 +186,24 @@ public class BranchReviewsController : ControllerBase
             review.Comment,
             review.CreatedAt
         });
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return (email ?? string.Empty).Trim().ToLowerInvariant();
+    }
+
+    private static string SanitizePhoneNumber(string phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return string.Empty;
+        }
+
+        phone = phone.Trim();
+        var keepPlus = phone.StartsWith('+');
+        var digits = new string(phone.Where(char.IsDigit).ToArray());
+        return keepPlus ? $"+{digits}" : digits;
     }
 }
 

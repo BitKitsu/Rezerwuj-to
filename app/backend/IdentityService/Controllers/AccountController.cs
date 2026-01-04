@@ -527,6 +527,7 @@ namespace IdentityService.Controllers
         }
 
         [HttpPost("logout")]
+        [Authorize]
         public async Task<IActionResult> Logout()
         {
             await _signInManager.SignOutAsync();
@@ -535,6 +536,7 @@ namespace IdentityService.Controllers
             if (!string.IsNullOrEmpty(userId))
             {
                 await _auditService.LogLogoutAsync(userId);
+                await _jwtService.RevokeAllUserTokensAsync(userId);
             }
             
             return Ok(new { message = "Wylogowano pomyślnie" });

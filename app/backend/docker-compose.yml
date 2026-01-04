@@ -61,6 +61,9 @@ services:
       # Ciąg połączenia, używający nazwy serwisu 'postgres_db' jako Hosta!
       ConnectionStrings__IdentityConnection: "Host=postgres_db;Port=5432;Database=identitydb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
+      JwtSettings__SecretKey: "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890"
+      JwtSettings__Issuer: "MikroSaaS-IdentityService"
+      JwtSettings__Audience: "MikroSaaS-Apps"
       EmailSettings__SmtpHost: mailhog
       EmailSettings__SmtpPort: 1025
       EmailSettings__UseSsl: "false"
@@ -83,6 +86,9 @@ services:
     environment:
       ConnectionStrings__ReservationConnection: "Host=postgres_db;Port=5432;Database=reservationdb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
+      JwtSettings__SecretKey: "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890"
+      JwtSettings__Issuer: "MikroSaaS-IdentityService"
+      JwtSettings__Audience: "MikroSaaS-Apps"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest
@@ -104,6 +110,9 @@ services:
     environment:
       ConnectionStrings__NotificationConnection: "Host=postgres_db;Port=5432;Database=notificationdb;Username=dbuser;Password=password_secure"
       ASPNETCORE_ENVIRONMENT: Development
+      JwtSettings__SecretKey: "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890"
+      JwtSettings__Issuer: "MikroSaaS-IdentityService"
+      JwtSettings__Audience: "MikroSaaS-Apps"
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: guest
       RABBITMQ_PASS: guest

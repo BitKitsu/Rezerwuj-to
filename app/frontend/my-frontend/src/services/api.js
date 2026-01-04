@@ -6,10 +6,51 @@ const API_BASE_URL = `${API_GATEWAY_URL}/reservation`;
 const IDENTITY_BASE_URL = `${API_GATEWAY_URL}/identity`;
 const NOTIFICATION_BASE_URL = `${API_GATEWAY_URL}/notification/notifications`;
 
+const parseJwt = (token) => {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(payload)
+        .split('')
+        .map((c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const isJwtExpired = (token, skewSeconds = 30) => {
+  const payload = parseJwt(token);
+  const exp = payload?.exp;
+  if (!exp || typeof exp !== 'number') return false;
+  const now = Math.floor(Date.now() / 1000);
+  return exp <= now + skewSeconds;
+};
+
 // Token Manager
 export const tokenManager = {
   getAccessToken: () => localStorage.getItem('accessToken'),
   getRefreshToken: () => localStorage.getItem('refreshToken'),
+  getValidAccessToken: async () => {
+    const token = tokenManager.getAccessToken();
+    if (token && !isJwtExpired(token)) return token;
+
+    const refreshToken = tokenManager.getRefreshToken();
+    if (!refreshToken) return '';
+
+    try {
+      const refreshed = await refreshTokensSingleFlight();
+      return refreshed?.accessToken || '';
+    } catch {
+      tokenManager.clearTokens();
+      return '';
+    }
+  },
   setTokens: (accessToken, refreshToken) => {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
@@ -18,13 +59,59 @@ export const tokenManager = {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('authChanged'));
+    }
   },
   setUser: (user) => localStorage.setItem('user', JSON.stringify(user)),
   getUser: () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   },
-  isAuthenticated: () => !!localStorage.getItem('accessToken')
+  isAuthenticated: () => !!(localStorage.getItem('accessToken') || localStorage.getItem('refreshToken'))
+};
+
+let refreshPromise = null;
+
+const refreshTokensSingleFlight = async () => {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const refreshToken = tokenManager.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('Refresh token not available');
+    }
+
+    const response = await axios.post(`${IDENTITY_BASE_URL}/refreshtoken/refresh`, {
+      refreshToken,
+    });
+
+    const { accessToken, refreshToken: newRefreshToken } = response.data;
+    tokenManager.setTokens(accessToken, newRefreshToken);
+
+    const currentUser = tokenManager.getUser();
+    if (currentUser) {
+      tokenManager.setUser({
+        ...currentUser,
+        roles: response.data.roles ?? currentUser.roles,
+        companyId: response.data.companyId ?? currentUser.companyId,
+        companyRole: response.data.companyRole ?? currentUser.companyRole,
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('authChanged'));
+    }
+
+    return { accessToken };
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
 };
 
 // Instancja dla ReservationService
@@ -110,34 +197,23 @@ const handleTokenRefresh = async (error, apiInstance) => {
   const originalRequest = error.config;
 
   if (error.response?.status === 401 && !originalRequest._retry) {
+    if (originalRequest?.url?.includes('/refreshtoken/refresh')) {
+      return Promise.reject(error);
+    }
+
     originalRequest._retry = true;
 
     try {
-      const refreshToken = tokenManager.getRefreshToken();
-      if (refreshToken) {
-        const response = await axios.post(`${IDENTITY_BASE_URL}/refreshtoken/refresh`, {
-          refreshToken
-        });
+      const { accessToken } = await refreshTokensSingleFlight();
 
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
-        tokenManager.setTokens(accessToken, newRefreshToken);
-
-        const currentUser = tokenManager.getUser();
-        if (currentUser) {
-          tokenManager.setUser({
-            ...currentUser,
-            roles: response.data.roles ?? currentUser.roles,
-            companyId: response.data.companyId ?? currentUser.companyId,
-            companyRole: response.data.companyRole ?? currentUser.companyRole,
-          });
-        }
-
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
-        return apiInstance(originalRequest);
-      }
+      originalRequest.headers = originalRequest.headers || {};
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+      return apiInstance(originalRequest);
     } catch (refreshError) {
       tokenManager.clearTokens();
-      window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
       return Promise.reject(refreshError);
     }
   }

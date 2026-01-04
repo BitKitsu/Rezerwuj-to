@@ -93,6 +93,20 @@ public class JwtService : IJwtService
             _logger.LogWarning("Refresh token wygasł");
             return null;
         }
+
+        var newerActiveTokenExists = await _context.RefreshTokens
+            .AsNoTracking()
+            .AnyAsync(rt => rt.UserId == storedToken.UserId
+                && !rt.IsRevoked
+                && !rt.IsUsed
+                && rt.ExpiresAt > DateTime.UtcNow
+                && rt.CreatedAt > storedToken.CreatedAt);
+
+        if (newerActiveTokenExists)
+        {
+            _logger.LogWarning("Refresh token nie jest najnowszy");
+            return null;
+        }
         
         // Oznacz jako użyty
         storedToken.IsUsed = true;
@@ -134,8 +148,16 @@ public class JwtService : IJwtService
     private (string Token, string Id) GenerateJwtToken(ApplicationUser user, IList<string> roles, string? companyRole)
     {
         var jwtId = Guid.NewGuid().ToString();
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT Secret Key not configured")));
+
+        var jwtSettings = _configuration.GetSection("JwtSettings");
+        var secretKey = jwtSettings["SecretKey"]
+            ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+        var issuer = jwtSettings["Issuer"]
+            ?? throw new InvalidOperationException("JwtSettings:Issuer is not configured.");
+        var audience = jwtSettings["Audience"]
+            ?? throw new InvalidOperationException("JwtSettings:Audience is not configured.");
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         
         var claims = new List<Claim>
         {
@@ -177,8 +199,8 @@ public class JwtService : IJwtService
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
         
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
+            issuer: issuer,
+            audience: audience,
             claims: claims,
             expires: DateTime.UtcNow.AddMinutes(15),
             signingCredentials: creds
@@ -190,6 +212,24 @@ public class JwtService : IJwtService
     
     private async Task<RefreshToken> GenerateRefreshTokenAsync(string userId, string jwtId)
     {
+        var activeTokens = await _context.RefreshTokens
+            .Where(rt => rt.UserId == userId
+                && !rt.IsRevoked
+                && !rt.IsUsed
+                && rt.ExpiresAt > DateTime.UtcNow)
+            .ToListAsync();
+
+        if (activeTokens.Count > 0)
+        {
+            foreach (var token in activeTokens)
+            {
+                token.IsRevoked = true;
+            }
+
+            _context.RefreshTokens.UpdateRange(activeTokens);
+            await _context.SaveChangesAsync();
+        }
+
         var refreshToken = new RefreshToken
         {
             UserId = userId,

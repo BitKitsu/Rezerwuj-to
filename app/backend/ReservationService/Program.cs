@@ -35,16 +35,13 @@ builder.Services.AddHttpClient();
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSection["SecretKey"]
-               ?? builder.Configuration["Jwt:SecretKey"]
-               ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
+               ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
 
 var issuer = jwtSection["Issuer"]
-             ?? builder.Configuration["Jwt:Issuer"]
-             ?? "MikroSaaS-IdentityService";
+             ?? throw new InvalidOperationException("JwtSettings:Issuer is not configured.");
 
 var audience = jwtSection["Audience"]
-               ?? builder.Configuration["Jwt:Audience"]
-               ?? "MikroSaaS-Apps";
+               ?? throw new InvalidOperationException("JwtSettings:Audience is not configured.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

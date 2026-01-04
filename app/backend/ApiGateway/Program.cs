@@ -36,7 +36,12 @@ builder.Services.AddCors(options =>
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? "super-secret-key-for-jwt-token-generation-minimum-32-characters-long-1234567890";
+var secretKey = jwtSettings["SecretKey"]
+    ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured.");
+var issuer = jwtSettings["Issuer"]
+    ?? throw new InvalidOperationException("JwtSettings:Issuer is not configured.");
+var audience = jwtSettings["Audience"]
+    ?? throw new InvalidOperationException("JwtSettings:Audience is not configured.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer("Bearer", options =>
@@ -49,8 +54,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = "MikroSaaS-IdentityService",
-            ValidAudience = "MikroSaaS-Apps",
+            ValidIssuer = issuer,
+            ValidAudience = audience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
             ClockSkew = TimeSpan.Zero // Brak tolerancji na różnice czasu
         };
@@ -58,6 +63,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // Dodaj obsługę błędów autentykacji
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"].ToString();
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrWhiteSpace(accessToken)
+                    && path.StartsWithSegments("/notification/hub"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            },
             OnAuthenticationFailed = context =>
             {
                 if (context.Exception.GetType() == typeof(SecurityTokenExpiredException))
@@ -104,6 +122,15 @@ app.UseRouting();
 
 // CORS musi być przed Authentication
 app.UseCors("AllowAll");
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Headers.ContainsKey("ClientId"))
+    {
+        context.Request.Headers["ClientId"] = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    }
+
+    await next();
+});
 
 // Authentication & Authorization
 app.UseAuthentication();

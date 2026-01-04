@@ -26,32 +26,28 @@
 
 ```mermaid
 flowchart LR
-  FE[Frontend<br/>React]
-  GW[API Gateway<br/>:5000]
-  ID[Identity Service<br/>:5001]
-  RS[Reservation Service<br/>:5002]
-  NS[Notification Service<br/>:5003]
-  MQ[(RabbitMQ<br/>AMQP :5672)]
-  HUB[[SignalR Hub<br/>/notification/hub]]
+  FE[Frontend]
+  GW[API Gateway]
+  ID[Identity Service]
+  RS[Reservation Service]
+  NS[Notification Service]
+  MQ[RabbitMQ]
 
-  %% REST
-  FE -->|REST (HTTP)| GW
-  GW -->|REST (HTTP)| FE
-  GW -->|REST| ID
-  GW -->|REST| RS
-  GW -->|REST| NS
+  FE --> GW
+  GW --> ID
+  GW --> RS
+  GW --> NS
 
-  %% Events
-  RS -->|publish appointment.* events| MQ
-  MQ -->|consume events| NS
+  RS --> MQ
+  MQ --> NS
 
-  %% SignalR (WebSocket)
-  FE -->|SignalR WebSocket<br/>ws(s) /notification/hub| GW
-  GW -->|SignalR WebSocket| FE
-  GW -->|WS proxy pass-through| HUB
-  HUB -->|WS| GW
-  HUB --- NS
 ```
+
+Legenda:
+
+- REST: `Frontend -> API Gateway -> {Identity|Reservation|Notification}`
+- RabbitMQ: `ReservationService -> RabbitMQ -> NotificationService`
+- SignalR (WebSocket): `Frontend -> API Gateway (/notification/hub) -> NotificationService` (to samo połączenie logiczne co REST, ale protokół WebSocket)
 
 ### ERD (ReservationService DB)
 
@@ -334,27 +330,19 @@ Uwagi do ERD (IdentityService):
 
 ```mermaid
 flowchart LR
-  subgraph IdentityService_DB
-    U[(ApplicationUser.Id)]
-    UCR[(UserCompanyRole.CompanyId)]
-  end
+  U[ApplicationUser Id]
+  C[Company Id]
+  A[Appointment CustomerId StaffId]
+  N[Notification UserId]
+  NA[Notification RelatedAppointmentId]
+  UCR[UserCompanyRole CompanyId]
+  B[Branch CompanyId]
 
-  subgraph ReservationService_DB
-    C[(Company.Id)]
-    A[(Appointment.CustomerId / StaffId)]
-    B[(Branch.CompanyId)]
-  end
-
-  subgraph NotificationService_DB
-    N[(Notification.UserId)]
-    NA[(Notification.RelatedAppointmentId)]
-  end
-
-  U -. userId .-> A
-  U -. userId .-> N
-  C -. companyId .-> UCR
-  C -. companyId .-> B
-  A -. appointmentId .-> NA
+  U --> A
+  U --> N
+  C --> UCR
+  C --> B
+  A --> NA
 ```
 
 ## Zaimplementowane Funkcjonalności

@@ -415,6 +415,73 @@ manage.bat frontend   # Uruchom frontend (w nowym oknie)
 | Frontend | `./manage.sh frontend` | `manage.bat frontend` | Uruchom React            |
 | All      | `./manage.sh all`      | `manage.bat all`      | Backend + Frontend       |
 
+## Testy automatyczne
+
+- **Backend (.NET)**
+  - Są dodane projekty testowe (xUnit):
+    - `app/backend/IdentityService.Tests`
+    - `app/backend/ReservationService.Tests`
+    - `app/backend/NotificationService.Tests`
+  - Testy uruchamiają się w CI (`.github/workflows/ci-cd.yml`).
+- **Frontend (React)**
+  - Są dodane testy jednostkowe (Vitest):
+    - `app/frontend/my-frontend/src/components/LogoIcon.test.jsx`
+    - `app/frontend/my-frontend/src/components/ProtectedRoute.test.jsx`
+  - Testy uruchamiają się w CI (`.github/workflows/ci-cd.yml`).
+
+Uruchomienie testów lokalnie:
+
+```bash
+cd app/backend
+dotnet test IdentityService.Tests/IdentityService.Tests.csproj
+dotnet test ReservationService.Tests/ReservationService.Tests.csproj
+dotnet test NotificationService.Tests/NotificationService.Tests.csproj
+
+cd ../frontend/my-frontend
+npm ci
+npm run test
+# lub (tryb CI, bez watch):
+npm run test:ci
+```
+
+Uwaga: po dodaniu nowych zależności do frontendu, jeśli `npm ci` zacznie failować na GitHubie,
+trzeba zaktualizować `package-lock.json` lokalnie i go zacommitować.
+
+Co jest dostępne:
+
+- **Smoke/Integration (skryptowe)**
+  - `./manage.sh test` / `manage.bat test`
+    - Sprawdza porty/health.
+    - Wykonuje wybrane requesty przez API Gateway (m.in. logowanie/rejestracja + pobieranie usług).
+  - `./manage.sh ci-test` / `manage.bat ci-test`
+    - Symuluje kluczowe kroki pipeline: restore/build backend, lint/build frontend, walidacja `docker-compose.yml`.
+
+## CI/CD
+
+W repo jest skonfigurowany pipeline **GitHub Actions**: `.github/workflows/ci-cd.yml`.
+
+Co robi aktualnie:
+
+- **CI (na push/PR)**
+  - **Backend**: `dotnet restore` + `dotnet build` (Release) dla mikroserwisów + `dotnet test` dla projektów testowych.
+  - **Frontend**: `npm ci` + `npm run lint` (non-blocking) + `npm run build` + `npm run test:ci`.
+  - **Smoke tests (docker compose)**: job `compose-smoke-tests` uruchamia stack przez `docker compose up` i wykonuje podstawowe testy endpointów (health + routing + przykładowy request do `/reservation/services`).
+  - **Security scan**: Trivy (scan konfiguracji/Dockerfiles) i upload SARIF.
+
+Przgotowane, ale wyłączone:
+
+- **CD (deploy na staging/produkcję)**
+  - Job deploy na staging/produkcję jest **wyłączony** (`if: false`) i wymaga targetu (serwer/PaaS) + secrets.
+
+Działa bez serwera:
+
+- **Build & Push obrazów Docker do GHCR**
+  - Job `build-docker-images` jest włączony na push do `main`/`develop`.
+  - Buduje i publikuje obrazy dla:
+    - `api-gateway`, `identity-service`, `reservation-service`, `notification-service`, `frontend`
+
+Dokumentacja konfiguracji CD (przy użyciu VPS): `docs/CI-CD-SETUP.md`.
+
 ## Adresy
 
 - **Aplikacja:** http://localhost:5173

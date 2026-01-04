@@ -3,7 +3,7 @@
 ## Stack
 
 - **Backend:** C# .NET 8, ASP.NET Core, Entity Framework Core
-- **Frontend:** React 18, Vite, Axios
+- **Frontend:** React, Vite, Axios
 - **Bazy danych:** PostgreSQL (3 osobne bazy)
 - **Messaging:** RabbitMQ
 - **Konteneryzacja:** Docker, Docker Compose
@@ -17,8 +17,324 @@
 | **ReservationService**  | 5002  | Rezerwacje i usługi        | Firmy, Usługi, Rezerwacje, Harmonogramy, Time Sloty       |
 | **NotificationService** | 5003  | Powiadomienia               | Email, SMS, In-App, SignalR Hub, Szablony                  |
 | **API Gateway**         | 5000  | Gateway (Ocelot)            | Centralne wejście, routing, rate limiting, JWT validation |
-| **RabbitMQ**            | 15672 | Message Broker              | Asynchroniczna komunikacja między serwisami               |
+| **RabbitMQ**            | 15672 | Message Broker              | Management UI (15672) + AMQP (5672), asynchroniczna komunikacja |
 | **PostgreSQL**          | 5433  | Bazy danych                 | identitydb, reservationdb, notificationdb                  |
+
+## Diagramy (Mermaid)
+
+### InterService Communication (Flow)
+
+```mermaid
+flowchart LR
+  FE[Frontend\nReact]
+  GW[API Gateway\n:5000]
+  ID[Identity Service\n:5001]
+  RS[Reservation Service\n:5002]
+  NS[Notification Service\n:5003]
+  MQ[(RabbitMQ\nAMQP :5672)]
+  HUB[[SignalR Hub\n/notification/hub]]
+
+  %% REST
+  FE <-->|REST (HTTP)| GW
+  GW -->|REST| ID
+  GW -->|REST| RS
+  GW -->|REST| NS
+
+  %% Events
+  RS -->|publish appointment.* events| MQ
+  MQ -->|consume events| NS
+
+  %% SignalR (WebSocket)
+  FE <-->|SignalR WebSocket\nws(s) /notification/hub| GW
+  GW <-->|WS proxy pass-through| HUB
+  HUB --- NS
+```
+
+### ERD (ReservationService DB)
+
+```mermaid
+erDiagram
+  COMPANY ||--o{ SERVICE : has
+  COMPANY ||--o{ APPOINTMENT : has
+  COMPANY ||--o{ BRANCH : has
+  COMPANY ||--o{ BRANCH_REVIEW : has
+  COMPANY ||--o{ SCHEDULE : has
+  COMPANY ||--o{ STAFF_BREAK : has
+  COMPANY ||--o{ TIME_SLOT : has
+
+  BRANCH ||--o{ SERVICE : hosts
+  BRANCH ||--o{ APPOINTMENT : hosts
+  BRANCH ||--o{ BRANCH_REVIEW : has
+  BRANCH ||--o{ SCHEDULE : has
+  BRANCH ||--o{ STAFF_BREAK : has
+  BRANCH ||--o{ TIME_SLOT : has
+
+  SERVICE ||--o{ APPOINTMENT : booked_for
+  SERVICE ||--o{ TIME_SLOT : provides
+  SERVICE ||--o{ SCHEDULE : scheduled_for
+
+  APPOINTMENT ||--o| BRANCH_REVIEW : may_have
+  APPOINTMENT ||--o{ TIME_SLOT : blocks
+
+  COMPANY {
+    int Id PK
+    string CompanyName
+    string Email
+    string Phone
+    string StreetName
+    string StreetNumber
+    string ApartmentNumber
+    string City
+    string PostalCode
+    string Country
+    string Description
+    string Website
+    string OpeningHour
+    string ClosingHour
+    datetime RegistrationDate
+  }
+
+  BRANCH {
+    int Id PK
+    int CompanyId FK
+    string BranchName
+    string Phone
+    string StreetName
+    string StreetNumber
+    string ApartmentNumber
+    string City
+    string PostalCode
+    string Country
+    string OpeningHour
+    string ClosingHour
+    datetime CreatedAt
+  }
+
+  SERVICE {
+    int Id PK
+    int CompanyId FK
+    int BranchId FK
+    string ServiceName
+    string Description
+    decimal Price
+    int DurationMinutes
+    int BufferMinutesAfter
+  }
+
+  APPOINTMENT {
+    int Id PK
+    datetime DateStart
+    datetime DateEnd
+    string Status
+    datetime CreatedAt
+    int CompanyId FK
+    int BranchId FK
+    int ServiceId FK
+    string CustomerId "Identity userId"
+    string StaffId "Identity userId"
+  }
+
+  BRANCH_REVIEW {
+    int Id PK
+    int Rating
+    string Comment
+    datetime CreatedAt
+    int CompanyId FK
+    int BranchId FK
+    int AppointmentId FK "unique"
+    string CustomerId "Identity userId"
+  }
+
+  SCHEDULE {
+    int Id PK
+    int CompanyId FK
+    int BranchId FK
+    int ServiceId FK
+    string StaffId "Identity userId?"
+    int DayOfWeek
+    time StartTime
+    time EndTime
+    bool IsActive
+  }
+
+  STAFF_BREAK {
+    int Id PK
+    int CompanyId FK
+    int BranchId FK
+    string StaffId "Identity userId"
+    int DayOfWeek
+    time StartTime
+    time EndTime
+    bool IsActive
+  }
+
+  TIME_SLOT {
+    int Id PK
+    int CompanyId FK
+    int BranchId FK
+    int ServiceId FK
+    string StaffId "Identity userId?"
+    datetime SlotStart
+    datetime SlotEnd
+    bool IsAvailable
+    bool IsBlocked
+    int AppointmentId FK "nullable"
+  }
+
+  EVENT_STORE {
+    long Id PK
+    guid EventId "unique"
+    string AggregateId
+    string EventType
+    string EventData
+    string UserId "Identity userId?"
+    datetime OccurredAt
+    datetime StoredAt
+    int Version
+  }
+```
+
+### ERD (NotificationService DB)
+
+```mermaid
+erDiagram
+  NOTIFICATION ||--o{ NOTIFICATION_HISTORY : has
+
+  NOTIFICATION {
+    int Id PK
+    string UserId "Identity userId/email/phone (legacy)"
+    string Title
+    string Message
+    int Type
+    int Channel
+    int Status
+    datetime CreatedAt
+    datetime SentAt
+    datetime ReadAt
+    int RelatedAppointmentId "Reservation appointmentId?"
+    string Metadata
+  }
+
+  NOTIFICATION_TEMPLATE {
+    int Id PK
+    string Name
+    int Type
+    int Channel
+    string Subject
+    string Body
+    bool IsActive
+    datetime CreatedAt
+    datetime UpdatedAt
+  }
+
+  NOTIFICATION_HISTORY {
+    int Id PK
+    int NotificationId FK
+    string Event
+    string Details
+    datetime EventTime
+  }
+
+  PROCESSED_MESSAGE {
+    int Id PK
+    string DedupeKey "unique"
+    string MessageId
+    string RoutingKey
+    string BodyHash
+    datetime ProcessedAt
+  }
+```
+
+### ERD (IdentityService DB - uproszczone)
+
+```mermaid
+erDiagram
+  APPLICATION_USER ||--o{ REFRESH_TOKEN : has
+  APPLICATION_USER ||--o{ USER_COMPANY_ROLE : has
+  APPLICATION_USER ||--o{ EMAIL_VERIFICATION_CODE : has
+  APPLICATION_USER ||--o{ AUDIT_LOG : produces
+
+  APPLICATION_USER {
+    string Id PK
+    string Email
+    string PhoneNumber
+    string FirstName
+    string LastName
+    int CompanyId "nullable"
+  }
+
+  REFRESH_TOKEN {
+    int Id PK
+    string UserId FK
+    string Token "unique"
+    string JwtId
+    datetime CreatedAt
+    datetime ExpiresAt
+    bool IsRevoked
+    bool IsUsed
+  }
+
+  USER_COMPANY_ROLE {
+    int Id PK
+    string UserId FK
+    int CompanyId
+    string Role
+    bool IsActive
+    datetime CreatedAt
+    datetime RevokedAt
+  }
+
+  EMAIL_VERIFICATION_CODE {
+    int Id PK
+    string UserId FK
+    string Email
+    string CodeHash
+    int FailedAttempts
+    datetime CreatedAt
+    datetime ExpiresAt
+  }
+
+  AUDIT_LOG {
+    long Id PK
+    string UserId FK "nullable"
+    string EntityName
+    string EntityId
+    string Action
+    string OldValues
+    string NewValues
+    string Changes
+    string IpAddress
+    string UserAgent
+    datetime CreatedAt
+  }
+```
+
+### Widok logiczny między serwisami (cross-service)
+
+```mermaid
+flowchart LR
+  subgraph IdentityService_DB
+    U[(ApplicationUser.Id)]
+    UCR[(UserCompanyRole.CompanyId)]
+  end
+
+  subgraph ReservationService_DB
+    C[(Company.Id)]
+    A[(Appointment.CustomerId / StaffId)]
+    B[(Branch.CompanyId)]
+  end
+
+  subgraph NotificationService_DB
+    N[(Notification.UserId)]
+    NA[(Notification.RelatedAppointmentId)]
+  end
+
+  U -. userId .-> A
+  U -. userId .-> N
+  C -. companyId .-> UCR
+  C -. companyId .-> B
+  A -. appointmentId .-> NA
+```
 
 ## Zaimplementowane Funkcjonalności
 
@@ -128,28 +444,41 @@ Wszystkie requesty przechodzą przez API Gateway (port 5000):
 
 ### Podstawowe
 
-- `POST /api/account/register` - Rejestracja nowego użytkownika
-- `POST /api/account/login` - Logowanie (zwraca access + refresh token)
-- `POST /api/account/logout` - Wylogowanie
+W praktyce frontend woła endpointy przez **API Gateway** (`http://localhost:5000`).
+
+- `POST /identity/account/register` - Rejestracja nowego użytkownika
+- `POST /identity/account/login` - Logowanie (zwraca access + refresh token)
+- `POST /identity/account/logout` - Wylogowanie
 
 ### Token Management
 
-- `POST /api/refreshtoken/refresh` - Odśwież access token
-- `POST /api/refreshtoken/revoke` - Unieważnij token
-- `POST /api/refreshtoken/revoke-all` - Unieważnij wszystkie tokeny użytkownika
+- `POST /identity/refreshtoken/refresh` - Odśwież access token
+- `POST /identity/refreshtoken/revoke` - Unieważnij token
+- `POST /identity/refreshtoken/revoke-all` - Unieważnij wszystkie tokeny użytkownika
 
 ### Audit
 
-- `GET /api/audit` - Lista wszystkich logów
-- `GET /api/audit/my` - Logi zalogowanego użytkownika
-- `GET /api/audit/user/{id}` - Logi konkretnego użytkownika
+- `GET /identity/audit` - Lista wszystkich logów
+- `GET /identity/audit/my` - Logi zalogowanego użytkownika
+- `GET /identity/audit/user/{id}` - Logi konkretnego użytkownika
 
 ### Schedules
 
-- `GET /api/schedules/company/{id}` - Harmonogramy firmy
-- `GET /api/schedules/available-slots` - Dostępne sloty czasowe
-- `POST /api/schedules` - Utwórz harmonogram
-- `POST /api/schedules/book-slot` - Zarezerwuj slot
+- `GET /reservation/schedules/company/{id}` - Harmonogramy firmy
+- `GET /reservation/schedules/available-slots` - Dostępne sloty czasowe
+- `POST /reservation/schedules` - Utwórz harmonogram
+- `POST /reservation/schedules/book-slot` - Zarezerwuj slot
+
+### Appointments (Reservation)
+
+- `PUT /reservation/appointments/{id}/reschedule` - Przełóż wizytę
+- `DELETE /reservation/appointments/{id}` - Usuń wizytę (emituje `appointment.cancelled` przed usunięciem)
+
+### Notifications (Notification)
+
+- `GET /notification/notifications/me` - Lista moich powiadomień
+- `PUT /notification/notifications/{id}/read` - Oznacz jako przeczytane
+- `GET /notification/hub` - SignalR Hub (WebSocket)
 
 ## Dane Testowe
 
@@ -162,30 +491,3 @@ Automatycznie tworzony użytkownik testowy:
 
 - Minimum **6 znaków**
 - Musi zawierać **1 cyfrę**
-
-## Status Implementacji
-
-| Funkcjonalność        | Status | Priorytet |
-| ----------------------- | ------ | --------- |
-| 3 Mikroserwisy          | Gotowe | Wysoki    |
-| Docker & Docker Compose | Gotowe | Wysoki    |
-| PostgreSQL (3 bazy)     | Gotowe | Wysoki    |
-| JWT Authentication      | Gotowe | Wysoki    |
-| Refresh Tokens          | Gotowe | Wysoki    |
-| Frontend React          | Gotowe | Wysoki    |
-| RabbitMQ                | Gotowe | Średni   |
-| Time Slots              | Gotowe | Średni   |
-| Audit Logs              | Gotowe | Średni   |
-| Event Sourcing          | Gotowe | Niski     |
-| Soft Delete             | Gotowe | Niski     |
-| API Gateway (Ocelot)    | Gotowe | Średni   |
-| CI/CD Pipeline          | Gotowe | Wysoki    |
-| Rozszerzenie frontendu  | TODO | Wysoki    |
-
-## TODO (backend – wyszukiwarka usług i salonów)
-
-- Rozszerzenie endpointów ReservationService pod kątem wyszukiwarki i paginacji:
-  - `GET /reservation/services` – wsparcie dla parametrów `query`, `city`, `sort`, `page`, `pageSize`.
-  - `GET /reservation/companies` – wsparcie dla parametrów `query`, `city`, `sort`, `page`, `pageSize`.
-- Sortowanie po odległości (`sort=distance`) – wymagane pola lokalizacji w modelach firm/salonów.
-- Sortowanie po ocenach (`sort=rating`) – wymaga systemu opinii/recenzji.

@@ -1,31 +1,28 @@
 \newpage
 \renewcommand{\sectioncolor}{chap6}
-\section{Wnioski i dalszy rozwój}
+\section{Podsumowanie i perspektywy rozwoju}
 
-Projekt został zrealizowany w 100\% i znacznie przekroczył początkowe założenia. Aplikacja jest w stanie produkcyjnym i spełnia standardy wymagane od komercyjnych produktów z sektora fintech.
+Niniejsza praca pozwoliła na zaprojektowanie i zaimplementowanie skalowalnego systemu rezerwacji usług w modelu Mikro-SaaS. Wykorzystanie architektury mikroserwisowej opartej na platformie .NET 8 \cite{dotnet_microsoft} oraz bibliotece React 19 \cite{react_meta} umożliwiło stworzenie rozwiązania charakteryzującego się wysoką wydajnością oraz czytelnym podziałem odpowiedzialności między poszczególnymi modułami.
 
-\subsection{Osiągnięte wyniki}
-\begin{itemize}[leftmargin=*]
-    \item \textbf{Pokrycie testami:} 86\% (backend: 89\%, frontend: 82\%).
-    \item \textbf{Średni czas odpowiedzi API:} 47 ms (dla 95 percentyla zapytań).
-    \item \textbf{Responsywność:} Pełna zgodność z podejściem mobile-first.
-    \item \textbf{Bezpieczeństwo:} Spełnienie kluczowych zaleceń z listy OWASP Top 10.
-    \item \textbf{Automatyzacja:} Wdrożenie „zero-downtime" dzięki Dockerowi i GitHub Actions.
+\subsection{Wnioski z realizacji projektu}
+Proces wytwórczy oraz przeprowadzone testy automatyczne \cite{vitest_guide} pozwoliły na sformułowanie następujących wniosków inżynierskich:
+
+\begin{itemize}
+    \item \textbf{Efektywność komunikacji asynchronicznej:} Zastosowanie brokera komunikatów RabbitMQ \cite{rabbitmq_docs} pozwoliło na całkowite odseparowanie serwisu rezerwacji od modułu powiadomień. Dzięki temu proces rezerwacji terminu nie jest blokowany przez czasochłonne operacje wysyłki wiadomości e-mail.
+    \item \textbf{Izolacja danych:} Model \textit{Database-per-Service} z wykorzystaniem bazy PostgreSQL \cite{postgresql_docs} zagwarantował, że błędy w obrębie jednego schematu danych (np. logów powiadomień) nie wpływają na stabilność krytycznych tabel rezerwacji.
+    \item \textbf{Wydajność interfejsu:} Wykorzystanie narzędzia Vite \cite{vite_guide} oraz mechanizmów normalizacji danych wejściowych (np. telefonów i kodów pocztowych) znacząco poprawiło komfort pracy użytkownika (\textit{User Experience}) oraz jakość danych trafiających do systemu.
+    \item \textbf{Bezpieczeństwo:} Implementacja mechanizmu \textit{Refresh Tokens} oraz centralna walidacja JWT na poziomie API Gateway \cite{ocelot_docs} zapewniły standard bezpieczeństwa zgodny z zaleceniami RFC 7519 \cite{jwt_rfc}.
 \end{itemize}
 
-\subsection{Roadmapa rozwoju na lata 2025--2026}
-\begin{itemize}[leftmargin=*]
-    \item Integracja z polskimi bankami poprzez API (dyrektywa PSD2 / Open Banking).
-    \item Stworzenie dedykowanej aplikacji mobilnej (React Native).
-    \item Implementacja modelu ML do inteligentnej predykcji kategorii (fine-tuned BERT).
-    \item Wprowadzenie planów premium i integracja z płatnościami (Stripe).
-    \item Możliwość tworzenia wspólnych budżetów (np. dla rodzin).
-    \item Dodanie modułu do śledzenia inwestycji i kryptowalut.
+\subsection{Kierunki dalszego rozwoju systemu}
+Choć system w obecnej fazie jest w pełni funkcjonalny, architektura pozwala na jego dalszą rozbudowę w następujących obszarach:
+
+\begin{itemize}
+    \item \textbf{Integracja z kalendarzami zewnętrznymi:} Implementacja dwukierunkowej synchronizacji z Google Calendar oraz Outlook za pomocą dedykowanych API.
+    \item \textbf{System płatności online:} Integracja z platformą Stripe \cite{axios_docs} w celu umożliwienia pobierania przedpłat za rezerwacje oraz zarządzania subskrypcjami firm korzystających z modelu SaaS.
+    \item \textbf{Aplikacja mobilna:} Stworzenie natywnego interfejsu dla pracowników w technologii React Native, co ułatwiłoby zarządzanie harmonogramem w terenie.
+    \item \textbf{Rozbudowa modułu powiadomień:} Dodanie obsługi wiadomości SMS oraz powiadomień typu \textit{Push} z wykorzystaniem technologii SignalR \cite{signalr_microsoft}.
 \end{itemize}
 
-\subsection{Podsumowanie}
-Projekt wykazał, że możliwe jest stworzenie aplikacji webowej na poziomie komercyjnym w ramach projektu studenckiego, przy zastosowaniu nowoczesnych technologii i najlepszych praktyk inżynierii oprogramowania.
-
-\vspace{1cm}
-\noindent Kod źródłowy projektu jest dostępny w publicznym repozytorium na GitHub:\\
-\url{https://github.com/jankowalski/budget-app}
+\subsection{Podsumowanie końcowe}
+Projekt udowodnił, że zastosowanie wzorców takich jak CQRS, API Gateway oraz komunikacja sterowana zdarzeniami pozwala na budowę systemów gotowych do obsługi dużego ruchu i wielu niezależnych organizacji jednocześnie. Praca nad systemem pozwoliła na zdobycie praktycznego doświadczenia w zakresie orkiestracji kontenerów Docker \cite{docker_docs} oraz automatyzacji procesów CI/CD \cite{github_actions_docs}, co stanowi solidną podstawę dla nowoczesnej inżynierii oprogramowania.

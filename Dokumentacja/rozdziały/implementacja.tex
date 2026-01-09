@@ -3,40 +3,185 @@
 \section{Implementacja kluczowych funkcjonalności}
 
 \subsection{Bezpieczeństwo i zarządzanie tożsamością (JWT)}
-Fundamentem bezpieczeństwa systemu jest bezstanowa autoryzacja oparta na standardzie \textit{JSON Web Token}. Proces ten został zaimplementowany w ramach \textit{Identity Service}. Mechanizm nie ogranicza się jedynie do generowania tokenów dostępu (\textit{Access Token}), ale wspiera również długotrwałe sesje poprzez tokeny odświeżania (\textit{Refresh Tokens}) przechowywane w bazie danych PostgreSQL. Pozwala to na zachowanie wysokiego poziomu bezpieczeństwa przy jednoczesnym komforcie użytkowania aplikacji.
+Fundamentem bezpieczeństwa systemu jest bezstanowa autoryzacja oparta na standardzie \textit{JSON Web Token} \cite{jwt_rfc}, zaimplementowana w mikroserwisie \textit{IdentityService}. System wykorzystuje mechanizm dwóch tokenów w celu zbalansowania bezpieczeństwa i wygody użytkownika:
+\begin{itemize}
+    \item \textbf{Access Token:} Posiada krótki czas życia wynoszący \textbf{15 minut}, co minimalizuje ryzyko w przypadku przejęcia tokenu.
+    \item \textbf{Refresh Token:} Przechowywany bezpiecznie w bazie danych, z czasem wygaśnięcia ustalonym na \textbf{7 dni}, umożliwiając automatyczne odświeżanie sesji bez konieczności ponownego logowania.
+\end{itemize}
 
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
 
+
+Obsługa cyklu życia sesji odbywa się poprzez dedykowany kontroler \textit{RefreshTokenController}. Implementuje on kluczowe operacje bezpieczeństwa, takie jak odświeżanie tokenów (\textit{Refresh}) oraz ich unieważnianie (\textit{Revoke}), co pozwala na natychmiastowe zakończenie sesji użytkownika w przypadku wylogowania lub wykrycia naruszenia bezpieczeństwa.
+
+\begin{lstlisting}[language={[Sharp]C}, caption={Implementacja punktów końcowych do zarządzania sesją (RefreshTokenController.cs)}]
+[HttpPost("refresh")]
+public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+{
+    if (string.IsNullOrEmpty(request.RefreshToken))
+    {
+        return BadRequest("Refresh token is required");
+    }
+    
+    // Delegacja logiki odswiezania do serwisu JWT
+    var result = await _jwtService.RefreshTokenAsync(request.RefreshToken);
+    
+    if (result == null)
+    {
+        _logger.LogWarning("Invalid refresh token attempt");
+        return Unauthorized("Invalid refresh token");
+    }
+    
+    return Ok(result);
+}
+
+[HttpPost("revoke")]
+[Authorize]
+public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenRequest request)
+{
+    // Pobranie ID zalogowanego uzytkownika z tokenu
+    var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    
+    // Weryfikacja wlasciciela tokenu przed jego uniewaznieniem
+    var tokenOwnerId = await _context.RefreshTokens
+        .AsNoTracking()
+        .Where(rt => rt.Token == request.RefreshToken)
+        .Select(rt => rt.UserId)
+        .FirstOrDefaultAsync();
+
+    if (!string.Equals(tokenOwnerId, userId, StringComparison.Ordinal) && !User.IsInRole("Admin"))
+    {
+        return Forbid();
+    }
+
+    await _jwtService.RevokeTokenAsync(request.RefreshToken);
+    return Ok(new { message = "Token revoked successfully" });
+}
 \end{lstlisting}
+
 \subsection{Zarządzanie strukturą biznesową i ofertą usług}
-System umożliwia modelowanie wielooddziałowych przedsiębiorstw. Kluczowym wyzwaniem było stworzenie elastycznego katalogu usług, gdzie każda usługa może posiadać unikalne parametry, takie jak cena, czas trwania czy tzw. \textit{buffer time} (czas techniczny po wizycie). Implementacja wykorzystuje \textit{Entity Framework Core} do obsługi relacji między firmą, jej filiami a dostępnym asortymentem usług.
-
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
-
-\end{lstlisting}
+System wspiera model wielooddziałowy, korzystając z \textit{Entity Framework Core} \cite{ef_core_testing}. W celu zapewnienia integralności danych historycznych, w module tym zaimplementowano mechanizm \textbf{Soft Delete}. Zamiast trwałego usuwania rekordów z bazy danych (np. przy usuwaniu usługi lub oddziału), system ustawia flagę \textit{IsDeleted}. Dzięki temu stare rezerwacje zachowują powiązania do usług, które nie są już oferowane nowym klientom.
 
 \subsection{Algorytm wyliczania dostępności i rezerwacji terminów}
-Najbardziej złożonym elementem systemu jest moduł dynamicznego generowania dostępnych slotów czasowych. Algorytm w czasie rzeczywistym analizuje trzy źródła danych: zdefiniowane harmonogramy pracy pracowników, zarejestrowane przerwy (\textit{Staff Breaks}) oraz istniejące już rezerwacje w wybranym dniu. Wynikiem jest lista punktualnych przedziałów czasowych, które użytkownik może zarezerwować.
+Moduł rezerwacji wykorzystuje zaawansowany mechanizm filtrowania dostępności w czasie rzeczywistym, zaimplementowany w ramach mikroserwisu. Logika ta opiera się na dwuetapowej weryfikacji: najpierw pobierane są teoretyczne okna czasowe z serwisu harmonogramów, a następnie system przeprowadza rygorystyczną kontrolę kolizji z istniejącymi już rezerwacjami.
 
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+\begin{lstlisting}[language={[Sharp]C}, caption={Implementacja logiki wykrywania kolizji i walidacji slotów (AppointmentsController.cs)}]
+// Pobranie dostepnych slotow dla danego dnia z ScheduleService
+var daySlots = await _scheduleService.GetAvailableSlotsAsync(
+    service.CompanyId, 
+    service.BranchId, 
+    service.Id, 
+    dto.DateStart);
 
+// Sprawdzenie, czy wybrana godzina startu znajduje sie w wygenerowanej liscie
+var isAllowed = daySlots.Any(s => s.StaffId == dto.StaffId && s.Start == dto.DateStart);
+if (!isAllowed) 
+{
+    return BadRequest("Selected start time is not available");
+}
+
+// Obliczenie czasu zakonczenia wraz z wymagana przerwa po usludze (buforem)
+var computedEnd = dto.DateStart.AddMinutes(service.DurationMinutes);
+var newBlockedEnd = computedEnd.AddMinutes(service.BufferMinutesAfter);
+
+// Pobranie istniejacych rezerwacji pracownika (z pominieciem anulowanych)
+var existingAppointments = await _context.Appointments
+    .AsNoTracking()
+    .Include(a => a.Service)
+    .Where(a => a.CompanyId == service.CompanyId
+        && a.BranchId == service.BranchId
+        && a.StaffId == dto.StaffId
+        && a.Status != "cancelled")
+    .ToListAsync();
+
+// Algorytm wykrywania kolizji przedzialow czasowych (Overlap Detection)
+var conflictingAppointment = existingAppointments.Any(a =>
+{
+    var buffer = a.Service?.BufferMinutesAfter ?? 0;
+    var aBlockedEnd = a.DateEnd.AddMinutes(buffer);
+    
+    // Warunek nachodzenia na siebie dwoch przedzialow czasowych
+    return dto.DateStart < aBlockedEnd && newBlockedEnd > a.DateStart;
+});
+
+if (conflictingAppointment) 
+{
+    return BadRequest("This time slot is already booked");
+}
 \end{lstlisting}
+
 \subsection{Asynchroniczny obieg zdarzeń i powiadomień}
-W celu odciążenia głównej logiki rezerwacji, komunikacja z użytkownikiem (np. potwierdzenie e-mail) została odseparowana za pomocą brokera \textit{RabbitMQ}. Zastosowano wzorzec \textit{Publisher-Subscriber} – po pomyślnym zapisaniu wizyty w bazie danych, wysyłane jest zdarzenie \textit{AppointmentCreated}. Jest ono konsumowane przez \textit{Notification Service}, który odpowiada za renderowanie treści na podstawie szablonów i wysyłkę SMTP.
+Komunikacja w systemie odbywa się dwutorowo, co zapewnia wysoką responsywność oraz niezawodność dostarczania informacji. Głównym kanałem wymiany danych między mikroserwisami jest asynchroniczna szyna danych oparta na brokerze \textbf{RabbitMQ}. Drugim filarem jest technologia \textbf{SignalR Hub}, wykorzystywana do komunikacji w czasie rzeczywistym z interfejsem użytkownika.
 
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+Kluczowym elementem mikroserwisu \textit{NotificationService} jest mechanizm dynamicznego generowania treści powiadomień w oparciu o szablony. Jak przedstawiono w kontrolerze \textit{NotificationsController}, system wspiera wstrzykiwanie zmiennych (\textit{placeholders}), co pozwala na automatyczną personalizację wiadomości (np. imię klienta, data wizyty) przed ich wysłaniem kanałem e-mail lub SMS.
 
+
+
+\begin{lstlisting}[language={[Sharp]C}, caption={Mechanizm personalizacji powiadomień i obsługi szablonów (NotificationsController.cs)}]
+// Metoda odpowiedzialna za tworzenie powiadomienia z wykorzystaniem szablonu
+[HttpPost]
+public async Task<ActionResult<Notification>> CreateNotification(CreateNotificationDto dto)
+{
+    // Pobranie zdefiniowanego szablonu (np. przypomnienie o wizycie)
+    NotificationTemplate? template = null;
+    if (dto.TemplateId.HasValue)
+    {
+        template = await _context.NotificationTemplates.FindAsync(dto.TemplateId.Value);
+    }
+
+    var notification = new Notification
+    {
+        UserId = dto.UserId,
+        Title = dto.Title ?? template?.Subject ?? "Powiadomienie",
+        Message = dto.Message ?? template?.Body ?? "",
+        Status = NotificationStatus.Pending,
+        RelatedAppointmentId = dto.RelatedAppointmentId
+    };
+
+    // Proces wstrzykiwania dynamicznych danych (placeholders) do treści
+    if (dto.Placeholders != null)
+    {
+        foreach (var placeholder in dto.Placeholders)
+        {
+            notification.Title = notification.Title.Replace($"{{{{{placeholder.Key}}}}}", placeholder.Value);
+            notification.Message = notification.Message.Replace($"{{{{{placeholder.Key}}}}}", placeholder.Value);
+        }
+    }
+
+    _context.Notifications.Add(notification);
+    await _context.SaveChangesAsync();
+
+    // Przekazanie do asynchronicznego nadajnika (np. integracja z SMTP/SMS Gateway)
+    await _notificationSender.SendNotificationAsync(notification);
+
+    return CreatedAtAction(nameof(GetNotification), new { id = notification.Id }, notification);
+}
 \end{lstlisting}
 
-\subsection{System opinii i ocen (\textit{Reviews})}
-Po zrealizowanej usłudze, system pozwala na wystawienie oceny konkretnemu oddziałowi firmy. Moduł ten został zaimplementowany z uwzględnieniem agregacji danych – każda nowa opinia wpływa na średnią ocenę widoczną w wyszukiwarce. Zastosowanie osobnej tabeli dla recenzji pozwala na budowanie zaufania między klientami a usługodawcami.
-
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
-
-\end{lstlisting}
 \subsection{Dziennik audytowy i śledzenie zmian (\textit{Audit Log})}
-W trosce o integralność danych, szczególnie w kontekście zarządzania pracownikami i rezerwacjami, wdrożono mechanizm audytu. Każda istotna zmiana stanu systemu (np. zmiana roli pracownika, anulowanie wizyty) jest rejestrowana w dedykowanej tabeli wraz z informacją o autorze zmiany, adresie IP oraz sygnaturze czasowej. Zapewnia to pełną transparentność działań administratorów i menedżerów.
+Wszystkie operacje wykonywane przez użytkowników o podwyższonych uprawnieniach (Admin, Owner, Manager) są monitorowane przez system audytowy. Rejestrowane są nie tylko same akcje, ale również metadane, takie jak identyfikator sesji i adres IP. Dane te są kluczowe dla zachowania transparentności w modelu \textit{multi-tenancy}, gdzie wiele firm współdzieli zasoby systemowe.
 
-\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
 
+
+Dostęp do danych audytowych jest ściśle limitowany poprzez mechanizmy autoryzacji oparte na politykach (\textit{Policies}). Jak przedstawiono w kontrolerze \textit{CompanyAuditController}, system rygorystycznie weryfikuje przynależność użytkownika do danej firmy, uniemożliwiając wgląd w historię operacji innych organizacji.
+
+\begin{lstlisting}[language={[Sharp]C}, caption={Implementacja bezpiecznego dostępu do logów audytowych (CompanyAuditController.cs)}]
+[HttpGet("company/{companyId}")]
+[Authorize(Policy = "CompanyOwnerOrAdmin")]
+public async Task<IActionResult> GetCompanyAudit(int companyId, [FromQuery] int take = 200)
+{
+    // Weryfikacja uprawnien w modelu multi-tenancy
+    if (!User.IsInRole("Admin"))
+    {
+        var claimCompanyId = User.FindFirst("CompanyId")?.Value;
+        if (!string.Equals(claimCompanyId, companyId.ToString(), StringComparison.Ordinal))
+        {
+            // Proba dostepu do danych innej firmy zostaje zablokowana
+            return Forbid();
+        }
+    }
+
+    // Pobranie danych przez dedykowany serwis audytowy
+    var logs = await _audit.GetCompanyAuditAsync(companyId, take);
+    return Ok(logs);
+}
 \end{lstlisting}

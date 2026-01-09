@@ -4,6 +4,7 @@
 
 \subsection{Architektura wysokopoziomowa}
 Projekt został zrealizowany w modelu mikroserwisowym, co pozwala na pełną izolację odpowiedzialności za poszczególne obszary biznesowe systemu rezerwacji. Całość komunikacji zewnętrznej opiera się na protokole HTTPS i jest zarządzana przez centralny punkt dostępowy, który dba o bezpieczeństwo i odpowiednie przekierowanie ruchu do usług wewnętrznych.
+
 \usetikzlibrary{shapes.geometric, arrows, positioning, shadows}
 
 % Definicja stylów bloków
@@ -14,10 +15,10 @@ Projekt został zrealizowany w modelu mikroserwisowym, co pozwala na pełną izo
 \tikzstyle{rabbitmq} = [ellipse, minimum width=2.5cm, minimum height=1cm, text centered, draw=black, fill=red!10, shadow]
 \tikzstyle{arrow} = [thick,->,>=stealth]
 \tikzstyle{line} = [thick,-]
+
 \begin{figure}[H]
     \centering
     \begin{tikzpicture}[node distance=2cm]
-
         % Warstwa Klienta
         \node (react) [client] {React Frontend (SPA)};
 
@@ -37,69 +38,80 @@ Projekt został zrealizowany w modelu mikroserwisowym, co pozwala na pełną izo
         % RabbitMQ
         \node (mq) [rabbitmq, below=of db2, yshift=0.5cm] {RabbitMQ (Broker)};
 
-        % Połączenia Klient -> Gateway
+        % Polaczenia
         \draw [arrow] (react) -- (gateway);
-
-        % Połączenia Gateway -> Serwisy
         \draw [arrow] (gateway) -| (identity);
         \draw [arrow] (gateway) -- (reservation);
         \draw [arrow] (gateway) -| (notification);
-
-        % Połączenia Serwis -> Baza
         \draw [arrow] (identity) -- (db1);
         \draw [arrow] (reservation) -- (db2);
         \draw [arrow] (notification) -- (db3);
 
-        % Komunikacja asynchroniczna (RabbitMQ)
+        % Komunikacja asynchroniczna
         \draw [line, dashed, red] (identity.west) -- ++(-1,0) |- (mq.west) node[pos=0.2, left] {Events};
         \draw [line, dashed, red] (reservation.east) -- ++(1,0) |- (mq.east);
         \draw [line, dashed, red] (mq.north) -- (notification.south);
-
     \end{tikzpicture}
     \caption{Architektura mikroserwisowa systemu rezerwacji}
     \label{fig:architektura}
 \end{figure}
 
 Główne komponenty systemu obejmują:
+\begin{itemize}
+    \item \textbf{React Frontend (SPA):} Warstwa prezentacji odpowiedzialna za interakcję z użytkownikiem \cite{react_meta}.
+    \item \textbf{API Gateway (Port 5000):} Brama sieciowa zarządzająca przepływem żądań do odpowiednich usług \cite{ocelot_docs}.
+    \item \textbf{Identity Service (Port 5001):} Serwis odpowiedzialny za autentykację i zarządzanie profilami \cite{dotnet_microsoft}.
+    \item \textbf{Reservation Service (Port 5002):} Moduł zarządzający firmami, pracownikami oraz procesem planowania wizyt.
+    \item \textbf{Notification Service (Port 5003):} Usługa zajmująca się asynchroniczną wysyłką powiadomień.
+    \item \textbf{RabbitMQ:} Broker komunikatów umożliwiający asynchroniczną wymianę zdarzeń \cite{rabbitmq_docs}.
+    \item \textbf{Bazy Danych (PostgreSQL):} Trzy odizolowane bazy danych zapewniające separację stanów \cite{postgresql_docs}.
+\end{itemize}
 
+\subsection{Wzorce architektoniczne i projektowe}
+W procesie projektowania systemu wykorzystano wzorce zapewniające wysoką jakość oprogramowania i niezależność komponentów.
 
-React Frontend (SPA): Warstwa prezentacji odpowiedzialna za interakcję z użytkownikiem.
+\subsubsection{API Gateway (Ocelot)}
+Zastosowano wzorzec bramy API \cite{ocelot_docs}, która stanowi jedyny punkt wejścia dla aplikacji frontendowej. Brama odpowiada za:
+\begin{itemize}
+    \item \textbf{Routing:} Przekierowywanie żądań HTTP do mikroserwisów na podstawie ścieżki adresu.
+    \item \textbf{Zarządzanie ruchem (Rate Limiting):} Ograniczenie liczby żądań (100 req/min) w celu ochrony przed przeciążeniem.
+    \item \textbf{Obsługa awarii (Circuit Breaker):} Wykorzystanie biblioteki \textit{Polly} do automatycznego odcinania ruchu do serwisów ulegających awarii.
+    \item \textbf{JWT Validation:} Centralna weryfikacja poprawności tokenów \cite{jwt_rfc} przed przekazaniem żądania dalej.
+\end{itemize}
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=1\textwidth]{Flow.pdf}
+    \caption{Architektura komunikacji międzyusługowej (Inter-Service Communication)}
+    \label{fig:interservice_comm}
+\end{figure}
 
-API Gateway (Port 5000): Brama sieciowa zarządzająca przepływem żądań do odpowiednich usług.
+\subsubsection{CQRS (Command Query Responsibility Segregation)}
+Wewnątrz mikroserwisów rozdzielono operacje modyfikujące dane od operacji odczytu:
+\begin{itemize}
+    \item \textbf{Commands:} Operacje zmieniające stan bazy danych (np. \textit{CreateAppointment}).
+    \item \textbf{Queries:} Operacje pobierające dane, zoptymalizowane pod kątem szybkości wyświetlania (np. \textit{GetAvailableSlots}).
+\end{itemize}
 
+\subsubsection{Architektura sterowana zdarzeniami (Event-Driven Architecture)}
+Komunikacja między mikroserwisami odbywa się asynchronicznie za pomocą zdarzeń (\textit{Events}) przesyłanych przez RabbitMQ \cite{rabbitmq_docs}. Przykładowo, \textit{ReservationService} publikuje komunikat po zapisie rezerwacji, który jest konsumowany przez \textit{NotificationService} w celu wysyłki powiadomienia e-mail.
 
-Identity Service (Port 5001): Serwis odpowiedzialny za autentykację, autoryzację oraz zarządzanie profilami użytkowników.
+\subsubsection{Wzorzec Repozytorium (Repository Pattern)}
+Zastosowano warstwę abstrakcji między logiką biznesową a bazą danych PostgreSQL. Repozytoria ukrywają szczegóły implementacyjne \textit{Entity Framework Core} \cite{ef_core_testing}, co pozwala na łatwą zmianę dostawcy danych bez modyfikacji reguł biznesowych.
 
+\subsubsection{Logiczny model powiązań danych}
 
+W architekturze mikroserwisowej, mimo fizycznej separacji baz danych (PostgreSQL), konieczne jest zachowanie logicznej spójności relacji między obszarami biznesowymi. Na rysunku \ref{fig:logic_view} przedstawiono schemat powiązań, który definiuje sposób identyfikacji obiektów w rozproszonym środowisku.
 
-Reservation Service (Port 5002): Centralny moduł zarządzający zasobami (firmy, pracownicy) oraz procesem planowania wizyt.
+\begin{figure}[H] % Wielkie H wymusza pozycję "dokładnie tutaj"
+    \centering
+    \includegraphics[width=0.85\textwidth]{LogicView.pdf}
+    \caption{Logiczny model relacji między encjami mikroserwisów Identity, Reservation i Notification.}
+    \label{fig:logic_view}
+\end{figure}
 
-
-Notification Service (Port 5003): Usługa zajmująca się obsługą powiadomień i komunikacji z klientami.
-
-
-RabbitMQ: Broker komunikatów umożliwiający asynchroniczną wymianę zdarzeń (Events) pomiędzy serwisami.
-
-
-
-Bazy Danych (PostgreSQL): Trzy odizolowane bazy danych zapewniające separację stanów poszczególnych mikroserwisów.
-
-\subsection{Wzorce architektoniczne}
-.2. Wzorce architektoniczne i projektowe
-W procesie projektowania i implementacji systemu wykorzystano uznane wzorce architektoniczne, które zapewniają wysoką jakość oprogramowania, łatwość testowania oraz niezależność od zewnętrznych bibliotek i narzędzi.
-
-1. Architektura Mikroserwisowa (Microservices)
-System został podzielony na niezależne jednostki: \textit{IdentityService}, \textit{ReservationService} oraz \textit{NotificationService}. Każda z nich działa w osobnym procesie (kontenerze) i posiada własną bazę danych. Pozwala to na: \begin{itemize} \item \textbf{Izolację błędów:} Awaria serwisu powiadomień nie przerywa pracy serwisu rezerwacji. \item \textbf{Niezależne skalowanie:} Możliwość zwiększenia zasobów tylko dla najbardziej obciążonego modułu (np. rezerwacji). \end{itemize}
-
-2. API Gateway (Ocelot)
-Zastosowano wzorzec bramy API, która stanowi jedyny punkt wejścia dla aplikacji frontendowej. Brama (port 5000) odpowiada za: \begin{itemize} \item \textbf{Routing:} Przekierowywanie żądań HTTP do odpowiednich mikroserwisów na podstawie ścieżki adresu. \item \textbf{Agregację:} Uproszczenie komunikacji po stronie klienta, który nie musi znać adresów IP i portów poszczególnych serwisów. \end{itemize}
-
-3. CQRS (Command Query Responsibility Segregation)
-Wewnątrz mikroserwisów zastosowano wzorzec CQRS, rozdzielający operacje modyfikujące dane od operacji ich odczytu. \begin{itemize} \item \textbf{Commands:} Operacje takie jak \textit{CreateAppointment} (utworzenie rezerwacji), które zmieniają stan bazy danych. \item \textbf{Queries:} Operacje pobierające dane, np. \textit{GetAvailableSlots} (pobranie wolnych terminów), zoptymalizowane pod kątem szybkości wyświetlania w interfejsie użytkownika. \end{itemize}
-
-4. Architektura sterowana zdarzeniami (Event-Driven Architecture)
-Do komunikacji między mikroserwisami wykorzystano broker komunikatów \textbf{RabbitMQ}. Serwisy komunikują się asynchronicznie za pomocą zdarzeń (\textit{Events}). \textit{Przykład:} Po pomyślnym zapisaniu rezerwacji w \textit{ReservationService}, wysyłany jest komunikat do kolejki. \textit{NotificationService} odbiera go i inicjuje wysyłkę e-maila do klienta, nie blokując przy tym działania głównego serwisu rezerwacji.
-
-5. Wzorzec Repozytorium (Repository Pattern)
-Zastosowano warstwę abstrakcji między logiką biznesową a systemem bazodanowym PostgreSQL. Repozytoria (np. \textit{IAppointmentRepository}) ukrywają szczegóły implementacyjne \textit{Entity Framework Core}, co pozwala na łatwą zmianę sposobu przechowywania danych w przyszłości bez modyfikacji reguł biznesowych systemu.
+Model ten strukturyzuje przepływ informacji w dwóch kluczowych obszarach:
+\begin{itemize}
+    \item \textbf{Relacje użytkownika i procesów (Oś górna):} Identyfikator \textit{ApplicationUser Id} z serwisu tożsamości stanowi klucz logiczny dla rezerwacji (\textit{Appointment}), pełniąc rolę klienta (\textit{CustomerId}) lub pracownika (\textit{StaffId}). Zdarzenie utworzenia rezerwacji inicjuje proces w module powiadomień, gdzie encja \textit{Notification} odwołuje się do konkretnej wizyty poprzez \textit{RelatedAppointmentId}.
+    \item \textbf{Struktura biznesowa i uprawnienia (Oś dolna):} Centralna encja \textit{Company} definiuje kontekst dla oddziałów (\textit{Branch}) oraz przypisuje użytkownikom konkretne uprawnienia w ramach organizacji (\textit{UserCompanyRole}). Taka konstrukcja zapewnia izolację danych w modelu \textit{multi-tenancy} – użytkownik ma dostęp tylko do tych zasobów, które są powiązane z jego identyfikatorem firmy (\textit{CompanyId}).
+\end{itemize}

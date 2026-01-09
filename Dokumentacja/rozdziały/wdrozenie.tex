@@ -1,66 +1,60 @@
 \newpage
 \renewcommand{\sectioncolor}{chap5}
-\section{Wdrożenie i DevOps}
+\section{Konteneryzacja i środowisko uruchomieniowe}
 
-\subsection{Konteneryzacja z Docker Compose}
-Cała architektura systemu (Frontend, Backend, Baza danych, Cache) jest zarządzana przy pomocy narzędzia \textbf{Docker Compose}. Podejście to zapewnia izolację procesów oraz spójność środowiska uruchomieniowego (dev/prod) \cite{docker}.
+W celu zapewnienia powtarzalności środowiska oraz uproszczenia procesu wdrażania, system został w pełni skonteneryzowany przy użyciu technologii \textbf{Docker} \cite{docker_docs}. Pozwala to na izolację poszczególnych mikroserwisów wraz z ich zależnościami w lekkich kontenerach, co eliminuje problem różnic między środowiskami programistycznymi a produkcyjnymi. Obrazy wynikowe są przechowywane i zarządzane w ramach rejestru \textit{GitHub Container Registry} \cite{ghcr_guide}.
 
-\begin{lstlisting}[language=bash, caption=Fragment pliku docker-compose.yml definiujący usługi]
-version: '3.8'
+\subsection{Konfiguracja wielokontenerowa (Docker Compose)}
+Do zarządzania całym ekosystemem usług wykorzystano narzędzie \textbf{Docker Compose}. Pozwala ono na zdefiniowanie wszystkich komponentów systemu (mikroserwisy, bazy danych, brokerzy komunikatów) w jednym pliku konfiguracyjnym \texttt{docker-compose.yml} oraz ich jednoczesne uruchomienie przy pomocy jednej komendy.
 
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: budgetapp_db
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-      
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-      
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8080:80"
-    depends_on:
-      - postgres
-      - redis
-      
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-
-volumes:
-  postgres_data:
+\begin{lstlisting}[language=bash, caption={Uruchomienie całego stosu technologicznego systemu}]
+# Budowa obrazów i uruchomienie kontenerów w tle
+docker-compose up --build -d
 \end{lstlisting}
 
-\subsection{Pipeline CI/CD (GitHub Actions)}
-Proces integracji i wdrażania (CI/CD) został w pełni zautomatyzowany z wykorzystaniem \textbf{GitHub Actions} \cite{ghactions}. Workflow uruchamiany jest przy każdym wypchnięciu zmian na gałąź \texttt{main} i obejmuje następujące kroki:
-\begin{enumerate}[leftmargin=*]
-    \item Uruchomienie testów jednostkowych (xUnit, Jest) i integracyjnych.
-    \item Budowanie obrazów kontenerów Docker.
-    \item Skanowanie pod kątem podatności bezpieczeństwa.
-    \item Publikacja obrazów do prywatnego rejestru (GitHub Container Registry).
-    \item Automatyczny deployment na środowisko produkcyjne (strategia \textit{rolling update}).
-\end{enumerate}
+\subsection{Charakterystyka zdefiniowanych usług}
+Zgodnie z architekturą systemu, w pliku konfiguracyjnym zdefiniowano następujące grupy usług:
 
-\subsection{Monitoring i logi}
-W celu zapewnienia obserwowalności systemu (observability), aplikacja integruje nowoczesne narzędzia monitoringu:
 \begin{itemize}
-    \item \textbf{Backend:} Wykorzystanie biblioteki \textbf{Serilog} \cite{serilog} do strukturalnego logowania zdarzeń (structured logging).
-    \item \textbf{Frontend:} Integracja z platformą \textbf{Sentry} \cite{sentry} do śledzenia błędów i wydajności aplikacji w czasie rzeczywistym po stronie klienta.
+    \item \textbf{Infrastruktura danych (PostgreSQL):} Wykorzystano obraz \textit{postgres:15-alpine} \cite{postgresql_docs}. Kontener został skonfigurowany tak, aby przy starcie automatycznie tworzył trzy odrębne bazy danych (\texttt{identitydb}, \texttt{reservationdb}, \texttt{notificationdb}) za pomocą skryptu inicjalizacyjnego. Trwałość danych zapewniono poprzez wolumeny (\textit{Volumes}).
+    \item \textbf{Broker komunikatów (RabbitMQ):} Zastosowano obraz z panelem zarządzania (\textit{management-alpine}) \cite{rabbitmq_docs}, co pozwala na monitorowanie kolejek zdarzeń w czasie rzeczywistym na porcie 15672.
+    \item \textbf{Warstwa mikroserwisów (.NET):} Serwisy \textit{Identity}, \textit{Reservation} oraz \textit{Notification} są budowane z lokalnych plików \texttt{Dockerfile} w oparciu o SDK .NET 8 \cite{dotnet_microsoft}. 
+    \item \textbf{API Gateway (Ocelot):} Wykorzystano bibliotekę Ocelot \cite{ocelot_docs}, która pełni rolę centralnego punktu wejścia, mapując zewnętrzny port 5000 na wewnętrzną infrastrukturę kontenerów.
+    \item \textbf{Narzędzia pomocnicze (MailHog):} Kontener służący do przechwytywania i testowania wiadomości e-mail w środowisku deweloperskim, co pozwala na bezpieczną weryfikację systemu powiadomień bez wysyłki realnych wiadomości.
 \end{itemize}
+
+[Image of Docker Compose architecture for microservices showing PostgreSQL, RabbitMQ, and .NET containers connected via a bridge network]
+
+\subsection{Zarządzanie zależnościami i Healthchecks}
+W konfiguracji zastosowano mechanizm \textbf{Healthcheck}, który monitoruje stan gotowości usług krytycznych. Mikroserwisy posiadają instrukcję \texttt{depends\_on} z warunkiem \texttt{service\_healthy}, co gwarantuje, że aplikacja .NET spróbuje nawiązać połączenie z bazą dopiero wtedy, gdy silnik bazy danych przejdzie pomyślnie test gotowości.
+
+\begin{lstlisting}[language=yaml, caption={Fragment konfiguracji Docker Compose obsługujący zależności}]
+reservation_api:
+  build:
+    context: ./ReservationService
+  depends_on:
+    postgres_db:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+\end{lstlisting}
+
+\subsection{Izolacja sieciowa}
+Wszystkie kontenery działają w ramach dedykowanej sieci wirtualnej typu \textit{bridge}. Pozwala to na komunikację między serwisami przy użyciu nazw ich usług (np. \texttt{Host=postgres\_db}) zamiast zmiennych adresów IP. Takie rozwiązanie zapewnia bezpieczną izolację — bazy danych nie są wystawione na świat zewnętrzny, a dostęp do nich mają wyłącznie autoryzowane mikroserwisy wewnątrz sieci Docker.
+
+\subsection{Automatyzacja zarządzania systemem (Skrypty Manage)}
+W celu maksymalnego uproszczenia pracy z systemem, przygotowano dedykowane skrypty zarządcze: \texttt{manage.bat} (dla systemu Windows) oraz \texttt{manage.sh} (dla systemów Unix). Stanowią one warstwę abstrakcji nad surowymi komendami silnika Docker oraz narzędzia Vite \cite{vite_guide}.
+
+\begin{lstlisting}[language=bash, caption={Uruchomienie kompletnego środowiska za pomocą skryptu zarządczego}]
+# Uruchomienie backendu w kontenerach oraz frontendu React
+manage.bat all
+\end{lstlisting}
+
+Wykorzystanie powyższego skryptu wykonuje sekwencyjnie następujące zadania:
+\begin{itemize}
+    \item \textbf{Weryfikacja środowiska:} Sprawdzenie dostępności niezbędnych narzędzi (Docker, Node.js).
+    \item \textbf{Orkiestracja kontenerów:} Wywołanie \texttt{docker-compose} w celu zbudowania i uruchomienia infrastruktury.
+    \item \textbf{Uruchomienie warstwy prezentacji:} Automatyczny start serwera deweloperskiego Vite \cite{vite_guide} dla aplikacji frontendowej.
+\end{itemize}
+
+Dzięki tej automatyzacji proces wdrożenia i testowania (w tym skanowanie podatności obrazów narzędziem Trivy \cite{trivy_security}) został zintegrowany z procesem ciągłej integracji w GitHub Actions \cite{github_actions_docs}.

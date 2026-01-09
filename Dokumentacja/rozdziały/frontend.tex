@@ -2,7 +2,7 @@
 \renewcommand{\sectioncolor}{chap4}
 \section{Warstwa prezentacji – Implementacja funkcjonalności Frontend (React)}
 
-Warstwa kliencka systemu została zbudowana przy użyciu biblioteki \textbf{React 19}. Poniżej opisano technologiczną realizację kluczowych modułów oraz funkcjonalności interfejsu użytkownika, skupiając się na logice biznesowej i integracji z mikroserwisami.
+Warstwa kliencka systemu została zbudowana przy użyciu biblioteki \textbf{React 19} \cite{react_meta}. Do budowy i optymalizacji projektu wykorzystano narzędzie Vite \cite{vite_guide}. Poniżej opisano technologiczną realizację kluczowych modułów oraz funkcjonalności interfejsu użytkownika, skupiając się na logice biznesowej i integracji z mikroserwisami za pomocą biblioteki Axios \cite{axios_docs}.
 
 \subsection{Moduł Użytkownika – Proces rejestracji i rezerwacji}
 Interfejs klienta został zaprojektowany z myślą o prostocie obsługi. Proces rejestracji obejmuje weryfikację adresu e-mail za pomocą cyfrowego kodu OTP, co zapewnia bezpieczeństwo tożsamości. Najważniejszym elementem jest formularz rezerwacji, który dynamicznie oblicza dostępność slotów czasowych na podstawie danych z serwisu rezerwacji.
@@ -30,7 +30,7 @@ const filteredAvailableSlots = useMemo(() => {
 \end{lstlisting}
 
 \subsection{Zarządzanie profilem i Dashboard klienta}
-Użytkownik po zalogowaniu ma dostęp do pulpitu (\textit{Dashboard}), który agreguje informacje o nadchodzących wizytach. System umożliwia również zarządzanie danymi profilowymi, wykorzystując zaawansowane funkcje normalizacji danych wejściowych, co gwarantuje spójność bazy danych.
+Użytkownik po zalogowaniu ma dostęp do pulpitu (\textit{Dashboard}), który agreguje informacje o nadchodzących wizytach. System umożliwia również zarządzanie danymi profilowymi, wykorzystując zaawansowane funkcje normalizacji danych wejściowych, co gwarantuje spójność bazy danych. Testowanie logiki komponentów frontendowych zrealizowano przy pomocy środowiska Vitest \cite{vitest_guide}.
 
 \begin{lstlisting}[language=JavaScript, caption={Normalizacja kodu pocztowego i formatowanie numeru telefonu (AccountPage.js)}]
 const normalizePostalCodeInput = (value) => {
@@ -52,7 +52,7 @@ const formatPhoneDisplay = (value) => {
 \end{lstlisting}
 
 \subsection{Moduł Firmowy – Zarządzanie uprawnieniami i kadrą}
-Panel administracyjny firmy dynamicznie dostosowuje zakres dostępnych funkcjonalności na podstawie roli użytkownika (RBAC – \textit{Role-Based Access Control}). Logika frontendu rozróżnia uprawnienia właściciela (\textit{Owner}), managera oraz pracownika.
+Panel administracyjny firmy dynamicznie dostosowuje zakres dostępnych funkcjonalności na podstawie roli użytkownika (RBAC – \textit{Role-Based Access Control}). Logika frontendu rozróżnia uprawnienia właściciela (\textit{Owner}), managera oraz pracownika, korzystając z informacji zaszyfrowanych w standardzie JSON Web Token \cite{jwt_rfc}.
 
 \begin{lstlisting}[language=JavaScript, caption={Logika weryfikacji uprawnień wewnątrz organizacji (CompanyPanel.js)}]
 const companyRole = tokenManager.getUser()?.companyRole;
@@ -76,7 +76,7 @@ const handleUpdateUserRole = async (userId, newRole) => {
 \end{lstlisting}
 
 \subsection{Zarządzanie harmonogramami i przerwami pracowników}
-Ważną funkcjonalnością jest wizualizacja czasu pracy. Użytkownik może definiować dni i godziny pracy oraz konfigurować przerwy (\textit{Staff Breaks}). Do obsługi wielodniowych harmonogramów wykorzystano komponent zarządzający kolekcją dni.
+Ważną funkcjonalnością jest wizualizacja czasu pracy. Użytkownik może definiować dni i godziny pracy oraz konfigurować przerwy (\textit{Staff Breaks}). Do obsługi powiadomień o zmianach w czasie rzeczywistym przewidziano integrację z technologią SignalR \cite{signalr_microsoft}.
 
 \begin{lstlisting}[language=JavaScript, caption={Obsługa komponentu wyboru dni tygodnia (CompanyPanel.js)}]
 const toggleDay = (day) => {
@@ -98,7 +98,7 @@ const handleCreateStaffBreak = async (e) => {
 \end{lstlisting}
 
 \subsection{Moduł Administracyjny i szablony powiadomień}
-Administratorzy systemowi zarządzają szablonami wiadomości, które wspierają dynamiczne wstrzykiwanie zmiennych. Pozwala to na personalizację powiadomień e-mail i SMS wysyłanych przez mikroserwis powiadomień.
+Administratorzy systemowi zarządzają szablonami wiadomości, które wspierają dynamiczne wstrzykiwanie zmiennych. Pozwala to na personalizację powiadomień e-mail i SMS wysyłanych przez mikroserwis powiadomień zintegrowany z systemem kolejek RabbitMQ \cite{rabbitmq_docs}.
 
 \begin{lstlisting}[language=JavaScript, caption={Mechanizm wstawiania tokenów do edytora szablonów (AdminPanel.js)}]
 const insertTemplateToken = (token) => {
@@ -116,7 +116,7 @@ const insertTemplateToken = (token) => {
 \end{lstlisting}
 
 \subsection{Integracja z geokodowaniem i mapami}
-W widoku szczegółów usługi zaimplementowano interaktywną mapę \textbf{OpenStreetMap}. System przelicza adres tekstowy na współrzędne geograficzne i wyświetla lokalizację salonu w komponencie \textit{iframe}, co znacząco poprawia użyteczność aplikacji.
+W widoku szczegółów usługi zaimplementowano interaktywną mapę \textbf{OpenStreetMap}. System przelicza adres tekstowy na współrzędne geograficzne i wyświetla lokalizację salonu, co znacząco poprawia użyteczność aplikacji. Całość procesu wdrażania frontendu jako kontenera została opisana w dokumentacji Docker \cite{docker_docs}.
 
 \begin{lstlisting}[language=JavaScript, caption={Geokodowanie adresu i generowanie widoku mapy (ServiceDetailsPage.js)}]
 useEffect(() => {

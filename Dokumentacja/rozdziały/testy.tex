@@ -1,0 +1,45 @@
+\newpage
+\renewcommand{\sectioncolor}{chap6}
+\section{Testowanie i proces CI/CD}
+
+Kluczowym elementem wytwarzania nowoczesnego oprogramowania jest zapewnienie jego jakości poprzez automatyzację procesów weryfikacyjnych. W niniejszym systemie zaimplementowano wielopoziomowe podejście do testowania oraz potok ciągłej integracji (ang. \textit{Continuous Integration}).
+
+\subsection{Testy automatyczne}
+System został objęty testami automatycznymi zarówno w warstwie serwerowej, jak i klienckiej, co pozwala na szybkie wykrywanie błędów regresji.
+
+\subsubsection{Testy warstwy backendowej (xUnit)}
+Dla mikroserwisów Identity, Reservation oraz Notification przygotowano dedykowane projekty testowe wykorzystujące framework \textbf{xUnit} \cite{xunit_doc}. Testy te skupiają się na weryfikacji logiki biznesowej, poprawności mapowania obiektów oraz działaniu punktów końcowych API.
+
+\begin{itemize}
+    \item \textbf{Walidacja domeny:} Sprawdzanie reguł biznesowych, np. zakazu rezerwacji terminów w przeszłości.
+    \item \textbf{Testy integracyjne:} Weryfikacja poprawnej komunikacji z bazą danych PostgreSQL przy użyciu biblioteki Entity Framework Core \cite{ef_core_testing}.
+\end{itemize}
+
+\subsubsection{Testy warstwy frontendowej (Vitest)}
+W części klienckiej zastosowano nowoczesny framework testowy \textbf{Vitest} \cite{vitest_guide}. Testy obejmują kluczowe komponenty interfejsu użytkownika oraz mechanizmy nawigacji.
+
+\begin{itemize}
+    \item \textbf{Weryfikacja komponentów:} Testowanie renderowania elementów interfejsu takich jak ikony i przyciski nawigacyjne.
+    \item \textbf{Logika autoryzacji:} Testowanie ochrony ścieżek (\textit{ProtectedRoute}), zapewniające, że nieautoryzowani użytkownicy nie mają dostępu do paneli administracyjnych.
+\end{itemize}
+
+\subsection{Potok CI/CD w środowisku GitHub Actions}
+Proces integracji i wdrażania został w pełni zautomatyzowany przy użyciu usługi \textbf{GitHub Actions} \cite{github_actions_docs}. Skonfigurowany potok (\textit{pipeline}) uruchamia się automatycznie przy każdym zdarzeniu \textit{push} lub \textit{pull request}.
+
+
+
+Proces CI obejmuje następujące etapy:
+\begin{enumerate}
+    \item \textbf{Przywracanie i budowa (Restore \& Build):} Automatyczne pobieranie zależności bibliotecznych oraz kompilacja kodu źródłowego mikroserwisów i aplikacji frontendowej.
+    \item \textbf{Uruchomienie testów:} Wykonanie wszystkich testów jednostkowych i integracyjnych. Niepowodzenie któregokolwiek z nich skutkuje przerwaniem procesu wdrażania.
+    \item \textbf{Skanowanie bezpieczeństwa (Security Scan):} Wykorzystanie narzędzia \textbf{Trivy} \cite{trivy_security} do analizy obrazów i kodu pod kątem znanych podatności (CVE).
+    \item \textbf{Budowa obrazów (Build Images):} Po pomyślnym przejściu testów, system buduje obrazy kontenerowe i publikuje je w rejestrze \textbf{GHCR} \cite{ghcr_guide}.
+\end{enumerate}
+
+\subsection{Weryfikacja integracyjna (Smoke Tests)}
+Poza testami jednostkowymi, wdrożono skrypty typu \textbf{Smoke Tests}. Ich zadaniem jest uruchomienie całego stosu technologicznego i sprawdzenie podstawowej drożności systemu, w tym:
+\begin{itemize}
+    \item Poprawności działania routingu w \textbf{API Gateway}.
+    \item Sprawdzenia dostępności (\textit{health check}) wszystkich punktów końcowych API mikroserwisów.
+    \item Symulacji kluczowych kroków procesu rezerwacji i autentykacji.
+\end{itemize}

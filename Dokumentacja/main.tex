@@ -28,6 +28,7 @@
 \definecolor{chap6}{RGB}{0,121,107}       % Morski - Wnioski
 \definecolor{chap6sub}{RGB}{0,150,136}    % Jasny morski
 
+
 % Kolory dla strony tytułowej
 \definecolor{titleblue}{RGB}{13,71,161}
 \definecolor{titlelightblue}{RGB}{25,118,210}
@@ -55,7 +56,7 @@
 \fancyhf{}
 \fancyhead[L]{\nouppercase{\leftmark}}
 \fancyhead[R]{\thepage}
-\fancyfoot[C]{\footnotesize Uniwersytet Rzeszowski \textbullet\ Projekt Inżynierski \textbullet\ 2024/2025}
+\fancyfoot[C]{\footnotesize Uniwersytet Rzeszowski \textbullet\ Projekt Inżynierski \textbullet\ 2025/2026}
 \renewcommand{\headrulewidth}{0.4pt}
 \renewcommand{\footrulewidth}{0.4pt}
 \setlength{\headheight}{18pt}
@@ -240,7 +241,7 @@
         \node at ([yshift=4.5cm]current page.south) {
             \begin{tikzpicture}
                 % Skok co 2.7 (0, 2.7, 5.4, 8.1, 10.8)
-                \foreach \tech/\x in {React/0, .NET/2.7, TypeScript/5.4, PostgreSQL/8.1, Docker/10.8} {
+                \foreach \tech/\x in {React/0, .NET/2.7, RabbitMQ/5.4, PostgreSQL/8.1, Docker/10.8} {
                     % Szerokość 2.5, wysokość 0.6
                     \fill[white,rounded corners=3pt] (\x,0) rectangle +(2.5,0.6);
                     % Środek tekstu: x + 1.25
@@ -269,12 +270,21 @@
     {\LARGE\bfseries\color{titleblue} Oświadczenie}
 \end{center}
 \vspace{2cm}
-\noindent Ja, niżej podpisany Jan Kowalski, student Instytutu Informatyki Uniwersytetu Rzeszowskiego, oświadczam, że niniejsza praca została wykonana przeze mnie samodzielnie i nie zawiera treści uzyskanych w sposób niezgodny z obowiązującymi przepisami.
+\noindent My, niżej podpisani:
 
-\vspace{1.5cm}
-\noindent Oświadczam również, że przedstawiona praca nie była wcześniej przedmiotem procedur związanych z uzyskaniem zaliczenia na tej lub innej uczelni.
+\begin{quote}
+    \textbf{Piotr Pająk} student Instytutu Informatyki \\
+    \textbf{Karol Ogonowski} student Instytutu Informatyki\\
+    \textbf{Dawid Sudoł} student Instytutu Informatyki\\
+    \textbf{Milena Pasterczyk} studentka Instytutu Informatyki\\
+\end{quote}
 
-\vspace{2.5cm}
+studenci Instytutu Informatyki Uniwersytetu Rzeszowskiego, oświadczamy, że niniejsza praca została wykonana przez nas samodzielnie i nie zawiera treści uzyskanych w sposób niezgodny z obowiązującymi przepisami.
+
+\vspace{1cm}
+\noindent Oświadczamy również, że przedstawiona praca nie była wcześniej przedmiotem procedur związanych z uzyskaniem zaliczenia na tej lub innej uczelni.
+
+\vspace{2cm}
 \noindent Rzeszów, \today
 
 \vspace{2cm}
@@ -288,14 +298,14 @@
 \section*{Streszczenie}
 \addcontentsline{toc}{section}{Streszczenie}
 
-Niniejsza dokumentacja przedstawia aplikację webową do zarządzania budżetem osobistym, która umożliwia użytkownikom śledzenie dochodów i wydatków, kategoryzowanie transakcji, tworzenie miesięcznych budżetów oraz analizę nawyków finansowych w czasie rzeczywistym.
+Niniejsza praca opisuje proces projektowania i implementacji nowoczesnego systemu webowego do kompleksowego zarządzania rezerwacjami oraz strukturą biznesową przedsiębiorstwa. Aplikacja umożliwia użytkownikom dynamiczne planowanie wizyt, weryfikację dostępności terminów w czasie rzeczywistym oraz personalizację powiadomień, dostarczając jednocześnie zaawansowane narzędzia administracyjne do zarządzania kadrą i harmonogramami pracy.
 
-Projekt został zrealizowany w architekturze klient-serwer z wykorzystaniem technologii .NET 8 na backendzie oraz React 18 z TypeScript na frontendzie. Aplikacja korzysta z bazy danych PostgreSQL 15, Redis do cachowania oraz jest w pełni skonteneryzowana (Docker + Docker Compose). Wdrożenie jest w pełni zautomatyzowane za pomocą pipeline'u CI/CD w GitHub Actions.
+System został zrealizowany w architekturze mikroserwisowej z wykorzystaniem platformy .NET 8 na backendzie oraz biblioteki React 19 na frontendzie. Warstwa danych opiera się na relacyjnej bazie PostgreSQL 15, a komunikacja asynchroniczna między usługami realizowana jest poprzez brokera komunikatów RabbitMQ. W projekcie wykorzystano technologię SignalR Hub do powiadomień real-time oraz standard JWT dla zapewnienia bezstanowego bezpieczeństwa i autoryzacji opartej na rolach (RBAC).
 
-Dokumentacja zawiera szczegółowy opis architektury (zgodnej z zasadami Clean Architecture), modelu danych, implementacji kluczowych funkcjonalności, dokumentacji REST API, przeprowadzonych testów jednostkowych i end-to-end oraz zastosowanych praktyk DevOps i mechanizmów bezpieczeństwa.
+Całość rozwiązania została w pełni skonteneryzowana przy użyciu narzędzi Docker i Docker Compose, co gwarantuje izolację usług i powtarzalność środowiska. Dokumentacja szczegółowo omawia architekturę systemu, mechanizmy normalizacji danych poprawiające komfort użytkownika (UX) oraz proces automatyzacji wdrożeń realizowany poprzez pipeline CI/CD w środowisku GitHub Actions.
 
 \vspace{1cm}
-\noindent\textbf{Słowa kluczowe:} finanse osobiste, budżet domowy, React, .NET 8, TypeScript, PostgreSQL, Docker, Clean Architecture, CQRS, JWT, Redis.
+\noindent\textbf{Słowa kluczowe:} system rezerwacji, mikroserwisy, React 19, .NET 8, PostgreSQL, RabbitMQ, SignalR, Docker, JWT, Ocelot.
 
 % === SPISY ===
 \newpage
@@ -316,9 +326,11 @@ Dokumentacja zawiera szczegółowy opis architektury (zgodnej z zasadami Clean A
 
 \include{rozdziały/wprowadzenie}
 \include{rozdziały/architektura}
+\include{rozdziały/database}
 \include{rozdziały/implementacja}
 \include{rozdziały/frontend}
 \include{rozdziały/wdrozenie}
+\include{rozdziały/testy}
 \include{rozdziały/wnioski}
 
 

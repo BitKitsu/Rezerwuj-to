@@ -1,0 +1,135 @@
+\newpage
+\renewcommand{\sectioncolor}{chap4}
+\section{Warstwa prezentacji – Implementacja funkcjonalności Frontend (React)}
+
+Warstwa kliencka systemu została zbudowana przy użyciu biblioteki \textbf{React 19}. Poniżej opisano technologiczną realizację kluczowych modułów oraz funkcjonalności interfejsu użytkownika, skupiając się na logice biznesowej i integracji z mikroserwisami.
+
+\subsection{Moduł Użytkownika – Proces rejestracji i rezerwacji}
+Interfejs klienta został zaprojektowany z myślą o prostocie obsługi. Proces rejestracji obejmuje weryfikację adresu e-mail za pomocą cyfrowego kodu OTP, co zapewnia bezpieczeństwo tożsamości. Najważniejszym elementem jest formularz rezerwacji, który dynamicznie oblicza dostępność slotów czasowych na podstawie danych z serwisu rezerwacji.
+
+\begin{lstlisting}[language=JavaScript, caption={Walidacja danych kontaktowych oraz filtrowanie slotów (BookingPage.js)}]
+const validateContact = (next) => {
+  const email = String(next.customerEmail || "").trim();
+  const phone = sanitizePhoneNumberInput(next.customerPhone);
+
+  const emailOk = !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const phoneOk = !phone || /^\+\d{8,15}$/.test(phone);
+
+  return {
+    customerEmail: emailOk ? "" : "booking.invalidEmail",
+    customerPhone: phoneOk ? "" : "booking.invalidPhone"
+  };
+};
+
+const filteredAvailableSlots = useMemo(() => {
+  if (!form.date || !form.staffId) return [];
+  return availableSlots.filter((s) => 
+    String(s.staffId || "") === String(form.staffId)
+  );
+}, [availableSlots, form.date, form.staffId]);
+\end{lstlisting}
+
+\subsection{Zarządzanie profilem i Dashboard klienta}
+Użytkownik po zalogowaniu ma dostęp do pulpitu (\textit{Dashboard}), który agreguje informacje o nadchodzących wizytach. System umożliwia również zarządzanie danymi profilowymi, wykorzystując zaawansowane funkcje normalizacji danych wejściowych, co gwarantuje spójność bazy danych.
+
+\begin{lstlisting}[language=JavaScript, caption={Normalizacja kodu pocztowego i formatowanie numeru telefonu (AccountPage.js)}]
+const normalizePostalCodeInput = (value) => {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 5);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+};
+
+const formatPhoneDisplay = (value) => {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '').slice(0, 12);
+  if (!digits) return raw.startsWith('+') ? '+' : '';
+  
+  const country = digits.slice(0, 3);
+  const rest = digits.slice(3);
+  const groups = rest.match(/.{1,3}/g) || [];
+  return `+${country} ${groups.join('-')}`;
+};
+\end{lstlisting}
+
+\subsection{Moduł Firmowy – Zarządzanie uprawnieniami i kadrą}
+Panel administracyjny firmy dynamicznie dostosowuje zakres dostępnych funkcjonalności na podstawie roli użytkownika (RBAC – \textit{Role-Based Access Control}). Logika frontendu rozróżnia uprawnienia właściciela (\textit{Owner}), managera oraz pracownika.
+
+\begin{lstlisting}[language=JavaScript, caption={Logika weryfikacji uprawnień wewnątrz organizacji (CompanyPanel.js)}]
+const companyRole = tokenManager.getUser()?.companyRole;
+const userRoles = tokenManager.getUser()?.roles || [];
+const isAdmin = userRoles.includes("Admin");
+const isOwner = companyRole === "Owner";
+const isManager = companyRole === "Manager";
+
+// Definicja dostępu do akcji krytycznych
+const canManageEmployees = isAdmin || isOwner || isManager;
+const canEditCompany = isAdmin || isOwner;
+
+const handleUpdateUserRole = async (userId, newRole) => {
+  try {
+    await companyUsersAPI.updateUserRole(userId, newRole);
+    await loadEmployees();
+  } catch (err) {
+    console.error("Failed to update role", err);
+  }
+};
+\end{lstlisting}
+
+\subsection{Zarządzanie harmonogramami i przerwami pracowników}
+Ważną funkcjonalnością jest wizualizacja czasu pracy. Użytkownik może definiować dni i godziny pracy oraz konfigurować przerwy (\textit{Staff Breaks}). Do obsługi wielodniowych harmonogramów wykorzystano komponent zarządzający kolekcją dni.
+
+\begin{lstlisting}[language=JavaScript, caption={Obsługa komponentu wyboru dni tygodnia (CompanyPanel.js)}]
+const toggleDay = (day) => {
+  const d = Number(day);
+  const current = normalizeDays(normalizedValue);
+  const next = current.includes(d) 
+    ? current.filter((x) => x !== d) 
+    : [...current, d];
+  onChange(normalizeDays(next));
+};
+
+const handleCreateStaffBreak = async (e) => {
+  e.preventDefault();
+  const daysToCreate = normalizeDays(staffBreakFilters.dayOfWeek);
+  await Promise.all(
+    daysToCreate.map((d) => staffBreaksAPI.create({ ...payload, dayOfWeek: d }))
+  );
+};
+\end{lstlisting}
+
+\subsection{Moduł Administracyjny i szablony powiadomień}
+Administratorzy systemowi zarządzają szablonami wiadomości, które wspierają dynamiczne wstrzykiwanie zmiennych. Pozwala to na personalizację powiadomień e-mail i SMS wysyłanych przez mikroserwis powiadomień.
+
+\begin{lstlisting}[language=JavaScript, caption={Mechanizm wstawiania tokenów do edytora szablonów (AdminPanel.js)}]
+const insertTemplateToken = (token) => {
+  const field = activeTemplateField === "subject" ? "subject" : "body";
+  const el = field === "subject" ? subjectRef.current : bodyRef.current;
+  const currentValue = String(editingTemplate?.[field] ?? "");
+
+  if (el && typeof el.selectionStart === "number") {
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const next = `${currentValue.slice(0, start)}${token}${currentValue.slice(end)}`;
+    handleTemplateFormChange(field, next);
+  }
+};
+\end{lstlisting}
+
+\subsection{Integracja z geokodowaniem i mapami}
+W widoku szczegółów usługi zaimplementowano interaktywną mapę \textbf{OpenStreetMap}. System przelicza adres tekstowy na współrzędne geograficzne i wyświetla lokalizację salonu w komponencie \textit{iframe}, co znacząco poprawia użyteczność aplikacji.
+
+\begin{lstlisting}[language=JavaScript, caption={Geokodowanie adresu i generowanie widoku mapy (ServiceDetailsPage.js)}]
+useEffect(() => {
+  const geocode = async () => {
+    try {
+      const res = await geocodeAPI.geocode(osmQuery);
+      if (res.data?.found) {
+        setMapCoords({ lat: res.data.lat, lon: res.data.lon });
+      }
+    } catch (err) {
+      setMapCoords(null);
+    }
+  };
+  if (osmQuery) geocode();
+}, [osmQuery]);
+\end{lstlisting}

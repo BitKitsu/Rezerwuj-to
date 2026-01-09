@@ -1,0 +1,336 @@
+
+\documentclass[a4paper,12pt]{article}
+
+% === PODSTAWOWE USTAWIENIA ===
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{geometry}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\geometry{top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm}
+\usepackage{cite}
+
+% === KOLORY ===
+\usepackage[dvipsnames,table]{xcolor}
+
+% Definicje kolorów dla poszczególnych rozdziałów
+\definecolor{chap1}{RGB}{25,118,210}      % Niebieski - Wprowadzenie
+\definecolor{chap1sub}{RGB}{33,150,243}   % Jasny niebieski
+\definecolor{chap2}{RGB}{56,142,60}       % Zielony - Architektura
+\definecolor{chap2sub}{RGB}{76,175,80}    % Jasny zielony
+\definecolor{chap3}{RGB}{245,124,0}       % Pomarańczowy - Implementacja
+\definecolor{chap3sub}{RGB}{255,152,0}    % Jasny pomarańczowy
+\definecolor{chap4}{RGB}{123,31,162}      % Fioletowy - Frontend
+\definecolor{chap4sub}{RGB}{156,39,176}   % Jasny fioletowy
+\definecolor{chap5}{RGB}{198,40,40}       % Czerwony - Wdrożenie
+\definecolor{chap5sub}{RGB}{229,57,53}    % Jasny czerwony
+\definecolor{chap6}{RGB}{0,121,107}       % Morski - Wnioski
+\definecolor{chap6sub}{RGB}{0,150,136}    % Jasny morski
+
+% Kolory dla strony tytułowej
+\definecolor{titleblue}{RGB}{13,71,161}
+\definecolor{titlelightblue}{RGB}{25,118,210}
+\definecolor{accentorange}{RGB}{255,111,0}
+
+% Kolor dla kodu
+\definecolor{codegray}{RGB}{245,245,245}
+\definecolor{codeframe}{RGB}{200,200,200}
+
+% === CZCIONKI I MIKROTYPOGRAFIA ===
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{inconsolata}
+
+% === PAKIETY DO GRAFIKI I WYKRESÓW ===
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc,patterns,decorations.pathreplacing,shadows,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% === NAGŁÓWKI I STOPKI ===
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\nouppercase{\leftmark}}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{\footnotesize Uniwersytet Rzeszowski \textbullet\ Projekt Inżynierski \textbullet\ 2024/2025}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\setlength{\headheight}{18pt}
+
+% === SEKCJE – KOLOROWE I CZYTELNE ===
+\usepackage{titlesec}
+
+% Licznik do śledzenia aktualnego rozdziału
+\newcommand{\sectioncolor}{black}
+
+% Format dla section (rozdział główny)
+\titleformat{\section}
+{\sffamily\LARGE\bfseries\color{\sectioncolor}}
+{\colorbox{\sectioncolor}{\color{white}\parbox{1.5em}{\centering\thesection}}}{1em}{}
+[\titlerule]
+
+\titlespacing*{\section}{0pt}{3.5ex plus 1ex minus .2ex}{2.3ex plus .2ex}
+
+% Format dla subsection
+\titleformat{\subsection}
+{\sffamily\Large\bfseries\color{\sectioncolor}}
+{\thesubsection.}{1em}{}
+
+\titlespacing*{\subsection}{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
+% Format dla subsubsection
+\titleformat{\subsubsection}
+{\sffamily\large\bfseries\color{\sectioncolor}}
+{\thesubsubsection.}{1em}{}
+
+\titlespacing*{\subsubsection}{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
+% === LISTINGI KODU – ESTETYCZNE I KOLOROWE ===
+\usepackage{listings}
+
+% Definicja języka JavaScript/TypeScript
+\lstdefinelanguage{JavaScript}{
+  keywords={typeof, new, true, false, catch, function, return, null, catch, switch, var, if, in, while, do, else, case, break, const, let, async, await, export, import, from, default, class, extends, constructor, this, super},
+  keywordstyle=\color{blue!70!black}\bfseries,
+  ndkeywords={class, export, boolean, throw, implements, import, this, interface, Promise, any, string, number},
+  ndkeywordstyle=\color{purple!70!black}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=false,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{gray}\ttfamily\itshape,
+  stringstyle=\color{red!70!black}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\small,
+    keywordstyle=\bfseries\color{blue!70!black},
+    commentstyle=\itshape\color{gray},
+    stringstyle=\color{red!70!black},
+    numberstyle=\tiny\color{gray},
+    numbers=left,
+    numbersep=10pt,
+    frame=single,
+    rulecolor=\color{codeframe},
+    breaklines=true,
+    captionpos=b,
+    abovecaptionskip=12pt,
+    belowcaptionskip=10pt,
+    xleftmargin=15pt,
+    xrightmargin=10pt,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false,
+    tabsize=2
+}
+\lstset{style=mystyle}
+
+% Obsługa polskich znaków w listingach
+\lstset{
+    literate={ą}{{\k{a}}}1 {ć}{{'c}}1 {ę}{{\k{e}}}1 {ł}{{\l{}}}1 {ń}{{'n}}1
+             {ó}{{'o}}1 {ś}{{'s}}1 {ź}{{'z}}1 {ż}{{\.z}}1
+             {Ą}{{\k{A}}}1 {Ć}{{'C}}1 {Ę}{{\k{E}}}1 {Ł}{{\L{}}}1 {Ń}{{'N}}1
+             {Ó}{{'O}}1 {Ś}{{'S}}1 {Ź}{{'Z}}1 {Ż}{{\.Z}}1
+}
+
+% === POZOSTAŁE PAKIETY ===
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{pdflscape}
+\usepackage{enumitem}
+\usepackage{amsmath,amssymb}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tocloft}
+\usepackage{setspace}
+\onehalfspacing
+
+% === USTAWIENIA HIPERŁĄCZY I METADANYCH PDF ===
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue!60!black,
+    pdftitle={System do Zarządzania Rezerwacjami i Zasobami dla Małych Firm},
+    pdfauthor={Piotr Pająk, Karol Ogonowski, Dawid Sudoł, Milena Pasterczyk},
+    pdfsubject={Projekt Zespołowy – Aplikacje Internetowe},
+    pdfkeywords={finanse osobiste, React, .NET 8, TypeScript, PostgreSQL, Docker, Clean Architecture}
+}
+
+% === WŁASNE KOMENDY ===
+\newcommand{\tech}[1]{\texttt{#1}}
+\addto\captionspolish{%
+  \renewcommand{\refname}{Bibliografia}%
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% POCZĄTEK DOKUMENTU
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+% === NOWA PIĘKNA STRONA TYTUŁOWA ===
+\begin{titlepage}
+    \begin{tikzpicture}[remember picture,overlay]
+        % Tło z gradientem (symulowane pasami)
+        \fill[titleblue] (current page.north west) rectangle (current page.south east);
+        
+        % Dekoracyjne kształty geometryczne
+        \fill[titlelightblue,opacity=0.3] ([xshift=-5cm,yshift=-3cm]current page.north east) circle (8cm);
+        \fill[accentorange,opacity=0.2] ([xshift=8cm,yshift=5cm]current page.south west) circle (10cm);
+        
+        % Linie dekoracyjne
+        \draw[white,line width=2pt,opacity=0.5] ([yshift=-8cm]current page.north west) -- ([yshift=-8cm]current page.north east);
+        
+        % Ikony technologiczne (symbole)
+        \node[white,opacity=0.1,font=\fontsize{100}{120}\selectfont] at ([xshift=-8cm,yshift=8cm]current page.center) {\{...\}};
+        \node[white,opacity=0.1,font=\fontsize{80}{96}\selectfont] at ([xshift=8cm,yshift=-6cm]current page.center) {</>};
+    \end{tikzpicture}
+    
+    \begin{tikzpicture}[remember picture,overlay]
+
+
+        
+        % Główny tytuł
+        \node[text width=14cm,align=center] at ([yshift=-8cm]current page.north) {
+            \color{white}\fontsize{36}{43}\selectfont\bfseries\sffamily
+            System do Zarządzania \\[0.2cm]
+         Rezerwacjami dla Małych Firm
+          
+        };
+        
+        % Podtytuł
+        \node[text width=12cm,align=center] at ([yshift=-11cm]current page.north) {
+            \color{white}\fontsize{18}{22}\selectfont\sffamily
+            Dokumentacja techniczna i użytkownika
+        };
+        
+        % Ramka z informacjami o przedmiocie
+        \node at ([yshift=-14cm]current page.north) {
+            \begin{tikzpicture}
+                \fill[white,opacity=0.95,rounded corners=5pt] (-5.5,-1.5) rectangle (5.5,1.5);
+                \node[titleblue,font=\Large\bfseries\sffamily] at (0,0.8) {Projekt Inżynierski};
+                \node[black!70,font=\normalsize] at (0,0) {Projekt Zespołowy};
+                \node[black!70,font=\normalsize] at (0,-0.7) {Prowadzący: mgr inż. Aleksander Wojtowicz};
+            \end{tikzpicture}
+        };
+        
+        % Dane studenta
+        \node[text width=10cm,align=left] at ([xshift=-1cm,yshift=-19cm]current page.north) {
+            \color{white}\large\sffamily
+            \begin{tabular}{@{}ll@{}}
+                \textbf{Autor:} & Piotr Pająk, Karol Ogonowski, Dawid Sudoł, Milena Pasterczyk \\[0.2cm]
+                \textbf{Nr indeksu:} & pp131483, ko131480, ds131517, mp131485 \\[0.2cm]
+                \textbf{Grupa:} & Tak \\
+            \end{tabular}
+        };
+        
+        % Technologie (odznaki)
+        \node at ([yshift=4.5cm]current page.south) {
+            \begin{tikzpicture}
+                % Skok co 2.7 (0, 2.7, 5.4, 8.1, 10.8)
+                \foreach \tech/\x in {React/0, .NET/2.7, TypeScript/5.4, PostgreSQL/8.1, Docker/10.8} {
+                    % Szerokość 2.5, wysokość 0.6
+                    \fill[white,rounded corners=3pt] (\x,0) rectangle +(2.5,0.6);
+                    % Środek tekstu: x + 1.25
+                    \node[titleblue,font=\small\bfseries\sffamily] at (\x+1.25,0.3) {\tech};
+                }
+            \end{tikzpicture}
+        };
+        
+        % Stopka
+        \node[text width=12cm,align=center] at ([yshift=2cm]current page.south) {
+            \color{white}\large\sffamily
+            Rzeszów, \today\\[0.2cm]
+            \normalsize Uniwersytet Rzeszowski
+        };
+        
+        % Dekoracyjna linia u dołu
+        \draw[white,line width=2pt,opacity=0.5] ([yshift=3.5cm]current page.south west) -- ([yshift=3.5cm]current page.south east);
+    \end{tikzpicture}
+\end{titlepage}
+
+% === OŚWIADCZENIE ===
+\newpage
+\thispagestyle{empty}
+\vspace*{6cm}
+\begin{center}
+    {\LARGE\bfseries\color{titleblue} Oświadczenie}
+\end{center}
+\vspace{2cm}
+\noindent Ja, niżej podpisany Jan Kowalski, student Instytutu Informatyki Uniwersytetu Rzeszowskiego, oświadczam, że niniejsza praca została wykonana przeze mnie samodzielnie i nie zawiera treści uzyskanych w sposób niezgodny z obowiązującymi przepisami.
+
+\vspace{1.5cm}
+\noindent Oświadczam również, że przedstawiona praca nie była wcześniej przedmiotem procedur związanych z uzyskaniem zaliczenia na tej lub innej uczelni.
+
+\vspace{2.5cm}
+\noindent Rzeszów, \today
+
+\vspace{2cm}
+\begin{flushright}
+    \makebox[6cm]{\hrulefill}\\[0.4cm]
+    {\small (podpis autora)}
+\end{flushright}
+
+% === STRESZCZENIE ===
+\newpage
+\section*{Streszczenie}
+\addcontentsline{toc}{section}{Streszczenie}
+
+Niniejsza dokumentacja przedstawia aplikację webową do zarządzania budżetem osobistym, która umożliwia użytkownikom śledzenie dochodów i wydatków, kategoryzowanie transakcji, tworzenie miesięcznych budżetów oraz analizę nawyków finansowych w czasie rzeczywistym.
+
+Projekt został zrealizowany w architekturze klient-serwer z wykorzystaniem technologii .NET 8 na backendzie oraz React 18 z TypeScript na frontendzie. Aplikacja korzysta z bazy danych PostgreSQL 15, Redis do cachowania oraz jest w pełni skonteneryzowana (Docker + Docker Compose). Wdrożenie jest w pełni zautomatyzowane za pomocą pipeline'u CI/CD w GitHub Actions.
+
+Dokumentacja zawiera szczegółowy opis architektury (zgodnej z zasadami Clean Architecture), modelu danych, implementacji kluczowych funkcjonalności, dokumentacji REST API, przeprowadzonych testów jednostkowych i end-to-end oraz zastosowanych praktyk DevOps i mechanizmów bezpieczeństwa.
+
+\vspace{1cm}
+\noindent\textbf{Słowa kluczowe:} finanse osobiste, budżet domowy, React, .NET 8, TypeScript, PostgreSQL, Docker, Clean Architecture, CQRS, JWT, Redis.
+
+% === SPISY ===
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\addcontentsline{toc}{section}{Spis rysunków}
+\newpage
+\listoftables
+\addcontentsline{toc}{section}{Spis tabel}
+\newpage
+\lstlistoflistings
+\addcontentsline{toc}{section}{Spis listingów}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% TREŚĆ GŁÓWNA
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\include{rozdziały/wprowadzenie}
+\include{rozdziały/architektura}
+\include{rozdziały/implementacja}
+\include{rozdziały/frontend}
+\include{rozdziały/wdrozenie}
+\include{rozdziały/wnioski}
+
+
+% === BIBLIOGRAFIA ===
+\newpage
+\renewcommand{\sectioncolor}{black}
+
+% Ustawienie stylu bibliografii na IEEE Transaction
+\bibliographystyle{IEEEtran}
+
+% Wskazanie pliku bazy bibliograficznej
+\bibliography{bibliografia.bib}
+
+
+\end{document}

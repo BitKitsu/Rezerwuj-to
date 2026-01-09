@@ -1,0 +1,73 @@
+\newpage
+\renewcommand{\sectioncolor}{chap1}
+\section{Wprowadzenie}
+
+\subsection{Kontekst i motywacja}
+Dzisiaj tradycyjne metody, jak papierowe kalendarze czy proste tabele, stają się niewystarczające. Bardzo łatwo o błąd: wystarczy jedna pomyłka w zapisanej godzinie lub dwa terminy nałożone na siebie, by stracić klienta i pieniądze.
+
+Współczesny biznes potrzebuje narzędzi, które automatyzują obsługę klienta i pozwalają zarządzać grafikiem w czasie rzeczywistym. Ten system został zaprojektowany, aby pomóc właścicielom firm w codziennych obowiązkach. Umożliwia on łatwe śledzenie wolnych terminów i pozwala klientom samodzielnie rezerwować wizyty. Dzięki temu przedsiębiorca unika chaosu w kalendarzu, podnosi jakość obsługi i może skupić się na rozwijaniu swojego biznesu.
+
+\subsection{Cel projektu}
+Głównym celem projektu było stworzenie nowoczesnej, bezpiecznej i wydajnej aplikacji webowej klasy produkcyjnej, służącej do inteligentnego planowania wizyt oraz zarządzania zasobami firmy.
+System został zbudowany tak, aby z jednej strony maksymalnie uprościć klientowi drogę do rezerwacji terminu, a z drugiej – dostarczyć przedsiębiorcy zaawansowane narzędzie do pełnej kontroli nad grafikiem i personelem.
+
+\subsection{Zakres projektu}
+Projekt obejmuje pełen cykl wytwarzania oprogramowania, od analizy wymagań po wdrożenie na serwerze produkcyjnym.
+\begin{itemize}[leftmargin=*]
+
+\item \textbf{Backend:} C\# .NET 8 \cite{dotnet_microsoft}, ASP.NET Core, Entity Framework Core
+\item \textbf{Frontend:} React 19 \cite{react_meta}, Vite 7 \cite{vite_guide}, Axios 1.x \cite{axios_docs}
+\item \textbf{Baza danych:} PostgreSQL 15 \cite{postgresql_docs} (3 osobne bazy danych)
+\item \textbf{Messaging:} RabbitMQ 3.12 \cite{rabbitmq_docs}
+\item \textbf{Komunikacja Real-time:} SignalR 8.0 \cite{signalr_microsoft}
+\item \textbf{Konteneryzacja:} Docker, Docker Compose \cite{docker_docs}
+\item \textbf{Autentykacja:} JWT \cite{jwt_rfc} (mechanizm Access + Refresh Tokens)
+\item \textbf{Zapewnienie jakości:} Vitest 2 \cite{vitest_guide}
+  
+\end{itemize}
+
+\subsection{Użyte technologie}
+\begin{table}[H]
+    \centering
+    \caption{Stack technologiczny projektu}
+    \label{tab:stack}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabularx}{\textwidth}{@{} l l X @{}}
+        \toprule
+        \textbf{Kategoria} & \textbf{Technologia} & \textbf{Szczegóły / Uzasadnienie} \\
+        \midrule
+        
+        % Sekcja Backend
+        \multicolumn{3}{@{}l}{\textit{\color{gray}Backend \& Dane}} \\ 
+        \addlinespace[0.3em]
+        Platforma & \textbf{.NET 8.0} & Wykorzystanie mikroserwisów (Identity oraz Reservation). \\
+        ORM & \textbf{EF Core 8.0} & Bezpieczny dostęp do danych i automatyczne migracje bazy. \\
+        Baza danych & \textbf{PostgreSQL 15} & Trzy niezależne bazy zapewniające izolację danych i spójność. \\
+        Messaging & \textbf{RabbitMQ 3.12} & Broker komunikatów zapewniający asynchroniczną wymianę danych. \\
+        \midrule
+        
+        % Sekcja Frontend
+        \multicolumn{3}{@{}l}{\textit{\color{gray}Frontend \& UI}} \\
+        \addlinespace[0.3em]
+        Framework & \textbf{React 19} & Najnowsza wersja biblioteki zapewniająca wysoką wydajność UI. \\
+        Build Tool & \textbf{Vite 7} & Szybki i nowoczesny system budowania aplikacji SPA. \\
+        Komunikacja & \textbf{Axios 1.x} & Klient HTTP z obsługą interceptorów dla tokenów JWT. \\
+        Real-time & \textbf{SignalR 8.0} & Komunikacja dwukierunkowa dla powiadomień w czasie rzeczywistym. \\
+        \midrule
+        
+        % Sekcja Infrastruktura
+        \multicolumn{3}{@{}l}{\textit{\color{gray}Infrastruktura \& Bezpieczeństwo}} \\
+        \addlinespace[0.3em]
+        Autentykacja & \textbf{JWT} & System tokenów Access + Refresh dla bezpiecznego dostępu. \\
+        Kontenery & \textbf{Docker} & Konteneryzacja usług przy użyciu Docker Compose. \\
+        \midrule
+        
+        % Sekcja QA
+        \multicolumn{3}{@{}l}{\textit{\color{gray}Zapewnienie Jakości (QA)}} \\
+        \addlinespace[0.3em]
+        Testy Frontend & \textbf{Vitest 2} & Nowoczesny framework testowy zintegrowany z Vite. \\
+        Jakość kodu & \textbf{ESLint 9} & Narzędzie do statycznej analizy i utrzymania standardów kodu. \\
+        
+        \bottomrule
+    \end{tabularx}
+\end{table}

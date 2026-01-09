@@ -1,0 +1,105 @@
+\newpage
+\renewcommand{\sectioncolor}{chap2}
+\section{Architektura systemu}
+
+\subsection{Architektura wysokopoziomowa}
+Projekt został zrealizowany w modelu mikroserwisowym, co pozwala na pełną izolację odpowiedzialności za poszczególne obszary biznesowe systemu rezerwacji. Całość komunikacji zewnętrznej opiera się na protokole HTTPS i jest zarządzana przez centralny punkt dostępowy, który dba o bezpieczeństwo i odpowiednie przekierowanie ruchu do usług wewnętrznych.
+\usetikzlibrary{shapes.geometric, arrows, positioning, shadows}
+
+% Definicja stylów bloków
+\tikzstyle{client} = [rectangle, rounded corners, minimum width=2cm, minimum height=1cm, text centered, draw=black, fill=blue!10, shadow]
+\tikzstyle{gateway} = [trapezium, trapezium left angle=70, trapezium right angle=70, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=orange!20, shadow]
+\tikzstyle{service} = [rectangle, minimum width=3cm, minimum height=1.2cm, text centered, draw=black, fill=green!10, shadow]
+\tikzstyle{database} = [cylinder, cylinder uses custom fill, cylinder body fill=yellow!10, cylinder end fill=yellow!20, shape border rotate=90, minimum width=1.5cm, minimum height=1.5cm, text centered, draw=black, shadow]
+\tikzstyle{rabbitmq} = [ellipse, minimum width=2.5cm, minimum height=1cm, text centered, draw=black, fill=red!10, shadow]
+\tikzstyle{arrow} = [thick,->,>=stealth]
+\tikzstyle{line} = [thick,-]
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[node distance=2cm]
+
+        % Warstwa Klienta
+        \node (react) [client] {React Frontend (SPA)};
+
+        % API Gateway
+        \node (gateway) [gateway, below=of react] {API Gateway (5000)};
+
+        % Mikroserwisy
+        \node (identity) [service, below left=of gateway, xshift=-1cm] {Identity Service (5001)};
+        \node (reservation) [service, below=of gateway] {Reservation Service (5002)};
+        \node (notification) [service, below right=of gateway, xshift=1cm] {Notification Service (5003)};
+
+        % Bazy danych
+        \node (db1) [database, below=of identity] {PostgreSQL};
+        \node (db2) [database, below=of reservation] {PostgreSQL};
+        \node (db3) [database, below=of notification] {PostgreSQL};
+
+        % RabbitMQ
+        \node (mq) [rabbitmq, below=of db2, yshift=0.5cm] {RabbitMQ (Broker)};
+
+        % Połączenia Klient -> Gateway
+        \draw [arrow] (react) -- (gateway);
+
+        % Połączenia Gateway -> Serwisy
+        \draw [arrow] (gateway) -| (identity);
+        \draw [arrow] (gateway) -- (reservation);
+        \draw [arrow] (gateway) -| (notification);
+
+        % Połączenia Serwis -> Baza
+        \draw [arrow] (identity) -- (db1);
+        \draw [arrow] (reservation) -- (db2);
+        \draw [arrow] (notification) -- (db3);
+
+        % Komunikacja asynchroniczna (RabbitMQ)
+        \draw [line, dashed, red] (identity.west) -- ++(-1,0) |- (mq.west) node[pos=0.2, left] {Events};
+        \draw [line, dashed, red] (reservation.east) -- ++(1,0) |- (mq.east);
+        \draw [line, dashed, red] (mq.north) -- (notification.south);
+
+    \end{tikzpicture}
+    \caption{Architektura mikroserwisowa systemu rezerwacji}
+    \label{fig:architektura}
+\end{figure}
+
+Główne komponenty systemu obejmują:
+
+
+React Frontend (SPA): Warstwa prezentacji odpowiedzialna za interakcję z użytkownikiem.
+
+
+API Gateway (Port 5000): Brama sieciowa zarządzająca przepływem żądań do odpowiednich usług.
+
+
+Identity Service (Port 5001): Serwis odpowiedzialny za autentykację, autoryzację oraz zarządzanie profilami użytkowników.
+
+
+
+Reservation Service (Port 5002): Centralny moduł zarządzający zasobami (firmy, pracownicy) oraz procesem planowania wizyt.
+
+
+Notification Service (Port 5003): Usługa zajmująca się obsługą powiadomień i komunikacji z klientami.
+
+
+RabbitMQ: Broker komunikatów umożliwiający asynchroniczną wymianę zdarzeń (Events) pomiędzy serwisami.
+
+
+
+Bazy Danych (PostgreSQL): Trzy odizolowane bazy danych zapewniające separację stanów poszczególnych mikroserwisów.
+
+\subsection{Wzorce architektoniczne}
+.2. Wzorce architektoniczne i projektowe
+W procesie projektowania i implementacji systemu wykorzystano uznane wzorce architektoniczne, które zapewniają wysoką jakość oprogramowania, łatwość testowania oraz niezależność od zewnętrznych bibliotek i narzędzi.
+
+1. Architektura Mikroserwisowa (Microservices)
+System został podzielony na niezależne jednostki: \textit{IdentityService}, \textit{ReservationService} oraz \textit{NotificationService}. Każda z nich działa w osobnym procesie (kontenerze) i posiada własną bazę danych. Pozwala to na: \begin{itemize} \item \textbf{Izolację błędów:} Awaria serwisu powiadomień nie przerywa pracy serwisu rezerwacji. \item \textbf{Niezależne skalowanie:} Możliwość zwiększenia zasobów tylko dla najbardziej obciążonego modułu (np. rezerwacji). \end{itemize}
+
+2. API Gateway (Ocelot)
+Zastosowano wzorzec bramy API, która stanowi jedyny punkt wejścia dla aplikacji frontendowej. Brama (port 5000) odpowiada za: \begin{itemize} \item \textbf{Routing:} Przekierowywanie żądań HTTP do odpowiednich mikroserwisów na podstawie ścieżki adresu. \item \textbf{Agregację:} Uproszczenie komunikacji po stronie klienta, który nie musi znać adresów IP i portów poszczególnych serwisów. \end{itemize}
+
+3. CQRS (Command Query Responsibility Segregation)
+Wewnątrz mikroserwisów zastosowano wzorzec CQRS, rozdzielający operacje modyfikujące dane od operacji ich odczytu. \begin{itemize} \item \textbf{Commands:} Operacje takie jak \textit{CreateAppointment} (utworzenie rezerwacji), które zmieniają stan bazy danych. \item \textbf{Queries:} Operacje pobierające dane, np. \textit{GetAvailableSlots} (pobranie wolnych terminów), zoptymalizowane pod kątem szybkości wyświetlania w interfejsie użytkownika. \end{itemize}
+
+4. Architektura sterowana zdarzeniami (Event-Driven Architecture)
+Do komunikacji między mikroserwisami wykorzystano broker komunikatów \textbf{RabbitMQ}. Serwisy komunikują się asynchronicznie za pomocą zdarzeń (\textit{Events}). \textit{Przykład:} Po pomyślnym zapisaniu rezerwacji w \textit{ReservationService}, wysyłany jest komunikat do kolejki. \textit{NotificationService} odbiera go i inicjuje wysyłkę e-maila do klienta, nie blokując przy tym działania głównego serwisu rezerwacji.
+
+5. Wzorzec Repozytorium (Repository Pattern)
+Zastosowano warstwę abstrakcji między logiką biznesową a systemem bazodanowym PostgreSQL. Repozytoria (np. \textit{IAppointmentRepository}) ukrywają szczegóły implementacyjne \textit{Entity Framework Core}, co pozwala na łatwą zmianę sposobu przechowywania danych w przyszłości bez modyfikacji reguł biznesowych systemu.

@@ -1,0 +1,42 @@
+\newpage
+\renewcommand{\sectioncolor}{chap3}
+\section{Implementacja kluczowych funkcjonalności}
+
+\subsection{Bezpieczeństwo i zarządzanie tożsamością (JWT)}
+Fundamentem bezpieczeństwa systemu jest bezstanowa autoryzacja oparta na standardzie \textit{JSON Web Token}. Proces ten został zaimplementowany w ramach \textit{Identity Service}. Mechanizm nie ogranicza się jedynie do generowania tokenów dostępu (\textit{Access Token}), ale wspiera również długotrwałe sesje poprzez tokeny odświeżania (\textit{Refresh Tokens}) przechowywane w bazie danych PostgreSQL. Pozwala to na zachowanie wysokiego poziomu bezpieczeństwa przy jednoczesnym komforcie użytkowania aplikacji.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}
+\subsection{Zarządzanie strukturą biznesową i ofertą usług}
+System umożliwia modelowanie wielooddziałowych przedsiębiorstw. Kluczowym wyzwaniem było stworzenie elastycznego katalogu usług, gdzie każda usługa może posiadać unikalne parametry, takie jak cena, czas trwania czy tzw. \textit{buffer time} (czas techniczny po wizycie). Implementacja wykorzystuje \textit{Entity Framework Core} do obsługi relacji między firmą, jej filiami a dostępnym asortymentem usług.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}
+
+\subsection{Algorytm wyliczania dostępności i rezerwacji terminów}
+Najbardziej złożonym elementem systemu jest moduł dynamicznego generowania dostępnych slotów czasowych. Algorytm w czasie rzeczywistym analizuje trzy źródła danych: zdefiniowane harmonogramy pracy pracowników, zarejestrowane przerwy (\textit{Staff Breaks}) oraz istniejące już rezerwacje w wybranym dniu. Wynikiem jest lista punktualnych przedziałów czasowych, które użytkownik może zarezerwować.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}
+\subsection{Asynchroniczny obieg zdarzeń i powiadomień}
+W celu odciążenia głównej logiki rezerwacji, komunikacja z użytkownikiem (np. potwierdzenie e-mail) została odseparowana za pomocą brokera \textit{RabbitMQ}. Zastosowano wzorzec \textit{Publisher-Subscriber} – po pomyślnym zapisaniu wizyty w bazie danych, wysyłane jest zdarzenie \textit{AppointmentCreated}. Jest ono konsumowane przez \textit{Notification Service}, który odpowiada za renderowanie treści na podstawie szablonów i wysyłkę SMTP.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}
+
+\subsection{System opinii i ocen (\textit{Reviews})}
+Po zrealizowanej usłudze, system pozwala na wystawienie oceny konkretnemu oddziałowi firmy. Moduł ten został zaimplementowany z uwzględnieniem agregacji danych – każda nowa opinia wpływa na średnią ocenę widoczną w wyszukiwarce. Zastosowanie osobnej tabeli dla recenzji pozwala na budowanie zaufania między klientami a usługodawcami.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}
+\subsection{Dziennik audytowy i śledzenie zmian (\textit{Audit Log})}
+W trosce o integralność danych, szczególnie w kontekście zarządzania pracownikami i rezerwacjami, wdrożono mechanizm audytu. Każda istotna zmiana stanu systemu (np. zmiana roli pracownika, anulowanie wizyty) jest rejestrowana w dedykowanej tabeli wraz z informacją o autorze zmiany, adresie IP oraz sygnaturze czasowej. Zapewnia to pełną transparentność działań administratorów i menedżerów.
+
+\begin{lstlisting}[language=JavaScript, caption=Przykładowy store Zustand do zarządzania transakcjami]
+
+\end{lstlisting}

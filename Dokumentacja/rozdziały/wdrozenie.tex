@@ -1,0 +1,66 @@
+\newpage
+\renewcommand{\sectioncolor}{chap5}
+\section{Wdrożenie i DevOps}
+
+\subsection{Konteneryzacja z Docker Compose}
+Cała architektura systemu (Frontend, Backend, Baza danych, Cache) jest zarządzana przy pomocy narzędzia \textbf{Docker Compose}. Podejście to zapewnia izolację procesów oraz spójność środowiska uruchomieniowego (dev/prod) \cite{docker}.
+
+\begin{lstlisting}[language=bash, caption=Fragment pliku docker-compose.yml definiujący usługi]
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: budgetapp_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+      
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+      
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+      - redis
+      
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+\end{lstlisting}
+
+\subsection{Pipeline CI/CD (GitHub Actions)}
+Proces integracji i wdrażania (CI/CD) został w pełni zautomatyzowany z wykorzystaniem \textbf{GitHub Actions} \cite{ghactions}. Workflow uruchamiany jest przy każdym wypchnięciu zmian na gałąź \texttt{main} i obejmuje następujące kroki:
+\begin{enumerate}[leftmargin=*]
+    \item Uruchomienie testów jednostkowych (xUnit, Jest) i integracyjnych.
+    \item Budowanie obrazów kontenerów Docker.
+    \item Skanowanie pod kątem podatności bezpieczeństwa.
+    \item Publikacja obrazów do prywatnego rejestru (GitHub Container Registry).
+    \item Automatyczny deployment na środowisko produkcyjne (strategia \textit{rolling update}).
+\end{enumerate}
+
+\subsection{Monitoring i logi}
+W celu zapewnienia obserwowalności systemu (observability), aplikacja integruje nowoczesne narzędzia monitoringu:
+\begin{itemize}
+    \item \textbf{Backend:} Wykorzystanie biblioteki \textbf{Serilog} \cite{serilog} do strukturalnego logowania zdarzeń (structured logging).
+    \item \textbf{Frontend:} Integracja z platformą \textbf{Sentry} \cite{sentry} do śledzenia błędów i wydajności aplikacji w czasie rzeczywistym po stronie klienta.
+\end{itemize}
